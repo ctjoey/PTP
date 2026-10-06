@@ -29,7 +29,7 @@ struct OnboardingView: View {
                 }
                 .card(padding: 14)
 
-                if ServerConfig.bundled == nil {
+                if showsServerField {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Game server").kicker()
                         TextField("pick-the-play.onrender.com", text: $serverText)
@@ -38,7 +38,9 @@ struct OnboardingView: View {
                             .autocorrectionDisabled()
                             .padding(14)
                             .background(Theme.surface2, in: RoundedRectangle(cornerRadius: 12))
-                        Text("Ask whoever runs the game for its address.").font(.footnote).foregroundStyle(Theme.muted)
+                        Text(ServerConfig.bundled == nil ? "Ask whoever runs the game for its address."
+                                                         : "Clear this to use the built-in server.")
+                            .font(.footnote).foregroundStyle(Theme.muted)
                     }
                 }
 
@@ -91,6 +93,10 @@ struct OnboardingView: View {
         .onAppear { serverText = state.server?.absoluteString ?? "" }
     }
 
+    /// Shown when the build has no server, or a saved address replaced the built-in one (so a typo
+    /// or a finished Wi-Fi game can always be corrected from here).
+    private var showsServerField: Bool { ServerConfig.bundled == nil || state.server != ServerConfig.bundled }
+
     private func scoringRow(_ title: String, _ points: String) -> some View {
         HStack {
             Text(title).foregroundStyle(Theme.text)
@@ -107,7 +113,7 @@ struct OnboardingView: View {
             error = "Pick a username with at least 2 characters."
             return
         }
-        if ServerConfig.bundled == nil {
+        if showsServerField {
             guard state.setServer(serverText) else {
                 error = "Enter the game server address."
                 return

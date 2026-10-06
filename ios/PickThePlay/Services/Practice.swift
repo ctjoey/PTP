@@ -1,4 +1,4 @@
-import Foundation
+import SwiftUI
 
 /// The same rules the server uses (models.score_prediction): +10 type, +10 direction, +30 for both.
 enum ScoreRules {

@@ -155,6 +155,8 @@ final class AppState: ObservableObject {
     func activate(lounge id: String?) {
         guard id != activeLoungeID else { return }
         activeLoungeID = id
+        ranks["lounge"] = nil  // arrows belonged to the previous lounge's board
+        rankMoves["lounge"] = nil
         persist()
         connect()
     }
@@ -244,14 +246,24 @@ final class AppState: ObservableObject {
         clockOffset = snapshot.serverTime - Date().timeIntervalSince1970
         if let me = snapshot.me { username = me.username }
         trackRankMoves(snapshot)
-        if let play = snapshot.play, play.state == .open, pickPlayID != play.id {
+        self.snapshot = snapshot
+        guard let play = snapshot.play, play.state == .open else { return }
+        if pickPlayID != play.id {
             pickPlayID = play.id
             pickType = snapshot.myPrediction?.playType
             pickDirection = snapshot.myPrediction?.direction
             savedPick = snapshot.myPrediction.map { Self.key($0.playType, $0.direction) }
             saving = false
+        } else if saving, snapshot.event == "sync" {
+            // A reconnect swallowed the reply to our pick: trust the server's copy, or send it again
+            // (the server upserts picks, so a repeat is harmless).
+            if let mine = snapshot.myPrediction, mine.playType == pickType, mine.direction == pickDirection {
+                savedPick = Self.key(mine.playType, mine.direction)
+                saving = false
+            } else {
+                submitIfReady()
+            }
         }
-        self.snapshot = snapshot
     }
 
     /// Rank changes since the last scored play (▲2 / ▼1 on the leaderboard).

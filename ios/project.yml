@@ -22,8 +22,10 @@ targets:
     sources:
       - path: PickThePlay
         excludes: ["PrivacyInfo.xcprivacy"]
-    resources:
+      # XcodeGen has no target-level `resources:` key; the manifest must be a source entry routed
+      # to Copy Bundle Resources, or App Store Connect rejects the upload (ITMS-91053).
       - path: PickThePlay/PrivacyInfo.xcprivacy
+        buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.yourcompany.PickThePlay
