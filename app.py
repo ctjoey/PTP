@@ -740,14 +740,39 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 app = create_app()
 
 
+def lan_ip() -> str | None:
+    """Best guess at this computer's Wi-Fi/LAN address (no packets are sent)."""
+    import socket
+
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+        try:
+            s.connect(("10.255.255.255", 1))
+            ip = s.getsockname()[0]
+        except OSError:
+            return None
+    return None if ip.startswith("127.") else ip
+
+
 if __name__ == "__main__":
+    import argparse
+
     import uvicorn
 
+    parser = argparse.ArgumentParser(description="Run the Pick the Play server.")
+    parser.add_argument("--phone", action="store_true",
+                        help="listen on your Wi-Fi network so phones on it can connect")
+    parser.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8000")))
+    cli = parser.parse_args()
+    host = "0.0.0.0" if cli.phone else os.environ.get("HOST", "127.0.0.1")
+
     logging.basicConfig(level=logging.INFO)
+    if host == "0.0.0.0":
+        ip = lan_ip()
+        if ip:
+            print(f"\n  On your iPhone (same Wi-Fi), open:  http://{ip}:{cli.port}/"
+                  f"\n  Admin console:                      http://{ip}:{cli.port}/admin\n", flush=True)
+        else:
+            print("\n  Could not detect this computer's Wi-Fi address. Look it up in your "
+                  f"network settings and open http://<that-address>:{cli.port}/ on your iPhone.\n", flush=True)
     # The hub lives in process memory, so run a single worker.
-    uvicorn.run(
-        "app:app",
-        host=os.environ.get("HOST", "127.0.0.1"),
-        port=int(os.environ.get("PORT", "8000")),
-        reload=bool(os.environ.get("PTP_RELOAD")),
-    )
+    uvicorn.run("app:app", host=host, port=cli.port, reload=bool(os.environ.get("PTP_RELOAD")))
