@@ -10,10 +10,16 @@ Real-time sync uses two WebSocket endpoints (``/ws`` for players, ``/ws/admin``
 for the console). Every state change is pushed to each player as a personalised
 snapshot, so clients simply re-render whatever the server sends.
 
-Run locally:  ``uvicorn app:app --reload``  (or ``python app.py``)
+Run locally:  ``python app.py``  (add ``--phone`` to open it from phones on your Wi-Fi)
 """
 
 from __future__ import annotations
+
+import sys
+
+if sys.version_info < (3, 11):  # models.py needs enum.StrEnum
+    sys.exit(f"Pick the Play needs Python 3.11 or newer (3.14 recommended); this is Python "
+             f"{sys.version.split()[0]}. Get it from https://www.python.org/downloads/")
 
 import asyncio
 import json
@@ -679,6 +685,9 @@ async def admin_socket(ws: WebSocket) -> None:
         await Hub.send(ws, ctrl.admin_message("sync"))
         while True:
             msg = await _receive_json(ws) or {}
+            if msg.get("type") == "ping":  # client keep-alive (also keeps sleepy hosts awake)
+                await Hub.send(ws, {"type": "pong", "server_time": time.time()})
+                continue
             action, request_id = msg.pop("action", None), msg.pop("request_id", None)
             if action == "sync":
                 await Hub.send(ws, ctrl.admin_message("sync"))
@@ -741,16 +750,35 @@ app = create_app()
 
 
 def lan_ip() -> str | None:
-    """Best guess at this computer's Wi-Fi/LAN address (no packets are sent)."""
+    """Best guess at this computer's Wi-Fi/LAN address.
+
+    Connecting a UDP socket only picks a route; no packets are sent.
+    """
     import socket
 
-    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+    for probe in ("8.8.8.8", "192.168.0.1", "10.0.0.1"):
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            try:
+                s.connect((probe, 80))
+                ip = s.getsockname()[0]
+            except OSError:
+                continue
+        if not ip.startswith(("127.", "169.254.", "0.")):
+            return ip
+    return None
+
+
+def port_is_free(host: str, port: int) -> bool:
+    import socket
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        if os.name != "nt":  # like uvicorn: don't trip over sockets lingering in TIME_WAIT
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
-            s.connect(("10.255.255.255", 1))
-            ip = s.getsockname()[0]
+            s.bind((host, port))
         except OSError:
-            return None
-    return None if ip.startswith("127.") else ip
+            return False
+    return True
 
 
 if __name__ == "__main__":
@@ -765,14 +793,25 @@ if __name__ == "__main__":
     cli = parser.parse_args()
     host = "0.0.0.0" if cli.phone else os.environ.get("HOST", "127.0.0.1")
 
+    if not port_is_free(host, cli.port):
+        flag = " --phone" if cli.phone else ""
+        sys.exit(f"\n  Port {cli.port} is already in use (is Pick the Play already running in another window?)."
+                 f"\n  Close that window, or use another port:  python app.py{flag} --port {cli.port + 1}\n")
+
     logging.basicConfig(level=logging.INFO)
     if host == "0.0.0.0":
         ip = lan_ip()
-        if ip:
-            print(f"\n  On your iPhone (same Wi-Fi), open:  http://{ip}:{cli.port}/"
-                  f"\n  Admin console:                      http://{ip}:{cli.port}/admin\n", flush=True)
-        else:
-            print("\n  Could not detect this computer's Wi-Fi address. Look it up in your "
-                  f"network settings and open http://<that-address>:{cli.port}/ on your iPhone.\n", flush=True)
+        lines = (
+            [f"On your iPhone (same Wi-Fi), open:  http://{ip}:{cli.port}/",
+             f"Admin console:                      http://{ip}:{cli.port}/admin"]
+            if ip else
+            ["Could not detect this computer's Wi-Fi address. Look it up in your network",
+             f"settings and open http://<that-address>:{cli.port}/ on your iPhone."]
+        )
+        lines += ["",
+                  "Keep this window open while you play. Press Ctrl+C to stop.",
+                  "iPhone can't connect? Use the same Wi-Fi (not a guest network), turn off",
+                  "VPNs, and allow Python through this computer's firewall."]
+        print("\n" + "\n".join(f"  {line}" if line else "" for line in lines) + "\n", flush=True)
     # The hub lives in process memory, so run a single worker.
     uvicorn.run("app:app", host=host, port=cli.port, reload=bool(os.environ.get("PTP_RELOAD")))

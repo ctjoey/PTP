@@ -4,7 +4,7 @@ A real-time, second-screen prediction game for live pro football. Before every s
 **15 seconds** to call the play — **Run or Pass** and **Left, Center or Right** — then watch points
 and leaderboards update the instant the admin scores the play.
 
-The MVP is a single Python 3.12 FastAPI server with three web surfaces, synchronised over WebSockets:
+The MVP is a single Python FastAPI server with three web surfaces, synchronised over WebSockets:
 
 | Surface | URL | Who |
 | --- | --- | --- |
@@ -17,16 +17,28 @@ The MVP is a single Python 3.12 FastAPI server with three web surfaces, synchron
 
 ---
 
+> **Want to play on your iPhone?** Follow the step-by-step **[iPhone guide](IPHONE_GUIDE.md)**.
+
 ## Quick start
 
-Requires **Python 3.12**.
+Requires **Python 3.11 or newer**. Install **3.14** from python.org (also tested on 3.12 and 3.13;
+python.org no longer ships 3.12 installers). Avoid brand-new releases such as 3.15 until the
+dependencies publish builds for them.
+
+macOS / Linux:
 
 ```bash
-python3.12 -m venv venv
-source venv/bin/activate            # Windows: venv\Scripts\activate
-pip install -r requirements.txt
+python3.14 -m venv venv
+venv/bin/python -m pip install -r requirements.txt
+venv/bin/python app.py
+```
 
-python app.py                       # or: uvicorn app:app --reload
+Windows (PowerShell), with no activation step:
+
+```powershell
+py -3.14 -m venv venv
+.\venv\Scripts\python.exe -m pip install -r requirements.txt
+.\venv\Scripts\python.exe app.py
 ```
 
 Then open:
@@ -38,10 +50,18 @@ The SQLite database `game.db` is created automatically next to `app.py`. Delete 
 
 ### Play on your iPhone
 
-1. Start the server on your LAN: `HOST=0.0.0.0 python app.py`
-2. On the iPhone (same Wi-Fi), open `http://<your-computer-ip>:8000/`
-3. Optional: Share → **Add to Home Screen**. It launches full screen like a native app
-   (PWA manifest, `apple-mobile-web-app-capable`, safe-area insets).
+1. Start the server with `--phone` (same on macOS and Windows), e.g. `venv/bin/python app.py --phone`.
+   It listens on your Wi-Fi and prints the exact address to open on the phone:
+   ```
+     On your iPhone (same Wi-Fi), open:  http://192.168.1.23:8000/
+     Admin console:                      http://192.168.1.23:8000/admin
+   ```
+2. On the iPhone (same Wi-Fi, not a guest network), type that address into Safari.
+3. Add it to the Home Screen **before** signing up. The Home Screen app keeps its own storage, so a
+   player created in a Safari tab doesn't carry over.
+
+To play away from your Wi-Fi, use a temporary HTTPS tunnel or free cloud hosting. Both are covered
+in the [iPhone guide](IPHONE_GUIDE.md).
 
 ---
 
@@ -111,6 +131,8 @@ Inside a lounge you play the same live game, with a private leaderboard tab of e
 ├── tests/              # pytest: scoring, data layer, HTTP + WebSocket end-to-end
 ├── requirements.txt
 ├── requirements-dev.txt
+├── .python-version    # Python version for cloud hosts (3.14)
+├── IPHONE_GUIDE.md     # Step-by-step: play it on an iPhone
 └── README.md
 ```
 
@@ -188,7 +210,7 @@ Interactive docs: <http://127.0.0.1:8000/docs>.
 | `PTP_ADMIN_KEY` | `admin` | Admin console key. **Change it** before inviting real players. |
 | `PTP_DB_PATH` | `./game.db` | SQLite file location |
 | `PTP_PREDICTION_WINDOW` | `15` | Default seconds a play stays open |
-| `HOST` / `PORT` | `127.0.0.1` / `8000` | Bind address when using `python app.py` |
+| `HOST` / `PORT` | `127.0.0.1` / `8000` | Bind address when using `python app.py` (`--phone` binds `0.0.0.0`; `--port` overrides `PORT`) |
 | `PTP_RELOAD` | unset | Set to `1` for auto-reload during development |
 
 ## Tests
@@ -215,7 +237,7 @@ endpoints (including the auto-lock timer).
 ## Production notes and next steps
 
 - **Single process.** Connected sockets are tracked in memory, so run one worker
-  (`uvicorn app:app --workers 1`). To scale out, move broadcasts to Redis pub/sub and SQLite to Postgres.
+  (`uvicorn app:app --host 0.0.0.0 --port $PORT --workers 1`). To scale out, move broadcasts to Redis pub/sub and SQLite to Postgres.
 - Serve behind HTTPS so sockets use `wss://`. The client picks `ws`/`wss` automatically.
 - Accounts are device tokens (localStorage). Add Sign in with Apple or email login for cross-device play.
 - Lounge codes are 4 digits by design (easy to share, but guessable). Add host approval or longer

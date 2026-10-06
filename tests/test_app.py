@@ -169,6 +169,21 @@ def test_lounge_leaderboard_over_websocket(client, admin_headers):
     cm2.__exit__(None, None, None)
 
 
+def test_keepalive_pings_get_pongs_not_errors(client):
+    """Both pages ping every 25 s; the admin must not get an 'Unknown action' error back."""
+    with client.websocket_connect("/ws/admin") as admin:
+        admin.send_json({"type": "auth", "key": ADMIN_KEY})
+        recv_until(admin, lambda m: m["type"] == "admin_state")
+        admin.send_json({"type": "ping"})
+        reply = recv_until(admin, lambda m: m["type"] in ("pong", "admin_ack"))
+        assert reply["type"] == "pong"
+    with client.websocket_connect("/ws") as ws:
+        ws.send_json({"type": "hello"})
+        recv_until(ws, state_event("sync"))
+        ws.send_json({"type": "ping"})
+        assert recv_until(ws, lambda m: m["type"] in ("pong", "error"))["type"] == "pong"
+
+
 def test_admin_socket_rejects_bad_key(client):
     with client.websocket_connect("/ws/admin") as admin:
         admin.send_json({"type": "auth", "key": "wrong"})

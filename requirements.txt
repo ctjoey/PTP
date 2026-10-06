@@ -1,5 +1,7 @@
-# Runtime dependencies (Python 3.12)
+# Runtime dependencies (Python 3.11+; tested on 3.12, 3.13 and 3.14)
 fastapi>=0.115,<1.0
-uvicorn[standard]>=0.30   # ASGI server; [standard] bundles the `websockets` transport
-websockets>=12.0
+# Plain uvicorn (not uvicorn[standard]): the [standard] extras need compiled
+# packages with no builds for Windows on ARM or brand-new Python releases.
+uvicorn>=0.30
+websockets>=12.0   # WebSocket transport for uvicorn
 jinja2>=3.1
