@@ -163,6 +163,33 @@ const PTP = (() => {
     return dist ? `${ordinal(play.down)} & ${dist}` : ordinal(play.down);
   }
 
+  // Distance buckets by total yards gained on the play (a loss never scores distance points).
+  const YARDAGE_RANGE = { SHORT: "0-5 yds", MEDIUM: "6-10 yds", LONG: "11+ yds", LOSS: "Loss of yards" };
+
+  /** SHORT 0-5 (incomplete / no gain = 0), MEDIUM 6-10, LONG 11+, LOSS below 0; null if not a number. */
+  function bucketForYards(yards) {
+    if (yards === null || yards === undefined || yards === "" || !Number.isInteger(Number(yards))) return null;
+    const y = Number(yards);
+    if (y < 0) return "LOSS";
+    if (y <= 5) return "SHORT";
+    if (y <= 10) return "MEDIUM";
+    return "LONG";
+  }
+
+  const yardsText = (yards) => `${yards} ${Math.abs(yards) === 1 ? "yd" : "yds"}`;
+  const titleCase = (word) => (word ? word.charAt(0) + word.slice(1).toLowerCase() : "");
+
+  /** "Run · Left · Medium (7 yds)" for a resolved play (title case, as players read it). */
+  function describeResult(play) {
+    if (!play || !play.correct_play_type) return "";
+    const parts = [titleCase(play.correct_play_type), titleCase(play.correct_direction)];
+    if (play.correct_yardage) {
+      parts.push(titleCase(play.correct_yardage) +
+        (play.yards_gained === null || play.yards_gained === undefined ? "" : ` (${yardsText(play.yards_gained)})`));
+    }
+    return parts.join(" · ");
+  }
+
   function teamAbbr(name) {
     const words = String(name || "").trim().split(/\s+/).filter(Boolean);
     if (!words.length) return "—";
@@ -236,5 +263,6 @@ const PTP = (() => {
   return {
     $, $$, el, toast, api, LiveSocket, now, syncClock,
     ordinal, downDistance, teamAbbr, inkFor, applyTeamColors, renderScorebug, pct, crowdBars,
+    YARDAGE_RANGE, bucketForYards, yardsText, titleCase, describeResult,
   };
 })();

@@ -25,17 +25,20 @@ enum ScreenshotMode {
 
     static func sample(for screen: Screen) -> Sample {
         let now = Date().timeIntervalSince1970
-        let game = Game(id: 7, homeName: "Green Bay", homePrimary: "#1F6B3A", homeSecondary: "#F2C230",
-                        awayName: "Chicago", awayPrimary: "#14213D", awaySecondary: "#F26A1B", status: .live)
+        // Chicago at Detroit in the clubs' real colours (the same presets the admin console offers).
+        let game = Game(id: 7, homeName: "Detroit", homePrimary: "#0076B6", homeSecondary: "#B0B7BC",
+                        awayName: "Chicago", awayPrimary: "#0B162A", awaySecondary: "#C83803", status: .live)
         var play = Play(id: 42, gameId: 7, playNumber: 23, down: 3, distance: "7", state: .open, voided: false,
-                        openedAt: now - 4, locksAt: now + 11, correctPlayType: nil, correctDirection: nil)
+                        openedAt: now - 4, locksAt: now + 11, correctPlayType: nil, correctDirection: nil,
+                        correctYardage: nil, yardsGained: nil)
 
         let before = board([("Mia", 140, 4), ("JoeyC", 120, 3), ("Dre", 120, 2), ("Sam", 110, 3), ("Kat", 90, 1),
                             ("Big Lou", 80, 1), ("Tasha", 60, 1), ("Rico", 40, 0)])
         let after = board([("JoeyC", 150, 4), ("Mia", 140, 4), ("Dre", 130, 2), ("Sam", 110, 3), ("Kat", 100, 1),
                            ("Big Lou", 80, 1), ("Tasha", 70, 1), ("Rico", 40, 0)])
-        var myPick: Prediction? = Prediction(userId: 2, playId: 42, playType: .pass, direction: .left,
-                                              pointsEarned: nil, typeCorrect: nil, directionCorrect: nil)
+        var myPick: Prediction? = Prediction(userId: 2, playId: 42, playType: .pass, direction: .left, yardage: .medium,
+                                              pointsEarned: nil, typeCorrect: nil, directionCorrect: nil,
+                                              yardageCorrect: nil)
         var crowd: Crowd?
         var rows = before
         var me = Me(id: 2, username: "JoeyC", gameScore: 120, rank: 2, exactHits: 3, totalScore: 860)
@@ -46,16 +49,22 @@ enum ScreenshotMode {
             break
         case .locked:
             play.state = .locked
-            crowd = Crowd(total: 48, run: 19, pass: 29, left: 22, center: 9, right: 17, exact: 0, scored: 0)
+            crowd = Crowd(total: 48, run: 19, pass: 29, left: 22, center: 9, right: 17, short: 20, medium: 18, long: 10,
+                          exact: 0, scored: 0)
             event = "play_locked"
         case .result, .board, .lounges:
+            // An 8-yard completion to the left: PASS · LEFT · MEDIUM, a perfect call for JoeyC.
             play.state = .resolved
             play.correctPlayType = .pass
             play.correctDirection = .left
+            play.correctYardage = .medium
+            play.yardsGained = 8
             myPick?.pointsEarned = 30
             myPick?.typeCorrect = true
             myPick?.directionCorrect = true
-            crowd = Crowd(total: 48, run: 19, pass: 29, left: 22, center: 9, right: 17, exact: 11, scored: 35)
+            myPick?.yardageCorrect = true
+            crowd = Crowd(total: 48, run: 19, pass: 29, left: 22, center: 9, right: 17, short: 20, medium: 18, long: 10,
+                          exact: 6, scored: 41)
             rows = after
             me = Me(id: 2, username: "JoeyC", gameScore: 150, rank: 1, exactHits: 4, totalScore: 890)
             event = "play_resolved"

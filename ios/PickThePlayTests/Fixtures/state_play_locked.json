@@ -2,9 +2,12 @@
   "crowd": {
     "CENTER": 0,
     "LEFT": 2,
+    "LONG": 0,
+    "MEDIUM": 2,
     "PASS": 1,
     "RIGHT": 0,
     "RUN": 1,
+    "SHORT": 0,
     "exact": 0,
     "scored": 0,
     "total": 2
@@ -12,12 +15,12 @@
   "event": "play_locked",
   "game": {
     "away_name": "Chicago",
-    "away_primary": "#14213D",
-    "away_secondary": "#F26A1B",
-    "created_at": 1791255699.250814,
-    "home_name": "Green Bay",
-    "home_primary": "#1F6B3A",
-    "home_secondary": "#F2C230",
+    "away_primary": "#0B162A",
+    "away_secondary": "#C83803",
+    "created_at": 1791306495.9513185,
+    "home_name": "Detroit",
+    "home_primary": "#0076B6",
+    "home_secondary": "#B0B7BC",
     "id": 1,
     "status": "LIVE"
   },
@@ -42,7 +45,7 @@
   "lounge": {
     "host_user_id": 1,
     "host_username": "JoeyC",
-    "id": "7508",
+    "id": "6797",
     "leaderboard": [
       {
         "exact_hits": 0,
@@ -81,27 +84,31 @@
     "play_id": 1,
     "play_type": "PASS",
     "points_earned": null,
-    "user_id": 1
+    "user_id": 1,
+    "yardage": "MEDIUM"
   },
   "play": {
     "correct_direction": null,
     "correct_play_type": null,
+    "correct_yardage": null,
     "distance": "7",
     "down": 3,
     "game_id": 1,
     "id": 1,
-    "locks_at": 1791255714.255351,
-    "opened_at": 1791255699.255351,
+    "locks_at": 1791306510.9540691,
+    "opened_at": 1791306495.9540691,
     "play_number": 1,
     "state": "LOCKED",
-    "voided": false
+    "voided": false,
+    "yards_gained": null
   },
   "ranked_players": 2,
   "scoring": {
     "direction": 10,
     "exact": 30,
-    "type": 10
+    "type": 10,
+    "yardage": 10
   },
-  "server_time": 1791255699.2656546,
+  "server_time": 1791306495.9634876,
   "type": "state"
 }

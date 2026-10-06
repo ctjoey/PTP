@@ -11,9 +11,10 @@ def _game(store, **overrides):
 
 
 def test_create_game_normalises_and_validates(store):
-    game = _game(store, home_name="  Green   Bay ", home_primary="#1f6b3a")
+    game = _game(store, home_name="  Green   Bay ", home_primary="#203731")
     assert game["home_name"] == "Green Bay"
-    assert game["home_primary"] == "#1F6B3A"
+    assert game["home_primary"] == "#203731"
+    assert _game(store, away_primary="#0b162a")["away_primary"] == "#0B162A"
     assert game["status"] == GameStatus.SCHEDULED
 
 
@@ -26,8 +27,13 @@ def test_protected_marks_are_blocked(store, name):
 def test_bad_colors_and_duplicate_teams_rejected(store):
     with pytest.raises(GameError):
         _game(store, home_primary="green")
-    with pytest.raises(GameError):
-        _game(store, away_name="Green Bay")
+    with pytest.raises(GameError, match="must be different"):
+        _game(store, away_name="Detroit")
+    # Two clubs share New York: the same name is refused, with a hint to add a word.
+    with pytest.raises(GameError, match='"New York Blue" / "New York Green"'):
+        _game(store, home_name="New York", away_name="new york")
+    game = _game(store, home_name="New York Blue", away_name="New York Green")
+    assert (game["away_name"], game["home_name"]) == ("New York Green", "New York Blue")
 
 
 def test_new_game_finalises_previous(store):
@@ -50,33 +56,45 @@ def test_play_lifecycle_and_scoring(store):
     with pytest.raises(GameError):
         store.open_next_play(1, "10", 15)  # only one active play at a time
     with pytest.raises(GameError, match="Lock"):
-        store.resolve_play("PASS", "LEFT")  # must lock first
+        store.resolve_play("PASS", "LEFT", "MEDIUM")  # must lock first
 
-    store.submit_prediction(alice["id"], play["id"], "RUN", "LEFT")
-    store.submit_prediction(alice["id"], play["id"], "PASS", "LEFT")  # change of mind
-    store.submit_prediction(bob["id"], play["id"], "PASS", "RIGHT")
-    store.submit_prediction(carol["id"], play["id"], "RUN", "CENTER")
+    store.submit_prediction(alice["id"], play["id"], "RUN", "LEFT", "SHORT")
+    saved = store.submit_prediction(alice["id"], play["id"], "PASS", "LEFT", "MEDIUM")  # change of mind
+    assert saved == {"play_id": play["id"], "play_type": "PASS", "direction": "LEFT", "yardage": "MEDIUM",
+                     "points_earned": None}
+    store.submit_prediction(bob["id"], play["id"], "PASS", "RIGHT", "SHORT")
+    store.submit_prediction(carol["id"], play["id"], "RUN", "CENTER", "LONG")
+    dave = store.create_user("dave")
+    store.submit_prediction(dave["id"], play["id"], "RUN", "LEFT", "MEDIUM")
 
     store.lock_play()
     with pytest.raises(GameError, match="locked"):
-        store.submit_prediction(carol["id"], play["id"], "PASS", "LEFT")
+        store.submit_prediction(carol["id"], play["id"], "PASS", "LEFT", "MEDIUM")
 
-    resolved = store.resolve_play("PASS", "LEFT")
+    resolved = store.resolve_play("PASS", "LEFT", yards=7)
     assert resolved["state"] == PlayState.RESOLVED
+    assert (resolved["correct_yardage"], resolved["yards_gained"]) == ("MEDIUM", 7)
 
     preds = store.predictions_for_play(play["id"])
-    assert preds[alice["id"]]["points_earned"] == 30
-    assert preds[bob["id"]]["points_earned"] == 10
+    assert preds[alice["id"]]["points_earned"] == 30  # all three
+    assert preds[alice["id"]]["yardage"] == "MEDIUM"
+    assert preds[dave["id"]]["points_earned"] == 20   # direction + distance
+    assert preds[bob["id"]]["points_earned"] == 10    # type only
     assert preds[carol["id"]]["points_earned"] == 0
     assert store.get_user(alice["id"])["total_score"] == 30
 
     board = store.game_leaderboard(game["id"])
     assert [(r["username"], r["score"], r["rank"], r["exact_hits"]) for r in board] == [
-        ("alice", 30, 1, 1), ("bob", 10, 2, 0), ("carol", 0, 3, 0),
+        ("alice", 30, 1, 1), ("dave", 20, 2, 0), ("bob", 10, 3, 0), ("carol", 0, 4, 0),
     ]
 
     stats = store.pick_stats(play["id"])
-    assert stats["total"] == 3 and stats["PASS"] == 2 and stats["exact"] == 1
+    assert stats == {"total": 4, "RUN": 2, "PASS": 2, "LEFT": 2, "CENTER": 1, "RIGHT": 1,
+                     "SHORT": 1, "MEDIUM": 2, "LONG": 1, "exact": 1, "scored": 3}
+
+    history = store.play_history(game["id"])
+    assert history[0]["correct_yardage"] == "MEDIUM" and history[0]["yards_gained"] == 7
+    assert history[0]["picks"] == 4 and history[0]["exact_hits"] == 1
 
 
 def test_ties_share_rank(store):
@@ -84,10 +102,10 @@ def test_ties_share_rank(store):
     a, b, c = (store.create_user(n) for n in ("a1", "b1", "c1"))
     _, play = store.open_next_play(1, "10", 15)
     for user in (a, b):
-        store.submit_prediction(user["id"], play["id"], "RUN", "LEFT")
-    store.submit_prediction(c["id"], play["id"], "PASS", "RIGHT")
+        store.submit_prediction(user["id"], play["id"], "RUN", "LEFT", "SHORT")
+    store.submit_prediction(c["id"], play["id"], "PASS", "RIGHT", "LONG")
     store.lock_play()
-    store.resolve_play("RUN", "LEFT")
+    store.resolve_play("RUN", "LEFT", "SHORT")
     ranks = [r["rank"] for r in store.game_leaderboard(game["id"])]
     assert ranks == [1, 1, 3]
 
@@ -98,14 +116,14 @@ def test_late_submission_rejected_after_timer(store):
     _, play = store.open_next_play(1, "10", window_seconds=0.01)
     time.sleep(0.05)
     with pytest.raises(GameError, match="locked"):
-        store.submit_prediction(user["id"], play["id"], "RUN", "LEFT")
+        store.submit_prediction(user["id"], play["id"], "RUN", "LEFT", "SHORT")
 
 
 def test_void_play_awards_nothing(store):
     _game(store)
     user = store.create_user("voidy")
     _, play = store.open_next_play(2, "5", 15)
-    store.submit_prediction(user["id"], play["id"], "RUN", "LEFT")
+    store.submit_prediction(user["id"], play["id"], "RUN", "LEFT", "SHORT")
     voided = store.void_play()
     assert voided["voided"] == 1 and voided["state"] == PlayState.RESOLVED
     assert store.predictions_for_play(play["id"])[user["id"]]["points_earned"] == 0
@@ -160,9 +178,9 @@ def test_lounges(store):
         store.join_lounge("12a4", friend["id"])
 
     _, play = store.open_next_play(1, "10", 15)
-    store.submit_prediction(friend["id"], play["id"], "PASS", "LEFT")
+    store.submit_prediction(friend["id"], play["id"], "PASS", "LEFT", "LONG")
     store.lock_play()
-    store.resolve_play("PASS", "RIGHT")
+    store.resolve_play("PASS", "RIGHT", "LOSS", yards=-6)  # sack: type right, no distance points
     board = store.lounge_leaderboard(code, game["id"])
     assert [(r["username"], r["score"], r["rank"], r["is_host"]) for r in board] == [
         ("friend", 10, 1, False), ("host", 0, 2, True),

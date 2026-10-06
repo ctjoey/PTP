@@ -3,7 +3,8 @@
     "direction": "LEFT",
     "play_id": 1,
     "play_type": "PASS",
-    "points_earned": null
+    "points_earned": null,
+    "yardage": "MEDIUM"
   },
   "type": "prediction_saved"
 }

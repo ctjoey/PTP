@@ -17,11 +17,12 @@
   --blue: #4ea4ff;
   --radius: 18px;
   --radius-sm: 12px;
-  --home-1: #1f6b3a;
-  --home-2: #f2c230;
+  /* Replaced by the game's colors; these match the default matchup (Chicago at Detroit). */
+  --home-1: #0076b6;
+  --home-2: #b0b7bc;
   --home-ink: #ffffff;
-  --away-1: #14213d;
-  --away-2: #f26a1b;
+  --away-1: #0b162a;
+  --away-2: #c83803;
   --away-ink: #ffffff;
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;
@@ -240,9 +241,15 @@ a { color: var(--blue); }
 }
 
 .pick-label { font-size: 12px; font-weight: 800; letter-spacing: .14em; color: var(--muted); text-transform: uppercase; margin-bottom: -6px; }
+.pick-label-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+/* "As the QB looks downfield": left/right are the offense's, not the TV camera's. */
+.qb-hint { font-size: 11px; font-weight: 700; letter-spacing: .02em; text-transform: none; color: var(--blue); }
+.pick-group { display: flex; flex-direction: column; gap: 6px; }
+.pick-group .pick-label { margin-bottom: 0; }
 .pick-grid { display: grid; gap: 10px; }
 .pick-grid.two { grid-template-columns: 1fr 1fr; }
 .pick-grid.three { grid-template-columns: repeat(3, 1fr); }
+.pick-grid.four { grid-template-columns: repeat(4, 1fr); }
 .pick-btn {
   min-height: 64px;
   border-radius: 14px;
@@ -264,7 +271,29 @@ a { color: var(--blue); }
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent), 0 8px 24px -8px var(--accent);
 }
 .pick-btn.selected small { color: color-mix(in srgb, var(--accent-ink) 70%, transparent); }
+.pick-btn.loss.selected {
+  background: var(--danger); border-color: var(--danger); color: #2a0007;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--danger) 22%, transparent), 0 8px 24px -8px var(--danger);
+}
 .pick-btn:disabled { opacity: .45; }
+
+/* The pick screen: three groups plus the timer fit a 375x667 phone without scrolling. */
+[data-view="open"] { gap: 10px; }
+[data-view="open"] .pick-grid { gap: 8px; }
+[data-view="open"] .pick-grid.two .pick-btn { min-height: 58px; }
+[data-view="open"] .pick-grid.three .pick-btn { min-height: 54px; }
+[data-view="open"] .pick-status { min-height: 40px; padding: 6px 10px; }
+[data-view="open"] .points-hint { gap: 4px; }
+[data-view="open"] .points-hint .chip { font-size: 11px; padding: 3px 7px; letter-spacing: .02em; white-space: nowrap; }
+@media (max-width: 380px) {
+  [data-view="open"] .points-hint .chip { font-size: 10.5px; padding: 3px 6px; letter-spacing: 0; }
+}
+@media (max-height: 700px) {
+  [data-view="open"] .countdown { width: 72px; height: 72px; }
+  [data-view="open"] .countdown-num { font-size: 26px; }
+  [data-view="open"] .pick-grid.two .pick-btn { min-height: 52px; }
+  [data-view="open"] .pick-grid.three .pick-btn { min-height: 50px; }
+}
 
 .pick-status {
   min-height: 44px;
@@ -304,24 +333,30 @@ a { color: var(--blue); }
 .bar-row .pct { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
 
 /* result */
-.reveal { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; perspective: 600px; width: 100%; }
+.reveal { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; perspective: 600px; width: 100%; }
 .reveal-tile {
-  padding: 16px 10px;
+  padding: 14px 6px 12px;
   border-radius: 14px;
   background: linear-gradient(160deg, var(--surface-3), var(--surface-2));
   border: 1px solid var(--border);
   text-align: center;
 }
 .reveal-tile .lbl { font-size: 11px; font-weight: 800; letter-spacing: .14em; color: var(--muted); }
-.reveal-tile .val { font-size: 28px; font-weight: 900; letter-spacing: .02em; margin-top: 2px; }
+.reveal-tile .val { font-size: 21px; font-weight: 900; letter-spacing: .01em; margin-top: 2px; }
+.reveal-tile .sub { font-size: 12px; font-weight: 800; color: var(--muted); margin-top: 2px; font-variant-numeric: tabular-nums; }
+.reveal-tile .sub:empty { display: none; }
+.reveal-tile.loss .val { color: var(--danger); }
 .animate .reveal-tile { animation: flipIn .6s cubic-bezier(.2, .9, .3, 1.2) both; }
 .animate .reveal-tile:nth-child(2) { animation-delay: .25s; }
+.animate .reveal-tile:nth-child(3) { animation-delay: .5s; }
+.result-line { margin: 8px 0 0; }
+.crowd .crowd + .crowd { margin-top: 6px; }
 .points { font-size: 60px; font-weight: 900; line-height: 1; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
 .points.exact { color: var(--gold); text-shadow: 0 0 28px color-mix(in srgb, var(--gold) 55%, transparent); }
 .points.some { color: var(--accent); }
 .points.zero { color: var(--dim); }
-.animate .points { animation: popIn .55s .55s cubic-bezier(.2, 1.6, .4, 1) both; }
-.animate .points-label { animation: fadeUp .4s .8s both; }
+.animate .points { animation: popIn .55s .8s cubic-bezier(.2, 1.6, .4, 1) both; }
+.animate .points-label { animation: fadeUp .4s 1.05s both; }
 .points-label { font-weight: 900; letter-spacing: .1em; text-transform: uppercase; font-size: 14px; }
 
 .confetti { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
@@ -502,6 +537,23 @@ a { color: var(--blue); }
 .ctrl-section:first-child { border-top: 0; margin-top: 0; padding-top: 0; }
 .ctrl-row { display: grid; grid-template-columns: 1fr 110px 90px; gap: 8px; align-items: end; }
 .result-grid .pick-btn { min-height: 56px; }
+.pick-grid.four.result-grid .pick-btn { font-size: 15px; }
+.yardage-row { display: grid; grid-template-columns: 4fr 1fr; gap: 10px; }
+/* Yards gained: styled like the bucket buttons next to it; typing a number picks the bucket. */
+.yards-box {
+  min-height: 56px; border-radius: 14px; border: 2px solid var(--border); background: var(--surface-2);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 4px;
+}
+.yards-box:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+.yards-box input {
+  width: 100%; min-width: 0; border: 0; outline: none; background: transparent; text-align: center;
+  font-size: 18px; font-weight: 900; padding: 0; -moz-appearance: textfield;
+}
+.yards-box input::-webkit-outer-spin-button, .yards-box input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.yards-box input::placeholder { color: var(--dim); font-weight: 800; }
+.yards-box input:disabled { opacity: .45; }
+.yards-box small { font-size: 11px; font-weight: 700; color: var(--muted); letter-spacing: .06em; }
+@media (max-width: 520px) { .yardage-row { grid-template-columns: 1fr; } }
 .text-btn { background: none; border: 0; color: var(--danger); font-weight: 700; padding: 6px; font-size: 14px; }
 .text-btn:disabled { opacity: .35; }
 .shortcuts { font-size: 12px; color: var(--dim); line-height: 1.7; }

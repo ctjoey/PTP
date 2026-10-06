@@ -14,16 +14,17 @@ def auth(user):
     return {"Authorization": f"Bearer {user['token']}"}
 
 
-def play_one(client, admin_headers, picks, actual=("PASS", "LEFT")):
-    """Open a play, submit ``[(user, type, dir), ...]`` picks, lock and resolve it."""
+def play_one(client, admin_headers, picks, actual=("PASS", "LEFT", "MEDIUM")):
+    """Open a play, submit ``[(user, type, dir, yardage), ...]`` picks, lock and resolve it."""
     play = client.post("/api/admin/play/open", json={}, headers=admin_headers).json()
-    for user, ptype, pdir in picks:
+    for user, ptype, pdir, pyard in picks:
         res = client.post("/api/predictions", headers=auth(user),
-                          json={"play_id": play["id"], "play_type": ptype, "direction": pdir})
+                          json={"play_id": play["id"], "play_type": ptype, "direction": pdir, "yardage": pyard})
         assert res.status_code == 200, res.text
     client.post("/api/admin/play/lock", headers=admin_headers)
-    client.post("/api/admin/play/resolve", headers=admin_headers,
-                json={"play_type": actual[0], "direction": actual[1]})
+    res = client.post("/api/admin/play/resolve", headers=admin_headers,
+                      json={"play_type": actual[0], "direction": actual[1], "yardage": actual[2]})
+    assert res.status_code == 200, res.text
     return play
 
 
@@ -41,10 +42,10 @@ def test_store_delete_user_cascades(store):
     store.join_lounge(joined["id"], alice["id"])
     store.create_game(**GAME)
     _, play = store.open_next_play(1, "10", 15)
-    store.submit_prediction(alice["id"], play["id"], "PASS", "LEFT")
-    store.submit_prediction(bob["id"], play["id"], "PASS", "RIGHT")
+    store.submit_prediction(alice["id"], play["id"], "PASS", "LEFT", "MEDIUM")
+    store.submit_prediction(bob["id"], play["id"], "PASS", "RIGHT", "LONG")
     store.lock_play()
-    store.resolve_play("PASS", "LEFT")
+    store.resolve_play("PASS", "LEFT", "MEDIUM")
 
     assert store.delete_user(alice["id"]) is True
     assert store.delete_user(alice["id"]) is False  # already gone
@@ -71,7 +72,7 @@ def test_prediction_from_deleted_user_is_rejected(store):
     _, play = store.open_next_play(None, None, 15)
     store.delete_user(user["id"])
     with pytest.raises(GameError) as exc:
-        store.submit_prediction(user["id"], play["id"], "RUN", "LEFT")
+        store.submit_prediction(user["id"], play["id"], "RUN", "LEFT", "SHORT")
     assert exc.value.status_code == 401
 
 
@@ -82,7 +83,7 @@ def test_delete_account_over_rest(client, admin_headers):
     assert client.post(f"/api/lounges/{alice_lounge['id']}/join", headers=auth(bob)).status_code == 200
     assert client.post(f"/api/lounges/{bob_lounge['id']}/join", headers=auth(alice)).status_code == 200
     client.post("/api/admin/game", json=GAME, headers=admin_headers)
-    play_one(client, admin_headers, [(alice, "PASS", "LEFT"), (bob, "RUN", "LEFT")])
+    play_one(client, admin_headers, [(alice, "PASS", "LEFT", "MEDIUM"), (bob, "RUN", "RIGHT", "MEDIUM")])
 
     assert client.delete("/api/me").status_code == 401
     assert client.delete("/api/me", headers={"Authorization": "Bearer bogus"}).status_code == 401
@@ -113,7 +114,7 @@ def test_delete_account_over_rest(client, admin_headers):
 def test_delete_account_signs_out_open_sockets(client, admin_headers):
     alice, bob = register(client, "alice"), register(client, "bob")
     client.post("/api/admin/game", json=GAME, headers=admin_headers)
-    play_one(client, admin_headers, [(alice, "PASS", "LEFT"), (bob, "RUN", "LEFT")])
+    play_one(client, admin_headers, [(alice, "PASS", "LEFT", "MEDIUM"), (bob, "RUN", "RIGHT", "MEDIUM")])
     ctrl = client.app.state.ctrl
 
     with client.websocket_connect("/ws") as a, client.websocket_connect("/ws") as b:
@@ -176,8 +177,9 @@ def test_privacy_page(client):
 def test_support_page(client):
     res = client.get("/support")
     assert res.status_code == 200
-    for phrase in ("How to play", "15 seconds", "+10", "+30", "4-digit code",
-                   "Delete account", 'href="/privacy"', "App Store", "not affiliated with"):
+    for phrase in ("How to play", "15 seconds", "+10", "Correct distance", "All three right", "<td>30</td>",
+                   "as the quarterback looks downfield", "Short</b> (5 yards or less)", "A loss of yards scores no",
+                   "4-digit code", "Delete account", 'href="/privacy"', "App Store", "not affiliated with"):
         assert phrase in res.text, phrase
 
 

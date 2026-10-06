@@ -1,28 +1,62 @@
 import SwiftUI
 
-/// The same rules the server uses (models.score_prediction): +10 type, +10 direction, +30 for both.
+/// The same rules the server uses (models.score_prediction): +10 for each correct part (play type,
+/// direction, distance), so all three right = 30. There is no extra bonus. A loss of yards never matches
+/// a distance pick, and a pick without a distance (made before the distance pick existed) scores none.
 enum ScoreRules {
     struct Result: Equatable {
         var points: Int
         var typeCorrect: Bool
         var directionCorrect: Bool
-        var exact: Bool { typeCorrect && directionCorrect }
+        var yardageCorrect: Bool
+        /// All three right ("Perfect call"; `exact` on the wire).
+        var exact: Bool { typeCorrect && directionCorrect && yardageCorrect }
+        var correctParts: Int { [typeCorrect, directionCorrect, yardageCorrect].filter { $0 }.count }
     }
 
-    static func score(type: PlayType, direction: Direction, actualType: PlayType, actualDirection: Direction,
+    static func score(type: PlayType, direction: Direction, yardage: Yardage?,
+                      actualType: PlayType, actualDirection: Direction, actualYardage: YardageOutcome?,
                       scoring: Scoring = .standard) -> Result {
         let typeOK = type == actualType
         let dirOK = direction == actualDirection
-        let points = typeOK && dirOK ? scoring.exact : (typeOK ? scoring.type : (dirOK ? scoring.direction : 0))
-        return Result(points: points, typeCorrect: typeOK, directionCorrect: dirOK)
+        let yardsOK = actualYardage?.matches(yardage) ?? false
+        let points = (typeOK ? scoring.type : 0) + (dirOK ? scoring.direction : 0) + (yardsOK ? scoring.yardage : 0)
+        return Result(points: points, typeCorrect: typeOK, directionCorrect: dirOK, yardageCorrect: yardsOK)
+    }
+
+    static func score(type: PlayType, direction: Direction, yardage: Yardage?, actual: PlayOutcome,
+                      scoring: Scoring = .standard) -> Result {
+        score(type: type, direction: direction, yardage: yardage, actualType: actual.playType,
+              actualDirection: actual.direction, actualYardage: actual.yardage, scoring: scoring)
+    }
+
+    /// Result headline by points: 30 "Perfect call!", 20 "Two of three", 10 "One of three", 0 "No points this time".
+    static func label(points: Int?, scoring: Scoring = .standard) -> String {
+        guard let points else { return "You didn't pick this play" }
+        if points >= scoring.exact { return "Perfect call!" }
+        if points <= 0 { return "No points this time" }
+        return points > scoring.maxPart ? "Two of three" : "One of three"
     }
 
     static func label(for result: Result?, scoring: Scoring = .standard) -> String {
-        guard let result else { return "You didn't pick this play" }
-        if result.exact { return "Exact match!" }
-        if result.typeCorrect { return "Play type correct" }
-        if result.directionCorrect { return "Direction correct" }
-        return "No points this time"
+        label(points: result?.points, scoring: scoring)
+    }
+
+    /// One line for onboarding, settings and the pick screen.
+    static func summary(_ s: Scoring = .standard) -> String {
+        "+\(s.type) play type, +\(s.direction) direction, +\(s.yardage) distance. All three = \(s.exact). A loss of yards scores no distance points."
+    }
+
+    /// The server's per-part flags, filled in from the outcome where it left one out.
+    static func graded(_ pick: Prediction, outcome: PlayOutcome?) -> Prediction {
+        guard let outcome else { return pick }
+        var p = pick
+        let r = score(type: pick.playType, direction: pick.direction, yardage: pick.yardage, actual: outcome)
+        if p.typeCorrect == nil { p.typeCorrect = r.typeCorrect }
+        if p.directionCorrect == nil { p.directionCorrect = r.directionCorrect }
+        // Without a recorded distance (old server) there's nothing to grade the distance against.
+        if p.yardageCorrect == nil, outcome.yardage != nil || pick.yardage == nil { p.yardageCorrect = r.yardageCorrect }
+        return p
     }
 }
 
@@ -33,7 +67,8 @@ final class PracticeGame: ObservableObject {
     enum Phase: Equatable {
         case open(deadline: Date)
         case locked
-        case result(actualType: PlayType, actualDirection: Direction, outcome: ScoreRules.Result?)
+        /// `scored` is nil when the player didn't make all three picks in time.
+        case result(PlayOutcome, scored: ScoreRules.Result?)
     }
 
     static let window: TimeInterval = 15
@@ -44,13 +79,18 @@ final class PracticeGame: ObservableObject {
     @Published private(set) var phase: Phase = .locked
     @Published var pickType: PlayType?
     @Published var pickDirection: Direction?
+    @Published var pickYardage: Yardage?
     @Published private(set) var score = 0
+    /// Plays with all three parts right.
     @Published private(set) var exactHits = 0
     @Published private(set) var played = 0
 
     private var timer: Task<Void, Never>?
+    private var lastYards: Int?
     /// Injected in tests so outcomes are deterministic.
-    var outcome: () -> (PlayType, Direction) = PracticeGame.randomOutcome
+    var outcome: () -> PlayOutcome = PracticeGame.randomOutcome
+
+    var hasFullPick: Bool { pickType != nil && pickDirection != nil && pickYardage != nil }
 
     var label: String {
         var parts = ["Practice play \(playNumber)"]
@@ -64,6 +104,7 @@ final class PracticeGame: ObservableObject {
         if playNumber > 1 { advanceDowns() }
         pickType = nil
         pickDirection = nil
+        pickYardage = nil
         let deadline = now.addingTimeInterval(Self.window)
         phase = .open(deadline: deadline)
         timer = Task { [weak self] in
@@ -87,16 +128,26 @@ final class PracticeGame: ObservableObject {
 
     func resolve() {
         timer?.cancel()
-        let (type, direction) = outcome()
+        let actual = outcome()
         var result: ScoreRules.Result?
-        if let pickType, let pickDirection {
-            let r = ScoreRules.score(type: pickType, direction: pickDirection, actualType: type, actualDirection: direction)
+        // Same as the live game: the pick only counts once all three parts are in.
+        if let pickType, let pickDirection, let pickYardage {
+            let r = ScoreRules.score(type: pickType, direction: pickDirection, yardage: pickYardage, actual: actual)
             score += r.points
             if r.exact { exactHits += 1 }
             played += 1
             result = r
         }
-        phase = .result(actualType: type, actualDirection: direction, outcome: result)
+        lastYards = actual.yards
+        phase = .result(actual, scored: result)
+    }
+
+    /// The player's pick for the result view, graded like a live prediction.
+    var gradedPick: Prediction? {
+        guard case .result(_, let scored?) = phase, let pickType, let pickDirection else { return nil }
+        return Prediction(userId: nil, playId: playNumber, playType: pickType, direction: pickDirection, yardage: pickYardage,
+                          pointsEarned: scored.points, typeCorrect: scored.typeCorrect,
+                          directionCorrect: scored.directionCorrect, yardageCorrect: scored.yardageCorrect)
     }
 
     func stop() {
@@ -112,24 +163,51 @@ final class PracticeGame: ObservableObject {
         score = 0
         exactHits = 0
         played = 0
+        lastYards = nil
         phase = .locked
     }
 
+    /// Down and distance follow the last simulated gain: move the chains, or it's the next down.
     private func advanceDowns() {
-        if down >= 4 || Int.random(in: 0..<3) == 0 {
+        let toGo = Int(distance) ?? 10
+        guard let gained = lastYards else {
+            down = 1
+            distance = "10"
+            return
+        }
+        if gained >= toGo || down >= 4 {  // first down, or a new series after 4th down
             down = 1
             distance = "10"
         } else {
             down += 1
-            distance = ["1", "2", "3", "4", "5", "6", "7", "8", "10", "12", "15"].randomElement() ?? "10"
+            distance = "\(min(99, toGo - gained))"
         }
     }
 
     /// Rough NFL-ish tendencies: slightly more passes, runs favour the middle less than you'd think.
-    nonisolated static func randomOutcome() -> (PlayType, Direction) {
+    nonisolated static func randomOutcome() -> PlayOutcome {
         let type: PlayType = Double.random(in: 0..<1) < 0.56 ? .pass : .run
         let roll = Double.random(in: 0..<1)
         let direction: Direction = roll < 0.36 ? .left : (roll < 0.64 ? .center : .right)
-        return (type, direction)
+        return PlayOutcome(playType: type, direction: direction, yards: randomYards(for: type))
+    }
+
+    /// Yards gained, by a uniform `roll` in 0..<1 (so tests can pin the bucket):
+    /// runs: 10% loss, 58% 0–5, 22% 6–10, 10% 11+.
+    /// passes: 6% sack (loss), 35% incomplete (0 yds = short), 17% 1–5, 20% 6–10, 22% 11+.
+    nonisolated static func randomYards(for type: PlayType, roll: Double = Double.random(in: 0..<1)) -> Int {
+        switch type {
+        case .run:
+            if roll < 0.10 { return -Int.random(in: 1...4) }
+            if roll < 0.68 { return Int.random(in: 0...5) }
+            if roll < 0.90 { return Int.random(in: 6...10) }
+            return Int.random(in: 11...45)
+        case .pass:
+            if roll < 0.06 { return -Int.random(in: 3...10) }
+            if roll < 0.41 { return 0 }
+            if roll < 0.58 { return Int.random(in: 1...5) }
+            if roll < 0.78 { return Int.random(in: 6...10) }
+            return Int.random(in: 11...60)
+        }
     }
 }

@@ -37,7 +37,7 @@ from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Request,
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, model_validator
 from starlette.websockets import WebSocketDisconnect, WebSocketState
 
 from models import (
@@ -45,15 +45,22 @@ from models import (
     EXACT_POINTS,
     LOUNGE_CODE_RE,
     MAX_LOUNGE_MEMBERS,
+    MAX_YARDS,
+    MIN_YARDS,
     TYPE_POINTS,
+    YARDAGE_POINTS,
     Direction,
     GameError,
     GameStatus,
     PlayState,
     PlayType,
     Store,
+    Yardage,
+    YardageOutcome,
+    resolve_yardage,
     score_prediction,
 )
+from teams import DEFAULT_AWAY, DEFAULT_HOME, TEAM_PRESETS
 
 BASE_DIR = Path(__file__).resolve().parent
 ASSET_VERSION = str(int(time.time()))
@@ -62,6 +69,9 @@ HELLO_TIMEOUT = 10.0
 SEND_TIMEOUT = 5.0
 ADMIN_PUSH_THROTTLE = 0.3
 DEFAULT_ADMIN_KEY = "admin"
+
+# Point values sent with every snapshot (and shown on /support).
+SCORING = {"type": TYPE_POINTS, "direction": DIRECTION_POINTS, "yardage": YARDAGE_POINTS, "exact": EXACT_POINTS}
 
 log = logging.getLogger("pick_the_play")
 
@@ -94,6 +104,7 @@ class PredictionIn(BaseModel):
     play_id: int
     play_type: PlayType
     direction: Direction
+    yardage: Yardage  # SHORT 0-5 yds, MEDIUM 6-10, LONG 11+
 
 
 class CreateGameIn(BaseModel):
@@ -116,8 +127,21 @@ class OpenPlayIn(BaseModel):
 
 
 class ResolveIn(BaseModel):
+    """The actual play. Send ``yardage`` (SHORT/MEDIUM/LONG/LOSS), ``yards`` (total yards gained,
+    from which the bucket is derived) or both (they must agree)."""
+
     play_type: PlayType
     direction: Direction
+    yardage: YardageOutcome | None = None
+    yards: int | None = Field(default=None, ge=MIN_YARDS, le=MAX_YARDS, strict=True)  # a JSON integer
+
+    @model_validator(mode="after")
+    def _distance_given_and_consistent(self) -> "ResolveIn":
+        try:
+            resolve_yardage(self.yardage, self.yards)
+        except GameError as exc:
+            raise ValueError(exc.message) from None
+        return self
 
 
 class EmptyIn(BaseModel):
@@ -127,7 +151,8 @@ class EmptyIn(BaseModel):
 def _validation_message(exc: ValidationError) -> str:
     err = exc.errors()[0]
     where = ".".join(str(p) for p in err.get("loc", ()))
-    return f"{where}: {err.get('msg', 'invalid value')}" if where else err.get("msg", "invalid value")
+    msg = str(err.get("msg", "invalid value")).removeprefix("Value error, ")
+    return f"{where}: {msg}" if where else msg
 
 
 # --------------------------------------------------------------------------- #
@@ -207,6 +232,8 @@ def public_play(play: dict[str, Any] | None) -> dict[str, Any] | None:
         "locks_at": play["locks_at"],
         "correct_play_type": play["correct_play_type"] if resolved else None,
         "correct_direction": play["correct_direction"] if resolved else None,
+        "correct_yardage": play["correct_yardage"] if resolved else None,
+        "yards_gained": play["yards_gained"] if resolved else None,
     }
 
 
@@ -285,7 +312,7 @@ class GameController:
         return public_play(play)  # type: ignore[return-value]
 
     async def resolve_play(self, data: ResolveIn) -> dict[str, Any]:
-        play = self.store.resolve_play(data.play_type, data.direction)
+        play = self.store.resolve_play(data.play_type, data.direction, data.yardage, data.yards)
         await self.broadcast("play_resolved")
         return public_play(play)  # type: ignore[return-value]
 
@@ -303,7 +330,8 @@ class GameController:
         if not game or not play or play["game_id"] != game["id"]:
             raise GameError("That play is not part of the current game.", 409)
         pred = self.store.submit_prediction(
-            user["id"], data.play_id, data.play_type, data.direction, self.settings.grace_seconds
+            user["id"], data.play_id, data.play_type, data.direction, data.yardage,
+            self.settings.grace_seconds,
         )
         self.request_admin_push()
         return pred
@@ -376,11 +404,12 @@ class GameController:
                 my_pick = dict(pick)
                 if play and play["state"] == PlayState.RESOLVED and not play["voided"]:
                     result = score_prediction(
-                        pick["play_type"], pick["direction"],
-                        play["correct_play_type"], play["correct_direction"],
+                        pick["play_type"], pick["direction"], pick["yardage"],
+                        play["correct_play_type"], play["correct_direction"], play["correct_yardage"],
                     )
                     my_pick |= {"type_correct": result.type_correct,
-                                "direction_correct": result.direction_correct}
+                                "direction_correct": result.direction_correct,
+                                "yardage_correct": result.yardage_correct}
         return {
             "type": "state",
             "event": event,
@@ -393,7 +422,7 @@ class GameController:
             "ranked_players": len(snap.leaderboard),
             "crowd": snap.crowd,
             "lounge": self._lounge_view(snap, lounge_id) if lounge_id else None,
-            "scoring": {"type": TYPE_POINTS, "direction": DIRECTION_POINTS, "exact": EXACT_POINTS},
+            "scoring": SCORING,
         }
 
     def admin_message(self, event: str) -> dict[str, Any]:
@@ -509,7 +538,9 @@ async def lounge_page(request: Request, lounge_id: str) -> HTMLResponse | Redire
 
 @router.get("/admin", response_class=HTMLResponse)
 async def admin_page(request: Request) -> HTMLResponse:
-    return _page(request, "admin.html")
+    defaults = {side: next(t for t in TEAM_PRESETS if t["label"] == label)
+                for side, label in (("away", DEFAULT_AWAY), ("home", DEFAULT_HOME))}
+    return _page(request, "admin.html", teams=TEAM_PRESETS, defaults=defaults)
 
 
 @router.get("/privacy", response_class=HTMLResponse)
@@ -522,7 +553,7 @@ async def support_page(request: Request) -> HTMLResponse:
     return _page(request, "support.html", contact_email=request.app.state.settings.contact_email,
                  window_seconds=round(request.app.state.settings.window_seconds),
                  max_lounge_members=MAX_LOUNGE_MEMBERS,
-                 scoring={"type": TYPE_POINTS, "direction": DIRECTION_POINTS, "exact": EXACT_POINTS})
+                 scoring=SCORING)
 
 
 @router.get("/healthz")

@@ -18,10 +18,17 @@ final class ContractTests: XCTestCase {
         return snapshot
     }
 
+    private func object(_ data: Data) throws -> [String: Any] {
+        try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    }
+
     func testEveryStateFixtureDecodes() throws {
         for name in ["state_sync_nogame", "state_game_created", "state_play_opened", "state_play_locked",
-                     "state_play_resolved", "state_play_voided", "state_final"] {
-            XCTAssertNoThrow(try snapshot(name), name)
+                     "state_play_resolved", "state_play_resolved_loss", "state_play_voided", "state_final"] {
+            let s = try snapshot(name)
+            // Every snapshot carries the 10/10/10 scoring, with all three = 30.
+            XCTAssertEqual(s.scoring, .standard, name)
+            XCTAssertEqual(try object(fixture(name))["scoring"].flatMap { $0 as? [String: Int] }?["yardage"], 10, name)
         }
     }
 
@@ -30,8 +37,21 @@ final class ContractTests: XCTestCase {
         XCTAssertNil(s.game)
         XCTAssertNil(s.play)
         XCTAssertEqual(s.me?.username, "JoeyC")
-        XCTAssertEqual(s.scoring, .standard)
         XCTAssertEqual(s.lounge?.name, "Sunday Crew")
+    }
+
+    func testGameUsesCityNamesAndRealColors() throws {
+        let game = try XCTUnwrap(try snapshot("state_game_created").game)
+        XCTAssertEqual(game.status, .scheduled)
+        // Chicago at Detroit, from the admin's team presets.
+        XCTAssertEqual(game.awayName, "Chicago")
+        XCTAssertEqual(game.awayPrimary.uppercased(), "#0B162A")
+        XCTAssertEqual(game.awaySecondary.uppercased(), "#C83803")
+        XCTAssertEqual(game.homeName, "Detroit")
+        XCTAssertEqual(game.homePrimary.uppercased(), "#0076B6")
+        XCTAssertEqual(game.homeSecondary.uppercased(), "#B0B7BC")
+        XCTAssertEqual(Football.abbreviation(game.awayName), "CHI")
+        XCTAssertEqual(Football.abbreviation(game.homeName), "DET")
     }
 
     func testOpenPlayHidesCrowdAndHasTimer() throws {
@@ -40,8 +60,15 @@ final class ContractTests: XCTestCase {
         XCTAssertEqual(play.state, .open)
         XCTAssertEqual(play.label, "Play 1 · 3rd & 7")
         XCTAssertEqual(play.locksAt - play.openedAt, 15, accuracy: 0.01)
+        XCTAssertNil(play.correctYardage)
+        XCTAssertNil(play.yardsGained)
+        XCTAssertNil(play.outcome)
         XCTAssertNil(s.crowd)
         XCTAssertEqual(s.game?.status, .live)
+        // The new play fields are on the wire (as null) before the play is resolved.
+        let wire = try XCTUnwrap(try object(fixture("state_play_opened"))["play"] as? [String: Any])
+        XCTAssertTrue(wire.keys.contains("correct_yardage"))
+        XCTAssertTrue(wire.keys.contains("yards_gained"))
     }
 
     func testLockedShowsCrowdAndMyPick() throws {
@@ -49,26 +76,85 @@ final class ContractTests: XCTestCase {
         XCTAssertEqual(s.play?.state, .locked)
         let crowd = try XCTUnwrap(s.crowd)
         XCTAssertEqual(crowd.total, 2)
-        XCTAssertEqual(crowd.count(Direction.left), 2)
-        XCTAssertEqual(s.myPrediction?.playType, .pass)
-        XCTAssertNil(s.myPrediction?.pointsEarned)
+        XCTAssertEqual(crowd.count(Direction.left) + crowd.count(Direction.center) + crowd.count(Direction.right), crowd.total)
+        XCTAssertEqual(crowd.count(PlayType.run) + crowd.count(PlayType.pass), crowd.total)
+        // The distance split rides along with the type and direction split.
+        XCTAssertTrue(crowd.hasYardage)
+        let yardageTotal = Yardage.allCases.compactMap { crowd.count($0) }.reduce(0, +)
+        XCTAssertEqual(yardageTotal, crowd.total)
+        XCTAssertEqual(crowd.count(Yardage.medium), 2)
+        XCTAssertEqual(crowd.exact, 0)
+        let mine = try XCTUnwrap(s.myPrediction)
+        XCTAssertEqual(mine.playType, .pass)
+        XCTAssertEqual(mine.direction, .left)
+        XCTAssertEqual(mine.yardage, .medium)
+        XCTAssertNil(mine.pointsEarned)
+        XCTAssertNil(mine.yardageCorrect)
+        XCTAssertNil(s.play?.outcome, "nothing is revealed while the play runs")
     }
 
     func testResolvedScoresAndRanks() throws {
         let s = try snapshot("state_play_resolved")
-        XCTAssertEqual(s.play?.correctPlayType, .pass)
-        XCTAssertEqual(s.play?.correctDirection, .left)
-        XCTAssertEqual(s.myPrediction?.pointsEarned, 30)
-        XCTAssertEqual(s.myPrediction?.typeCorrect, true)
+        let play = try XCTUnwrap(s.play)
+        XCTAssertEqual(play.correctPlayType, .pass)
+        XCTAssertEqual(play.correctDirection, .left)
+        XCTAssertEqual(play.correctYardage, .medium)
+        XCTAssertEqual(play.yardsGained, 7)
+        let outcome = try XCTUnwrap(play.outcome)
+        XCTAssertEqual(outcome.summary, "Pass · Left · Medium (7 yds)")
+        XCTAssertEqual(YardageOutcome(yards: 7), play.correctYardage, "server and app bucket yards the same way")
+        // The server's score for my pick is exactly what the app's own rules give.
+        let mine = try XCTUnwrap(s.myPrediction)
+        let yardage = try XCTUnwrap(mine.yardage)
+        let local = ScoreRules.score(type: mine.playType, direction: mine.direction, yardage: yardage, actual: outcome,
+                                     scoring: s.scoring)
+        XCTAssertEqual(mine.pointsEarned, local.points)
+        XCTAssertEqual(mine.typeCorrect, local.typeCorrect)
+        XCTAssertEqual(mine.directionCorrect, local.directionCorrect)
+        XCTAssertEqual(mine.yardageCorrect, local.yardageCorrect)
+        XCTAssertEqual(mine.pointsEarned, 30)
+        XCTAssertEqual(mine.yardage, .medium)
+        XCTAssertEqual(mine.yardageCorrect, true)
+        XCTAssertEqual(ScoreRules.label(points: mine.pointsEarned, scoring: s.scoring), "Perfect call!")
         XCTAssertEqual(s.me?.rank, 1)
+        XCTAssertEqual(s.me?.exactHits, 1)
+        // Sam got two of three: 20 points, no perfect call.
         XCTAssertEqual(s.leaderboard.map(\.username), ["JoeyC", "Sam"])
+        XCTAssertEqual(s.leaderboard.map(\.score), [30, 20])
+        XCTAssertEqual(s.leaderboard.map(\.exactHits), [1, 0])
+        let crowd = try XCTUnwrap(s.crowd)
+        XCTAssertEqual(crowd.exact, 1)
+        XCTAssertEqual(crowd.scored, 2)
         let lounge = try XCTUnwrap(s.lounge?.leaderboard)
         XCTAssertEqual(lounge.first?.isHost, true)
-        XCTAssertEqual(lounge.last?.score, 10)
+        XCTAssertEqual(lounge.last?.score, 20)
+    }
+
+    func testResolvedLossScoresNoDistance() throws {
+        let s = try snapshot("state_play_resolved_loss")
+        let play = try XCTUnwrap(s.play)
+        XCTAssertEqual(play.correctYardage, .loss)
+        XCTAssertEqual(play.yardsGained, -4)
+        let outcome = try XCTUnwrap(play.outcome)
+        XCTAssertEqual(outcome.summary, "Pass · Right · Loss (-4 yds)")
+        let mine = try XCTUnwrap(s.myPrediction)
+        XCTAssertEqual(mine.yardage, .short)
+        XCTAssertEqual(mine.yardageCorrect, false)
+        XCTAssertEqual(mine.typeCorrect, true)
+        XCTAssertEqual(mine.directionCorrect, true)
+        XCTAssertEqual(mine.pointsEarned, 20)
+        let local = ScoreRules.score(type: mine.playType, direction: mine.direction, yardage: mine.yardage, actual: outcome)
+        XCTAssertEqual(local.points, mine.pointsEarned)
+        XCTAssertFalse(local.yardageCorrect)
+        XCTAssertEqual(ScoreRules.label(points: mine.pointsEarned), "Two of three")
+        XCTAssertEqual(s.crowd?.exact, 0, "nobody can call a loss")
+        XCTAssertEqual(s.me?.gameScore, 50)
     }
 
     func testVoidedAndFinal() throws {
-        XCTAssertEqual(try snapshot("state_play_voided").play?.voided, true)
+        let voided = try snapshot("state_play_voided").play
+        XCTAssertEqual(voided?.voided, true)
+        XCTAssertNil(voided?.outcome)
         XCTAssertEqual(try snapshot("state_final").game?.status, .final)
     }
 
@@ -77,6 +163,8 @@ final class ContractTests: XCTestCase {
             return XCTFail("prediction_saved")
         }
         XCTAssertEqual(p.direction, .left)
+        XCTAssertEqual(p.yardage, .medium, "the server echoes the distance pick")
+        XCTAssertNil(p.pointsEarned)
         guard case .error(let code, let message) = try ServerMessage.decode(fixture("msg_bad_token")) else {
             return XCTFail("bad_token")
         }
@@ -99,15 +187,51 @@ final class ContractTests: XCTestCase {
     }
 
     func testOutgoingMessagesUseServerFieldNames() throws {
-        let data = try JSON.encoder.encode(PredictMessage(playId: 7, playType: .run, direction: .center))
-        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
-        XCTAssertEqual(object["type"] as? String, "predict")
-        XCTAssertEqual(object["play_id"] as? Int, 7)
-        XCTAssertEqual(object["play_type"] as? String, "RUN")
-        XCTAssertEqual(object["direction"] as? String, "CENTER")
-        let hello = try XCTUnwrap(JSONSerialization.jsonObject(with: JSON.encoder.encode(HelloMessage(token: "t", lounge: nil)))
-            as? [String: Any])
+        let pick = PredictMessage(playId: 7, playType: .pass, direction: .left, yardage: .short)
+        let wire = try object(JSON.encoder.encode(pick))
+        XCTAssertEqual(wire["type"] as? String, "predict")
+        XCTAssertEqual(wire["play_id"] as? Int, 7)
+        XCTAssertEqual(wire["play_type"] as? String, "PASS")
+        XCTAssertEqual(wire["direction"] as? String, "LEFT")
+        XCTAssertEqual(wire["yardage"] as? String, "SHORT")
+        XCTAssertEqual(wire.count, 5)
+        // The HTTP fallback posts the same fields (no "type").
+        XCTAssertEqual(pick.body["yardage"] as? String, "SHORT")
+        XCTAssertEqual(pick.body["play_id"] as? Int, 7)
+        XCTAssertEqual(Set(pick.body.keys), ["play_id", "play_type", "direction", "yardage"])
+        let hello = try object(JSON.encoder.encode(HelloMessage(token: "t", lounge: nil)))
         XCTAssertEqual(hello["type"] as? String, "hello")
         XCTAssertEqual(hello["token"] as? String, "t")
+    }
+
+    /// A game.db or server from before the distance pick: null/missing fields must still decode.
+    func testLegacyPayloadsDecode() throws {
+        let json = """
+        {"type": "state", "event": "sync", "server_time": 1.5, "game": null,
+         "play": {"id": 3, "game_id": 1, "play_number": 3, "down": 2, "distance": "4", "state": "RESOLVED",
+                  "voided": false, "opened_at": 1, "locks_at": 16, "correct_play_type": "RUN",
+                  "correct_direction": "CENTER"},
+         "my_prediction": {"user_id": 1, "play_id": 3, "play_type": "RUN", "direction": "CENTER", "yardage": null,
+                           "points_earned": 20, "type_correct": true, "direction_correct": true},
+         "me": null, "leaderboard": [], "ranked_players": 0,
+         "crowd": {"total": 1, "RUN": 1, "PASS": 0, "LEFT": 0, "CENTER": 1, "RIGHT": 0, "exact": 0, "scored": 1},
+         "lounge": null, "scoring": {"type": 10, "direction": 10, "exact": 30}}
+        """
+        guard case .state(let s) = try ServerMessage.decode(Data(json.utf8)) else { return XCTFail("state") }
+        XCTAssertNil(s.play?.correctYardage)
+        XCTAssertEqual(s.play?.outcome, PlayOutcome(playType: .run, direction: .center, yardage: nil))
+        XCTAssertNil(s.myPrediction?.yardage)
+        XCTAssertNil(s.myPrediction?.yardageCorrect)
+        XCTAssertEqual(s.crowd?.hasYardage, false)
+        XCTAssertNil(s.crowd?.count(Yardage.short))
+        XCTAssertEqual(s.scoring.yardage, 10, "missing scoring.yardage falls back to 10")
+
+        let loss = """
+        {"id": 4, "game_id": 1, "play_number": 4, "down": null, "distance": null, "state": "RESOLVED", "voided": false,
+         "opened_at": 1, "locks_at": 16, "correct_play_type": "PASS", "correct_direction": "RIGHT",
+         "correct_yardage": "LOSS", "yards_gained": -4}
+        """
+        let play = try JSON.decoder.decode(Play.self, from: Data(loss.utf8))
+        XCTAssertEqual(play.outcome?.summary, "Pass · Right · Loss (-4 yds)")
     }
 }

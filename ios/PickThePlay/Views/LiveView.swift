@@ -5,31 +5,35 @@ struct LiveView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 14) {
-                    if let game = state.snapshot?.game {
-                        ScorebugView(game: game, play: state.snapshot?.play)
-                    }
-                    StageView()
-                    if let me = state.snapshot?.me {
-                        HStack(spacing: 10) {
-                            StatTile(label: "Game pts", value: "\(me.gameScore)")
-                            StatTile(label: "Rank", value: me.rank.map { "#\($0)" } ?? "—")
-                            StatTile(label: "Season pts", value: "\(me.totalScore)")
+            GeometryReader { geo in
+                let compact = geo.size.height < Theme.compactBelow
+                ScrollView {
+                    VStack(spacing: compact ? 12 : 14) {
+                        if let game = state.snapshot?.game {
+                            ScorebugView(game: game, play: state.snapshot?.play)
                         }
+                        StageView()
+                        if let me = state.snapshot?.me {
+                            HStack(spacing: 10) {
+                                StatTile(label: "Game pts", value: "\(me.gameScore)")
+                                StatTile(label: "Rank", value: me.rank.map { "#\($0)" } ?? "—")
+                                StatTile(label: "Season pts", value: "\(me.totalScore)")
+                            }
+                        }
+                        Button {
+                            state.showPractice = true
+                        } label: {
+                            Label("Practice mode", systemImage: "figure.american.football")
+                                .font(.system(size: 15, weight: .bold))
+                                .frame(maxWidth: .infinity, minHeight: 44)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(Theme.muted)
+                        Disclaimer()
                     }
-                    Button {
-                        state.showPractice = true
-                    } label: {
-                        Label("Practice mode", systemImage: "figure.american.football")
-                            .font(.system(size: 15, weight: .bold))
-                            .frame(maxWidth: .infinity, minHeight: 44)
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(Theme.muted)
-                    Disclaimer()
+                    .padding(16)
                 }
-                .padding(16)
+                .environment(\.compactLayout, compact)
             }
             .background(Theme.bg.ignoresSafeArea())
             .toolbar {
@@ -55,7 +59,7 @@ struct BrandMark: View {
 
 struct Disclaimer: View {
     var body: some View {
-        Text("Pick the Play is an independent fan prediction game for entertainment only. It is not affiliated with, endorsed by, or sponsored by any professional football league or club. Team identifiers and colors are generic.")
+        Text("Pick the Play is an independent fan prediction game for entertainment only. It is not affiliated with, endorsed by, or sponsored by any professional football league or club. Teams are shown by city or region name and colors only; no club nicknames, logos or league marks are used.")
             .font(.system(size: 11))
             .foregroundStyle(Theme.dim)
             .multilineTextAlignment(.center)
@@ -67,11 +71,12 @@ struct Disclaimer: View {
 
 struct StageView: View {
     @EnvironmentObject var state: AppState
+    @Environment(\.compactLayout) private var compact
 
     var body: some View {
         content
-            .frame(maxWidth: .infinity, minHeight: 380)
-            .card(padding: 18)
+            .frame(maxWidth: .infinity, minHeight: compact ? 340 : 380)
+            .card(padding: compact ? 14 : 18)
     }
 
     @ViewBuilder private var content: some View {
@@ -174,30 +179,29 @@ struct WaitingStage: View {
 
 struct OpenStage: View {
     @EnvironmentObject var state: AppState
+    @Environment(\.compactLayout) private var compact
     var play: Play
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 0.1)) { _ in
             let remaining = max(0, play.locksAt - state.now())
-            VStack(alignment: .leading, spacing: 14) {
+            let scoring = state.snapshot?.scoring ?? .standard
+            VStack(alignment: .leading, spacing: compact ? 10 : 14) {
                 HStack(alignment: .center) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(play.label).kicker()
                         StageTitle(text: "Call the play!")
                     }
                     Spacer()
-                    CountdownRing(remaining: remaining, total: max(1, play.locksAt - play.openedAt))
+                    CountdownRing(remaining: remaining, total: max(1, play.locksAt - play.openedAt), size: compact ? 62 : 84)
                 }
-                PickPanel(type: state.pickType, direction: state.pickDirection,
-                          enabled: remaining > 0 && state.isSignedIn,
-                          onType: { state.choose($0) }, onDirection: { state.choose($0) })
+                PickPanel(type: state.pickType, direction: state.pickDirection, yardage: state.pickYardage,
+                          enabled: remaining > 0 && state.isSignedIn, scoring: scoring,
+                          onType: { state.choose($0) }, onDirection: { state.choose($0) }, onYardage: { state.choose($0) })
                 status(remaining: remaining)
-                HStack(spacing: 6) {
-                    Chip(text: "Type +\(state.snapshot?.scoring.type ?? 10)")
-                    Chip(text: "Direction +\(state.snapshot?.scoring.direction ?? 10)")
-                    Chip(text: "Both +\(state.snapshot?.scoring.exact ?? 30)", style: .gold)
-                }
-                .frame(maxWidth: .infinity)
+                Chip(text: "All three right = \(scoring.exact)", style: .gold)
+                    .frame(maxWidth: .infinity)
+                    .accessibilityLabel("All three right scores \(scoring.exact) points")
             }
         }
     }
@@ -206,18 +210,17 @@ struct OpenStage: View {
         let (text, color): (String, Color) = {
             if remaining <= 0 { return ("Time! Locking predictions…", Theme.muted) }
             if state.saving { return ("Sending your pick…", Theme.muted) }
-            if state.pickIsSaved, let t = state.pickType, let d = state.pickDirection {
-                return ("✓ Locked in: \(t.rawValue) · \(d.rawValue). Change it before 0.", Theme.accent)
+            if state.pickIsSaved, let t = state.pickType, let d = state.pickDirection, let y = state.pickYardage {
+                return ("✓ Locked in: \(t.rawValue) · \(d.rawValue) · \(y.rawValue). Change it before 0.", Theme.accent)
             }
-            if state.pickType != nil { return ("Now pick a direction", Theme.muted) }
-            if state.pickDirection != nil { return ("Now pick Run or Pass", Theme.muted) }
-            return ("Make your call: type + direction", Theme.muted)
+            return (Football.pickPrompt(type: state.pickType, direction: state.pickDirection, yardage: state.pickYardage),
+                    Theme.muted)
         }()
         return Text(text)
-            .font(.system(size: 14, weight: .semibold))
+            .font(.system(size: compact ? 13 : 14, weight: .semibold))
             .foregroundStyle(color)
             .multilineTextAlignment(.center)
-            .frame(maxWidth: .infinity, minHeight: 44)
+            .frame(maxWidth: .infinity, minHeight: compact ? 38 : 44)
             .padding(.horizontal, 10)
             .background(color == Theme.accent ? Theme.accent.opacity(0.12) : Theme.surface2,
                         in: RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -228,13 +231,14 @@ struct LockedStage: View {
     var snapshot: StateSnapshot
     var play: Play
     @State private var sweep = false
+    @Environment(\.compactLayout) private var compact
 
     var body: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: compact ? 10 : 14) {
             Image(systemName: "lock.fill")
-                .font(.system(size: 30, weight: .bold))
+                .font(.system(size: compact ? 24 : 30, weight: .bold))
                 .foregroundStyle(Theme.warn)
-                .frame(width: 76, height: 76)
+                .frame(width: compact ? 58 : 76, height: compact ? 58 : 76)
                 .background(Theme.warn.opacity(0.16), in: Circle())
             Text(play.label).kicker()
             StageTitle(text: "Predictions Locked — Play in Progress")
@@ -264,20 +268,21 @@ struct ResultStage: View {
     var game: Game
 
     var body: some View {
-        let pick = snapshot.myPrediction
+        let outcome = play.outcome
+        let pick = snapshot.myPrediction.map { ScoreRules.graded($0, outcome: outcome) }
         let points: Int? = pick.map { $0.pointsEarned ?? 0 }
-        let exact = points == snapshot.scoring.exact
+        let exact = points.map { $0 >= snapshot.scoring.exact } ?? false
         VStack(spacing: 14) {
             Text("\(play.label) — \(play.voided ? "No play" : "Result")").kicker()
             if play.voided {
                 Text("VOID").font(.system(size: 60, weight: .black)).foregroundStyle(Theme.dim)
                 Text("Play voided (penalty / no play). No points.").foregroundStyle(Theme.muted)
-            } else if let type = play.correctPlayType, let direction = play.correctDirection {
-                ResultReveal(playType: type, direction: direction, points: points, label: label(pick, points: points),
+            } else if let outcome {
+                ResultReveal(outcome: outcome, points: points, label: ScoreRules.label(points: points, scoring: snapshot.scoring),
                              exact: exact, animationKey: play.id)
                 PickChips(pick: pick, graded: true)
                 if let crowd = snapshot.crowd, crowd.total > 0 {
-                    Text("\(percent(crowd.exact, crowd.total))% of \(crowd.total) players called it exactly · \(percent(crowd.scored, crowd.total))% scored")
+                    Text("\(percent(crowd.exact, crowd.total))% of \(crowd.total) \(crowd.total == 1 ? "player" : "players") got all three · \(percent(crowd.scored, crowd.total))% scored")
                         .font(.system(size: 13)).foregroundStyle(Theme.muted)
                 }
             }
@@ -292,14 +297,6 @@ struct ResultStage: View {
                     .id(play.id)
             }
         }
-    }
-
-    private func label(_ pick: Prediction?, points: Int?) -> String {
-        guard let pick else { return "You didn't pick this play" }
-        if points == snapshot.scoring.exact { return "Exact match! 🔥" }
-        if pick.typeCorrect == true { return "Play type correct" }
-        if pick.directionCorrect == true { return "Direction correct" }
-        return "No points this time"
     }
 
     private func percent(_ part: Int, _ total: Int) -> Int {

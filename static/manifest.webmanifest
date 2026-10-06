@@ -1,7 +1,7 @@
 {
   "name": "Pick the Play: Live Pro Football Game",
   "short_name": "Pick the Play",
-  "description": "Call every play live: Run or Pass, Left, Center or Right.",
+  "description": "Call every play live: Run or Pass, Left, Center or Right, and how far.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

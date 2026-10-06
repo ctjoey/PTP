@@ -2,7 +2,7 @@
 "use strict";
 
 (() => {
-  const { $, $$, el, toast, api, LiveSocket, now, downDistance, pct } = PTP;
+  const { $, $$, el, toast, api, LiveSocket, now, downDistance, pct, yardsText } = PTP;
 
   const TOKEN_KEY = "ptp_token";
   const loungeId = document.body.dataset.lounge || null;
@@ -19,7 +19,7 @@
     state: null,
     view: "loading",
     board: loungeId ? "lounge" : "global",
-    selection: { playId: null, type: null, dir: null },
+    selection: { playId: null, type: null, dir: null, yard: null },
     savedKey: null,
     saving: false,
     timer: null,
@@ -231,12 +231,16 @@
     return play ? Math.max(0, play.locks_at - now()) : 0;
   }
 
+  const pickKey = (type, dir, yard) => (type && dir && yard ? `${type}|${dir}|${yard}` : null);
+
   function renderOpen(st) {
     const play = st.play;
     if (S.selection.playId !== play.id) {
       const mine = st.my_prediction;
-      S.selection = { playId: play.id, type: mine ? mine.play_type : null, dir: mine ? mine.direction : null };
-      S.savedKey = mine ? `${mine.play_type}|${mine.direction}` : null;
+      S.selection = mine
+        ? { playId: play.id, type: mine.play_type, dir: mine.direction, yard: mine.yardage || null }
+        : { playId: play.id, type: null, dir: null, yard: null };
+      S.savedKey = mine ? pickKey(mine.play_type, mine.direction, mine.yardage) : null;
       S.saving = false;
     }
     $("#open-kicker").textContent = playLabel(play);
@@ -247,28 +251,24 @@
   function paintPicks(errorText) {
     const expired = remaining() <= 0;
     const canPick = !expired && !!S.token;
-    const { type, dir } = S.selection;
-    for (const b of $$("[data-type]")) {
-      const on = b.dataset.type === type;
-      b.classList.toggle("selected", on);
-      b.setAttribute("aria-pressed", String(on));
-      b.disabled = !canPick;
+    const { type, dir, yard } = S.selection;
+    for (const [attr, value] of [["type", type], ["dir", dir], ["yard", yard]]) {
+      for (const b of $$(`[data-${attr}]`)) {
+        const on = b.dataset[attr] === value;
+        b.classList.toggle("selected", on);
+        b.setAttribute("aria-pressed", String(on));
+        b.disabled = !canPick;
+      }
     }
-    for (const b of $$("[data-dir]")) {
-      const on = b.dataset.dir === dir;
-      b.classList.toggle("selected", on);
-      b.setAttribute("aria-pressed", String(on));
-      b.disabled = !canPick;
-    }
-    const key = type && dir ? `${type}|${dir}` : null;
+    const key = pickKey(type, dir, yard);
+    const missing = [!type && "Run or Pass", !dir && "a direction", !yard && "how far"].filter(Boolean);
     if (errorText) setPickStatus(errorText, "error");
     else if (!S.token) setPickStatus("Sign in to make picks");
     else if (expired) setPickStatus("Time! Locking predictions…");
     else if (S.saving) setPickStatus("Sending your pick…");
-    else if (key && key === S.savedKey) setPickStatus(`✓ Locked in: ${type} · ${dir} — change it before 0`, "saved");
-    else if (type && !dir) setPickStatus("Now pick a direction");
-    else if (dir && !type) setPickStatus("Now pick Run or Pass");
-    else setPickStatus("Make your call: type + direction");
+    else if (key && key === S.savedKey) setPickStatus(`✓ Locked in: ${type} · ${dir} · ${yard}`, "saved");
+    else if (missing.length === 3) setPickStatus("Make your call: type, direction, distance");
+    else setPickStatus(`Now pick ${missing.join(" and ")}`);
   }
 
   function setPickStatus(text, kind = "") {
@@ -281,13 +281,13 @@
     if (remaining() <= 0 || !S.state || !S.state.play || S.state.play.state !== "OPEN") return;
     S.selection[kind] = value;
     if (navigator.vibrate) navigator.vibrate(8);
-    if (S.selection.type && S.selection.dir) submitPick();
+    if (S.selection.type && S.selection.dir && S.selection.yard) submitPick();
     paintPicks();
   }
 
   async function submitPick() {
-    const { playId, type, dir } = S.selection;
-    const payload = { play_id: playId, play_type: type, direction: dir };
+    const { playId, type, dir, yard } = S.selection;
+    const payload = { play_id: playId, play_type: type, direction: dir, yardage: yard };
     S.saving = true;
     if (socket && socket.send({ type: "predict", ...payload })) return;
     // Socket is down: fall back to plain HTTP so the pick still lands.
@@ -302,7 +302,7 @@
   function onPredictionSaved(pred) {
     if (!pred || pred.play_id !== S.selection.playId) return;
     S.saving = false;
-    S.savedKey = `${pred.play_type}|${pred.direction}`;
+    S.savedKey = pickKey(pred.play_type, pred.direction, pred.yardage);
     if (S.state) S.state.my_prediction = pred;
     if (S.view === "open") paintPicks();
   }
@@ -352,12 +352,17 @@
       return;
     }
     const graded = play && play.state === "RESOLVED" && !play.voided && "type_correct" in pick;
-    const chip = (text, ok) =>
-      el("span", { class: `chip ${graded ? (ok ? "good" : "bad") : ""}` }, graded ? `${text} ${ok ? "✓" : "✗"}` : text);
+    const chip = (text, ok, what) =>
+      el("span", {
+        class: `chip ${graded ? (ok ? "good" : "bad") : ""}`,
+        "aria-label": graded ? `${what} ${text}: ${ok ? "right" : "wrong"}` : null,
+      }, graded ? `${text} ${ok ? "✓" : "✗"}` : text);
     container.append(
       el("span", { class: "chip" }, "Your pick"),
-      chip(pick.play_type, pick.type_correct),
-      chip(pick.direction, pick.direction_correct),
+      chip(pick.play_type, pick.type_correct, "Play type"),
+      chip(pick.direction, pick.direction_correct, "Direction"),
+      // Picks made before distance picks existed have no distance.
+      chip(pick.yardage || "NO DISTANCE", pick.yardage_correct, "Distance"),
     );
   }
 
@@ -370,13 +375,16 @@
     if (stats && stats.total) {
       const typeBars = el("div", { class: "crowd" });
       const dirBars = el("div", { class: "crowd" });
+      const yardBars = el("div", { class: "crowd" });
       crowd.append(
-        el("div", { class: "pick-label", style: { marginBottom: "0" } }, `How ${stats.total} players called it`),
+        el("div", { class: "pick-label", style: { marginBottom: "0" } }, `How ${players(stats.total)} called it`),
         typeBars,
         dirBars,
+        yardBars,
       );
       PTP.crowdBars(typeBars, stats, ["RUN", "PASS"]);
       PTP.crowdBars(dirBars, stats, ["LEFT", "CENTER", "RIGHT"]);
+      PTP.crowdBars(yardBars, stats, ["SHORT", "MEDIUM", "LONG"]);
     }
   }
 
@@ -402,19 +410,20 @@
     } else {
       $("#reveal-type").textContent = play.correct_play_type;
       $("#reveal-dir").textContent = play.correct_direction;
+      const yardTile = $("#reveal-yard");
+      yardTile.textContent = play.correct_yardage || "—";
+      yardTile.closest(".reveal-tile").classList.toggle("loss", play.correct_yardage === "LOSS");
+      $("#reveal-yards").textContent =
+        play.yards_gained === null || play.yards_gained === undefined ? "" : yardsText(play.yards_gained);
+      $("#result-body .reveal").setAttribute("aria-label", `The play: ${PTP.describeResult(play)}`);
       const pts = pick ? pick.points_earned || 0 : null;
       points.textContent = pts === null ? "—" : `+${pts}`;
       points.className = `points ${pts === st.scoring.exact ? "exact" : pts ? "some" : "zero"}`;
-      label.textContent =
-        pts === null ? "You didn't pick this play"
-          : pts === st.scoring.exact ? "Exact match! 🔥"
-            : pick.type_correct ? "Play type correct"
-              : pick.direction_correct ? "Direction correct"
-                : "No points this time";
+      label.textContent = resultLabel(pts, st.scoring);
       pickChips($("#result-pick"), pick, play);
       $("#result-crowd").textContent =
         crowd && crowd.total
-          ? `${pct(crowd.exact, crowd.total)}% of ${crowd.total} players called it exactly · ${pct(crowd.scored, crowd.total)}% scored`
+          ? `${pct(crowd.exact, crowd.total)}% of ${players(crowd.total)} got all three · ${pct(crowd.scored, crowd.total)}% scored`
           : "";
     }
 
@@ -427,6 +436,16 @@
     } else if (st.event !== "play_resolved") {
       view.classList.remove("animate");
     }
+  }
+
+  const players = (n) => `${n} ${n === 1 ? "player" : "players"}`;
+
+  /** By points (10 per correct part): 30 "Perfect call!", 20 "Two of three", 10 "One of three", 0. */
+  function resultLabel(pts, scoring) {
+    if (pts === null) return "You didn't pick this play";
+    if (pts >= scoring.exact) return "Perfect call! 🔥";
+    const right = Math.round(pts / (scoring.type || 10));
+    return ["No points this time", "One of three", "Two of three"][right] || "No points this time";
   }
 
   function confetti() {
@@ -528,8 +547,8 @@
         el("span", { class: "board-name" },
           el("strong", {}, r.is_host ? "👑 " : "", r.username, r.user_id === myId ? el("span", { class: "you-tag" }, "YOU") : null),
           el("span", {}, r.picks == null
-            ? `${r.exact_hits} exact`
-            : `${r.picks} ${r.picks === 1 ? "pick" : "picks"} · ${r.exact_hits} exact`)),
+            ? `${r.exact_hits} perfect`
+            : `${r.picks} ${r.picks === 1 ? "pick" : "picks"} · ${r.exact_hits} perfect`)),
         el("span", { class: "board-score" },
           move ? el("span", { class: `move ${move > 0 ? "up" : "down"}` }, `${move > 0 ? "▲" : "▼"}${Math.abs(move)}`) : null,
           String(r.score)));
@@ -579,6 +598,7 @@
   function wireUI() {
     for (const b of $$("[data-type]")) b.addEventListener("click", () => choose("type", b.dataset.type));
     for (const b of $$("[data-dir]")) b.addEventListener("click", () => choose("dir", b.dataset.dir));
+    for (const b of $$("[data-yard]")) b.addEventListener("click", () => choose("yard", b.dataset.yard));
     for (const t of $$("[data-board]")) {
       t.addEventListener("click", () => {
         S.board = t.dataset.board;

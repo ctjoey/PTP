@@ -64,20 +64,32 @@
           <div class="countdown-num" id="countdown-num">15</div>
         </div>
       </div>
-      <div class="pick-label">Run or pass?</div>
-      <div class="pick-grid two">
-        <button class="pick-btn" type="button" data-type="RUN" aria-pressed="false">RUN<small>On the ground</small></button>
-        <button class="pick-btn" type="button" data-type="PASS" aria-pressed="false">PASS<small>Through the air</small></button>
+      <div class="pick-group" role="group" aria-labelledby="lbl-type">
+        <div class="pick-label" id="lbl-type">Run or pass?</div>
+        <div class="pick-grid two">
+          <button class="pick-btn" type="button" data-type="RUN" aria-pressed="false">RUN<small>On the ground</small></button>
+          <button class="pick-btn" type="button" data-type="PASS" aria-pressed="false">PASS<small>Through the air</small></button>
+        </div>
       </div>
-      <div class="pick-label">Which direction?</div>
-      <div class="pick-grid three">
-        <button class="pick-btn" type="button" data-dir="LEFT" aria-pressed="false">LEFT<small>◀</small></button>
-        <button class="pick-btn" type="button" data-dir="CENTER" aria-pressed="false">CENTER<small>▲</small></button>
-        <button class="pick-btn" type="button" data-dir="RIGHT" aria-pressed="false">RIGHT<small>▶</small></button>
+      <div class="pick-group" role="group" aria-labelledby="lbl-dir">
+        <div class="pick-label pick-label-row"><span id="lbl-dir">Which direction?</span> <span class="qb-hint">As the QB looks downfield</span></div>
+        <div class="pick-grid three">
+          <button class="pick-btn" type="button" data-dir="LEFT" aria-pressed="false">LEFT<small>◀</small></button>
+          <button class="pick-btn" type="button" data-dir="CENTER" aria-pressed="false">CENTER<small>▲</small></button>
+          <button class="pick-btn" type="button" data-dir="RIGHT" aria-pressed="false">RIGHT<small>▶</small></button>
+        </div>
       </div>
-      <div class="pick-status" id="pick-status">Make your call: type + direction</div>
+      <div class="pick-group" role="group" aria-labelledby="lbl-yard">
+        <div class="pick-label" id="lbl-yard">How far?</div>
+        <div class="pick-grid three">
+          <button class="pick-btn" type="button" data-yard="SHORT" aria-pressed="false">SHORT<small>0-5 yds</small></button>
+          <button class="pick-btn" type="button" data-yard="MEDIUM" aria-pressed="false">MEDIUM<small>6-10 yds</small></button>
+          <button class="pick-btn" type="button" data-yard="LONG" aria-pressed="false">LONG<small>11+ yds</small></button>
+        </div>
+      </div>
+      <div class="pick-status" id="pick-status">Make your call: type, direction, distance</div>
       <div class="points-hint">
-        <span class="chip">Type +10</span><span class="chip">Direction +10</span><span class="chip gold">Both +30</span>
+        <span class="chip">Type +10</span><span class="chip">Direction +10</span><span class="chip">Distance +10</span><span class="chip gold">All three 30</span>
       </div>
     </div>
 
@@ -95,10 +107,12 @@
     <div class="view view-center" data-view="result" hidden>
       <div class="view-kicker" id="result-kicker"></div>
       <div id="result-body">
-        <div class="reveal">
+        <div class="reveal" role="img">
           <div class="reveal-tile"><div class="lbl">PLAY TYPE</div><div class="val" id="reveal-type"></div></div>
           <div class="reveal-tile"><div class="lbl">DIRECTION</div><div class="val" id="reveal-dir"></div></div>
+          <div class="reveal-tile"><div class="lbl">DISTANCE</div><div class="val" id="reveal-yard"></div><div class="sub" id="reveal-yards"></div></div>
         </div>
+        <p class="result-line qb-hint">Left and right as the QB looks downfield</p>
       </div>
       <div class="points" id="result-points"></div>
       <div class="points-label" id="result-label"></div>
@@ -134,7 +148,8 @@
 
   <p class="footer-note">
     Pick the Play is an independent fan prediction game for entertainment only. It is not affiliated with,
-    endorsed by, or sponsored by any professional football league or club. Team identifiers and colors are generic.
+    endorsed by, or sponsored by any professional football league or club. Teams are shown by city or region
+    name only.
     <br><a href="/privacy" style="color:var(--muted)">Privacy</a> · <a href="/support" style="color:var(--muted)">Support</a>
   </p>
 </main>
@@ -144,12 +159,15 @@
   <form class="modal" id="signin-form" novalidate role="dialog" aria-modal="true" aria-labelledby="signin-title">
     <h2 id="signin-title">Welcome to Pick the Play</h2>
     <p class="muted">Call every snap before it happens. When a play opens you have 15 seconds to pick
-      <b>Run or Pass</b> and <b>Left, Center or Right</b>.</p>
+      <b>Run or Pass</b>, <b>Left, Center or Right</b> (as the QB looks downfield) and <b>how far</b>:
+      Short (0-5 yds), Medium (6-10) or Long (11+).</p>
     <table class="scoring-table">
       <tr><td>Correct play type</td><td>+10</td></tr>
       <tr><td>Correct direction</td><td>+10</td></tr>
-      <tr><td>Exact match (both)</td><td>+30</td></tr>
+      <tr><td>Correct distance</td><td>+10</td></tr>
+      <tr><td>All three right</td><td>30</td></tr>
     </table>
+    <p class="muted small" style="margin:8px 0 0">A loss of yards scores no distance points.</p>
     <div class="field" style="margin-top:16px">
       <label for="username">Choose a username</label>
       <input class="input" id="username" maxlength="20" autocomplete="nickname" autocapitalize="off" spellcheck="false" required>

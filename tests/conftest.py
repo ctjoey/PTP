@@ -31,11 +31,12 @@ def admin_headers():
     return {"X-Admin-Key": ADMIN_KEY}
 
 
+# Chicago at Detroit, from the admin's team presets (teams.py).
 GAME = {
-    "home_name": "Green Bay",
-    "home_primary": "#1F6B3A",
-    "home_secondary": "#F2C230",
+    "home_name": "Detroit",
+    "home_primary": "#0076B6",
+    "home_secondary": "#B0B7BC",
     "away_name": "Chicago",
-    "away_primary": "#14213D",
-    "away_secondary": "#F26A1B",
+    "away_primary": "#0B162A",
+    "away_secondary": "#C83803",
 }

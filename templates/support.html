@@ -35,15 +35,23 @@
       <b>{{ window_seconds }} seconds</b> to call it:</p>
     <ol>
       <li><b>Run or pass?</b></li>
-      <li><b>Left, center or right?</b></li>
+      <li><b>Left, center or right?</b> Left and right are as the quarterback looks downfield (the
+        offense's left and right), not the TV picture's.</li>
+      <li><b>How far?</b> Total yards gained on the play: <b>Short</b> (5 yards or less),
+        <b>Medium</b> (6-10 yards) or <b>Long</b> (11 or more). An incomplete pass or no gain counts as
+        0 yards, so it's Short.</li>
     </ol>
     <p>You can change your pick until the timer runs out. Then predictions lock, the play runs, and
       everyone sees the result and the updated leaderboard at the same moment.</p>
     <table class="scoring-table">
       <tr><td>Correct play type</td><td>+{{ scoring.type }}</td></tr>
       <tr><td>Correct direction</td><td>+{{ scoring.direction }}</td></tr>
-      <tr><td>Exact match (both)</td><td>+{{ scoring.exact }}</td></tr>
+      <tr><td>Correct distance</td><td>+{{ scoring.yardage }}</td></tr>
+      <tr><td>All three right (a perfect call)</td><td>{{ scoring.exact }}</td></tr>
     </table>
+    <p>For example, you pick Run, Left, Short and it's a run to the left for 7 yards (Medium): that's
+      {{ scoring.type + scoring.direction }} points. A loss of yards scores no distance points, so a sack
+      or a run stopped behind the line can earn at most {{ scoring.type + scoring.direction }}.</p>
     <p>The live leaderboard ranks points in the current game. Your season points add up across every
       game. Plays cancelled by a penalty or no-play score nothing for anyone.</p>
   </section>

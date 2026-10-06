@@ -52,7 +52,7 @@ def test_admin_api_requires_key(client, admin_headers):
 
 
 def test_trademark_names_rejected_over_http(client, admin_headers):
-    res = client.post("/api/admin/game", json={**GAME, "home_name": "Green Bay Packers"}, headers=admin_headers)
+    res = client.post("/api/admin/game", json={**GAME, "home_name": "Detroit Lions"}, headers=admin_headers)
     assert res.status_code == 400 and "protected" in res.json()["detail"]
 
 
@@ -90,7 +90,8 @@ def test_full_live_flow_over_websockets(client):
 
         admin_do("create_game", **GAME)
         created = recv_until(a, state_event("game_created"))
-        assert created["game"]["home_name"] == "Green Bay" and created["play"] is None
+        assert created["game"]["home_name"] == "Detroit" and created["play"] is None
+        assert created["scoring"] == {"type": 10, "direction": 10, "yardage": 10, "exact": 30}
 
         play = admin_do("open_play", down=3, distance="7")
         opened = recv_until(a, state_event("play_opened"))
@@ -98,36 +99,55 @@ def test_full_live_flow_over_websockets(client):
         assert opened["play"]["state"] == "OPEN" and opened["game"]["status"] == "LIVE"
         assert 14 < opened["play"]["locks_at"] - opened["server_time"] <= 15
         assert opened["crowd"] is None  # split stays hidden while picking
+        assert opened["play"]["correct_yardage"] is None and opened["play"]["yards_gained"] is None
 
-        a.send_json({"type": "predict", "play_id": play["id"], "play_type": "PASS", "direction": "LEFT"})
-        assert recv_until(a, lambda m: m["type"] == "prediction_saved")["prediction"]["play_type"] == "PASS"
-        b.send_json({"type": "predict", "play_id": play["id"], "play_type": "RUN", "direction": "LEFT"})
+        a.send_json({"type": "predict", "play_id": play["id"], "play_type": "PASS", "direction": "LEFT",
+                     "yardage": "MEDIUM"})
+        saved = recv_until(a, lambda m: m["type"] == "prediction_saved")["prediction"]
+        assert saved == {"play_id": play["id"], "play_type": "PASS", "direction": "LEFT", "yardage": "MEDIUM",
+                         "points_earned": None}
+        b.send_json({"type": "predict", "play_id": play["id"], "play_type": "RUN", "direction": "LEFT",
+                     "yardage": "SHORT"})
         recv_until(b, lambda m: m["type"] == "prediction_saved")
-        b.send_json({"type": "predict", "play_id": play["id"], "play_type": "BOMB", "direction": "LEFT"})
+        b.send_json({"type": "predict", "play_id": play["id"], "play_type": "BOMB", "direction": "LEFT",
+                     "yardage": "SHORT"})
         assert recv_until(b, lambda m: m["type"] == "error")["message"]
+        b.send_json({"type": "predict", "play_id": play["id"], "play_type": "RUN", "direction": "LEFT"})
+        assert recv_until(b, lambda m: m["type"] == "error")["message"] == "yardage: Field required"
 
         admin_do("lock_play")
         locked = recv_until(a, state_event("play_locked"))
         recv_until(b, state_event("play_locked"))
         assert locked["play"]["state"] == "LOCKED"
         assert locked["crowd"]["total"] == 2 and locked["crowd"]["LEFT"] == 2
-        assert locked["my_prediction"]["direction"] == "LEFT"
+        assert (locked["crowd"]["SHORT"], locked["crowd"]["MEDIUM"], locked["crowd"]["LONG"]) == (1, 1, 0)
+        assert locked["my_prediction"]["direction"] == "LEFT" and locked["my_prediction"]["yardage"] == "MEDIUM"
 
-        b.send_json({"type": "predict", "play_id": play["id"], "play_type": "PASS", "direction": "LEFT"})
+        b.send_json({"type": "predict", "play_id": play["id"], "play_type": "PASS", "direction": "LEFT",
+                     "yardage": "MEDIUM"})
         assert "locked" in recv_until(b, lambda m: m["type"] == "error")["message"]
 
-        admin_do("resolve_play", play_type="PASS", direction="LEFT")
+        admin_do("resolve_play", play_type="PASS", direction="LEFT", yardage="MEDIUM", yards=7)
         res_a = recv_until(a, state_event("play_resolved"))
         res_b = recv_until(b, state_event("play_resolved"))
         assert res_a["play"]["correct_play_type"] == "PASS"
-        assert res_a["my_prediction"]["points_earned"] == 30 and res_a["my_prediction"]["type_correct"]
+        assert (res_a["play"]["correct_yardage"], res_a["play"]["yards_gained"]) == ("MEDIUM", 7)
+        assert res_a["my_prediction"]["points_earned"] == 30
+        assert {k: res_a["my_prediction"][k] for k in ("type_correct", "direction_correct", "yardage_correct")} \
+            == {"type_correct": True, "direction_correct": True, "yardage_correct": True}
         assert res_b["my_prediction"]["points_earned"] == 10
+        assert {k: res_b["my_prediction"][k] for k in ("type_correct", "direction_correct", "yardage_correct")} \
+            == {"type_correct": False, "direction_correct": True, "yardage_correct": False}
+        assert res_a["crowd"]["exact"] == 1 and res_a["crowd"]["scored"] == 2
         assert res_a["me"] == {**res_a["me"], "game_score": 30, "rank": 1, "total_score": 30}
         assert res_b["me"]["rank"] == 2
         assert [r["username"] for r in res_a["leaderboard"]] == ["alice", "bob"]
 
         admin_state = next(m for m in admin_seen if m["type"] == "admin_state" and m["event"] == "play_resolved")
         assert admin_state["history"][0]["exact_hits"] == 1 and admin_state["ranked_players"] == 2
+        assert admin_state["history"][0]["correct_yardage"] == "MEDIUM"
+        assert admin_state["history"][0]["yards_gained"] == 7
+        assert admin_state["pick_stats"]["MEDIUM"] == 1
 
         # Errors come back as a failed ack rather than a dropped socket.
         admin.send_json({"action": "lock_play", "request_id": "again"})
@@ -157,14 +177,15 @@ def test_lounge_leaderboard_over_websocket(client, admin_headers):
 
     play = client.post("/api/admin/play/open", json={"down": 1, "distance": "10"}, headers=admin_headers).json()
     res = client.post("/api/predictions", headers=auth(friend),
-                      json={"play_id": play["id"], "play_type": "RUN", "direction": "RIGHT"})
+                      json={"play_id": play["id"], "play_type": "RUN", "direction": "RIGHT", "yardage": "SHORT"})
     assert res.status_code == 200
     client.post("/api/admin/play/lock", headers=admin_headers)
-    client.post("/api/admin/play/resolve", json={"play_type": "RUN", "direction": "LEFT"}, headers=admin_headers)
+    client.post("/api/admin/play/resolve", json={"play_type": "RUN", "direction": "LEFT", "yards": 3},
+                headers=admin_headers)
 
     resolved = recv_until(sock, state_event("play_resolved"))
     rows = resolved["lounge"]["leaderboard"]
-    assert [(r["username"], r["score"], r["is_host"]) for r in rows] == [("friend", 10, False), ("host", 0, True)]
+    assert [(r["username"], r["score"], r["is_host"]) for r in rows] == [("friend", 20, False), ("host", 0, True)]
     cm.__exit__(None, None, None)
     cm2.__exit__(None, None, None)
 

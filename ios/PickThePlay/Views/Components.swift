@@ -71,21 +71,30 @@ struct StatusPill: View {
 
 struct PickButton: View {
     var title: String
-    var caption: String?
+    var caption: String? = nil
+    /// An SF Symbol shown under the title instead of a caption (the direction arrows).
+    var symbol: String? = nil
     var selected: Bool
     var enabled: Bool
     var height: CGFloat = 64
+    /// What VoiceOver says instead of the shouted title, e.g. "Short, 0 to 5 yards".
+    var spoken: String? = nil
     var action: () -> Void
 
     var body: some View {
+        let detail = selected ? Theme.accentInk.opacity(0.7) : Theme.muted
         Button(action: action) {
             VStack(spacing: 2) {
-                Text(title).font(.system(size: height > 60 ? 19 : 16, weight: .black)).tracking(0.6)
-                if let caption {
-                    Text(caption).font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(selected ? Theme.accentInk.opacity(0.7) : Theme.muted)
+                Text(title).font(.system(size: height > 56 ? 19 : 16, weight: .black)).tracking(0.6)
+                    .lineLimit(1).minimumScaleFactor(0.7)
+                if let symbol {
+                    Image(systemName: symbol).font(.system(size: 11, weight: .black)).foregroundStyle(detail)
+                } else if let caption {
+                    Text(caption).font(.system(size: 11, weight: .bold)).foregroundStyle(detail)
+                        .lineLimit(1).minimumScaleFactor(0.8)
                 }
             }
+            .padding(.horizontal, 4)
             .frame(maxWidth: .infinity, minHeight: height)
             .foregroundStyle(selected ? Theme.accentInk : Theme.text)
             .background(selected ? Theme.accent : Theme.surface2, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -96,6 +105,7 @@ struct PickButton: View {
         .buttonStyle(PressStyle())
         .disabled(!enabled)
         .opacity(enabled ? 1 : 0.45)
+        .accessibilityLabel(spoken ?? title)
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
@@ -108,62 +118,105 @@ struct PressStyle: ButtonStyle {
     }
 }
 
-/// Run/Pass + Left/Center/Right grid shared by the live game and practice.
+/// The three-part call shared by the live game and practice: Run/Pass, Left/Center/Right as the QB
+/// looks downfield, and Short/Medium/Long by total yards gained. Each group header shows its points.
 struct PickPanel: View {
     var type: PlayType?
     var direction: Direction?
+    var yardage: Yardage?
     var enabled: Bool
+    var scoring: Scoring = .standard
     var onType: (PlayType) -> Void
     var onDirection: (Direction) -> Void
+    var onYardage: (Yardage) -> Void
+
+    @Environment(\.compactLayout) private var compact
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Run or pass?").kicker()
+        VStack(alignment: .leading, spacing: compact ? 7 : 10) {
+            GroupHeader(title: "Run or pass?", points: scoring.type)
             HStack(spacing: 10) {
                 ForEach(PlayType.allCases) { option in
-                    PickButton(title: option.rawValue, caption: option.caption, selected: type == option, enabled: enabled) {
+                    PickButton(title: option.rawValue, caption: option.caption, selected: type == option, enabled: enabled,
+                               height: compact ? 50 : 62, spoken: option.title) {
                         onType(option)
                     }
                 }
             }
-            Text("Which direction?").kicker().padding(.top, 4)
+            GroupHeader(title: "Which way?", hint: "As the QB looks downfield", points: scoring.direction)
+                .padding(.top, compact ? 2 : 4)
             HStack(spacing: 10) {
                 ForEach(Direction.allCases) { option in
-                    PickButton(title: option.rawValue, caption: nil, selected: direction == option, enabled: enabled,
-                               height: 56) {
+                    PickButton(title: option.rawValue, symbol: option.symbol, selected: direction == option, enabled: enabled,
+                               height: compact ? 46 : 54, spoken: "\(option.title), as the QB looks downfield") {
                         onDirection(option)
                     }
-                    .overlay(alignment: .bottom) {
-                        Image(systemName: option.symbol).font(.system(size: 10, weight: .black))
-                            .foregroundStyle(direction == option ? Theme.accentInk.opacity(0.7) : Theme.muted)
-                            .padding(.bottom, 7)
-                            .allowsHitTesting(false)
+                }
+            }
+            GroupHeader(title: "How far?", hint: "No points for a loss", points: scoring.yardage)
+                .padding(.top, compact ? 2 : 4)
+            HStack(spacing: 10) {
+                ForEach(Yardage.allCases) { option in
+                    PickButton(title: option.rawValue, caption: option.range, selected: yardage == option, enabled: enabled,
+                               height: compact ? 46 : 54, spoken: "\(option.title), \(option.spokenRange)") {
+                        onYardage(option)
                     }
                 }
             }
         }
-        .sensoryFeedback(.selection, trigger: (type?.rawValue ?? "") + (direction?.rawValue ?? ""))
+        .sensoryFeedback(.selection, trigger: "\(type?.rawValue ?? "")|\(direction?.rawValue ?? "")|\(yardage?.rawValue ?? "")")
+    }
+}
+
+/// "WHICH WAY?  As the QB looks downfield ........ +10"
+struct GroupHeader: View {
+    var title: String
+    var hint: String? = nil
+    var points: Int
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(title).kicker()
+            if let hint {
+                Text(hint).font(.system(size: 11, weight: .semibold)).foregroundStyle(Theme.muted)
+                    .lineLimit(1).minimumScaleFactor(0.75)
+            }
+            Spacer(minLength: 4)
+            Text("+\(points)").font(.system(size: 11, weight: .heavy).monospacedDigit()).foregroundStyle(Theme.accent)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(spoken)
+        .accessibilityAddTraits(.isHeader)
+    }
+
+    /// "Which way? As the QB looks downfield. 10 points" (titles already end in "?").
+    private var spoken: String {
+        var text = title
+        if let hint { text += " \(hint)." }
+        return text + " \(points) points"
     }
 }
 
 struct CountdownRing: View {
     var remaining: Double
     var total: Double
+    var size: CGFloat = 84
 
     var body: some View {
         let fraction = total > 0 ? max(0, min(1, remaining / total)) : 0
         let color: Color = remaining <= 3 ? Theme.danger : (remaining <= 7 ? Theme.warn : Theme.accent)
+        let line: CGFloat = size < 80 ? 7 : 8
         ZStack {
-            Circle().stroke(Theme.surface3, lineWidth: 8)
+            Circle().stroke(Theme.surface3, lineWidth: line)
             Circle().trim(from: 0, to: fraction)
-                .stroke(color, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                .stroke(color, style: StrokeStyle(lineWidth: line, lineCap: .round))
                 .rotationEffect(.degrees(-90))
             Text("\(Int(remaining.rounded(.up)))")
-                .font(.system(size: 30, weight: .black).monospacedDigit())
+                .font(.system(size: size * 0.36, weight: .black).monospacedDigit())
                 .foregroundStyle(remaining <= 3 ? Theme.danger : Theme.text)
                 .contentTransition(.numericText(countsDown: true))
         }
-        .frame(width: 84, height: 84)
+        .frame(width: size, height: size)
         .accessibilityLabel("\(Int(remaining.rounded(.up))) seconds left")
     }
 }
@@ -192,56 +245,106 @@ struct Chip: View {
     }
 }
 
-/// "Your pick: PASS ✓ LEFT ✗"
+/// "YOUR PICK" over PASS ✓  LEFT ✗  SHORT ✓ (marks only once the play is graded).
 struct PickChips: View {
     var pick: Prediction?
     var graded: Bool
 
     var body: some View {
-        HStack(spacing: 8) {
+        VStack(spacing: 6) {
             if let pick {
-                Chip(text: "Your pick")
-                chip(pick.playType.rawValue, pick.typeCorrect)
-                chip(pick.direction.rawValue, pick.directionCorrect)
+                Text("Your pick").kicker()
+                HStack(spacing: 6) {
+                    chip(pick.playType.rawValue, pick.typeCorrect)
+                    chip(pick.direction.rawValue, pick.directionCorrect)
+                    chip(pick.yardage?.rawValue ?? "NO DISTANCE", pick.yardageCorrect)
+                }
             } else {
                 Chip(text: "No pick this play")
             }
         }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(spoken)
     }
 
     private func chip(_ text: String, _ correct: Bool?) -> Chip {
         guard graded, let correct else { return Chip(text: text) }
         return Chip(text: "\(text) \(correct ? "✓" : "✗")", style: correct ? .good : .bad)
     }
+
+    private var spoken: String {
+        guard let pick else { return "No pick this play" }
+        func part(_ name: String, _ correct: Bool?) -> String {
+            guard graded, let correct else { return name }
+            return "\(name), \(correct ? "correct" : "missed")"
+        }
+        let parts = [part(pick.playType.title, pick.typeCorrect), part(pick.direction.title, pick.directionCorrect),
+                     part(pick.yardage?.title ?? "No distance", pick.yardageCorrect)]
+        return "Your pick: " + parts.joined(separator: ". ")
+    }
 }
 
+/// How the crowd split on each part, one stacked bar per part (shown once picks are locked).
 struct CrowdBars: View {
     var crowd: Crowd
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("How \(crowd.total) \(crowd.total == 1 ? "player" : "players") called it").kicker()
-            ForEach(PlayType.allCases) { bar($0.rawValue, crowd.count($0)) }
-            ForEach(Direction.allCases) { bar($0.rawValue, crowd.count($0)) }
-        }
+    private struct Share: Identifiable {
+        var id: String
+        var count: Int
+        var shade: Double
     }
 
-    private func bar(_ label: String, _ count: Int) -> some View {
-        let share = crowd.total > 0 ? Double(count) / Double(crowd.total) : 0
-        return HStack(spacing: 8) {
-            Text(label).font(.system(size: 13, weight: .bold)).frame(width: 64, alignment: .leading)
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("How \(crowd.total) \(crowd.total == 1 ? "player" : "players") called it").kicker()
+            split(PlayType.allCases.map { ($0.rawValue, crowd.count($0)) })
+            split(Direction.allCases.map { ($0.rawValue, crowd.count($0)) })
+            if crowd.hasYardage {
+                split(Yardage.allCases.map { ($0.rawValue, crowd.count($0) ?? 0) })
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func split(_ counts: [(String, Int)]) -> some View {
+        let shades: [Double] = [1, 0.6, 0.32]
+        let shares = counts.enumerated().map { index, entry in
+            Share(id: entry.0, count: entry.1, shade: shades[min(index, shades.count - 1)])
+        }
+        return VStack(alignment: .leading, spacing: 5) {
             GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Theme.surface3)
-                    Capsule().fill(Theme.blue).frame(width: geo.size.width * share)
+                HStack(spacing: 0) {
+                    ForEach(shares) { share in
+                        Rectangle().fill(Theme.blue.opacity(share.shade))
+                            .frame(width: geo.size.width * fraction(share.count))
+                    }
                 }
             }
             .frame(height: 10)
-            Text("\(Int((share * 100).rounded()))%").font(.system(size: 13, weight: .bold).monospacedDigit())
-                .foregroundStyle(Theme.muted).frame(width: 44, alignment: .trailing)
+            .background(Theme.surface3)
+            .clipShape(Capsule())
+            HStack(spacing: 12) {
+                ForEach(shares) { share in
+                    HStack(spacing: 4) {
+                        Circle().fill(Theme.blue.opacity(share.shade)).frame(width: 7, height: 7)
+                        Text("\(share.id) \(percent(share.count))%")
+                            .font(.system(size: 12, weight: .bold).monospacedDigit())
+                            .foregroundStyle(Theme.text)
+                            .lineLimit(1)
+                    }
+                }
+            }
         }
-        .foregroundStyle(Theme.text)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(shares.map { "\($0.id.capitalized) \(percent($0.count)) percent" }.joined(separator: ", "))
     }
+
+    private func fraction(_ count: Int) -> Double {
+        crowd.total > 0 ? min(1, Double(count) / Double(crowd.total)) : 0
+    }
+
+    private func percent(_ count: Int) -> Int { Int((fraction(count) * 100).rounded()) }
 }
 
 struct StatTile: View {
@@ -276,8 +379,7 @@ struct ConnectionDot: View {
 // MARK: - Result reveal
 
 struct ResultReveal: View {
-    var playType: PlayType
-    var direction: Direction
+    var outcome: PlayOutcome
     var points: Int?
     var label: String
     var exact: Bool
@@ -285,24 +387,30 @@ struct ResultReveal: View {
     var animationKey: Int
 
     @State private var shown = false
+    @Environment(\.compactLayout) private var compact
 
     var body: some View {
-        VStack(spacing: 14) {
-            HStack(spacing: 10) {
-                tile("PLAY TYPE", playType.rawValue, delay: 0)
-                tile("DIRECTION", direction.rawValue, delay: 0.25)
+        VStack(spacing: compact ? 10 : 14) {
+            HStack(spacing: 8) {
+                tile("Play type", outcome.playType.rawValue, detail: outcome.playType.caption, delay: 0)
+                tile("Direction", outcome.direction.rawValue, detail: "QB's view", delay: 0.2)
+                tile("Distance", outcome.yardage?.rawValue ?? "—", detail: distanceDetail, delay: 0.4,
+                     loss: outcome.yardage == .loss)
             }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("What happened: \(outcome.spokenSummary)")
             Text(points.map { "+\($0)" } ?? "—")
-                .font(.system(size: 60, weight: .black).monospacedDigit())
+                .font(.system(size: compact ? 50 : 60, weight: .black).monospacedDigit())
                 .foregroundStyle(exact ? Theme.gold : ((points ?? 0) > 0 ? Theme.accent : Theme.dim))
                 .shadow(color: exact ? Theme.gold.opacity(0.5) : .clear, radius: 18)
                 .scaleEffect(shown ? 1 : 0.3)
                 .opacity(shown ? 1 : 0)
-                .animation(.spring(response: 0.45, dampingFraction: 0.55).delay(0.55), value: shown)
+                .animation(.spring(response: 0.45, dampingFraction: 0.55).delay(0.75), value: shown)
+                .accessibilityLabel(points.map { "\($0) points" } ?? "No points")
             Text(label).font(.system(size: 14, weight: .black)).tracking(1.4).textCase(.uppercase)
                 .foregroundStyle(Theme.text)
                 .opacity(shown ? 1 : 0)
-                .animation(.easeOut(duration: 0.3).delay(0.8), value: shown)
+                .animation(.easeOut(duration: 0.3).delay(1.0), value: shown)
         }
         .onAppear { shown = true }
         .onChange(of: animationKey) { _, _ in
@@ -312,13 +420,26 @@ struct ResultReveal: View {
         .sensoryFeedback(.success, trigger: shown && (points ?? 0) > 0)
     }
 
-    private func tile(_ title: String, _ value: String, delay: Double) -> some View {
-        VStack(spacing: 2) {
-            Text(title).font(.system(size: 11, weight: .heavy)).tracking(1.6).foregroundStyle(Theme.muted)
-            Text(value).font(.system(size: 28, weight: .black)).foregroundStyle(Theme.text)
+    /// "7 yds" when the yards are known, else the bucket's range.
+    private var distanceDetail: String {
+        if let yards = outcome.yards { return Football.yards(yards) }
+        guard let yardage = outcome.yardage else { return " " }
+        return yardage.pick?.range ?? "Lost yards"
+    }
+
+    private func tile(_ title: String, _ value: String, detail: String, delay: Double, loss: Bool = false) -> some View {
+        VStack(spacing: 3) {
+            Text(title).font(.system(size: 10, weight: .heavy)).tracking(1.2).textCase(.uppercase)
+                .foregroundStyle(Theme.muted).lineLimit(1).minimumScaleFactor(0.8)
+            Text(value).font(.system(size: compact ? 20 : 23, weight: .black))
+                .foregroundStyle(loss ? Theme.danger : Theme.text)
+                .lineLimit(1).minimumScaleFactor(0.6)
+            Text(detail).font(.system(size: 11, weight: .bold)).foregroundStyle(loss ? Theme.danger.opacity(0.85) : Theme.muted)
+                .lineLimit(1).minimumScaleFactor(0.8)
         }
+        .padding(.horizontal, 6)
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 16)
+        .padding(.vertical, compact ? 10 : 14)
         .background(LinearGradient(colors: [Theme.surface3, Theme.surface2], startPoint: .top, endPoint: .bottom),
                     in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Theme.border, lineWidth: 1))

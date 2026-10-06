@@ -39,11 +39,17 @@ struct SettingsView: View {
                     Text("Current: \(state.server?.absoluteString ?? "not set"). To join a game running on a computer on your Wi-Fi, enter the address it prints, like 192.168.1.20:8000.")
                 }
 
-                Section("How scoring works") {
-                    LabeledContent("Correct play type", value: "+10")
-                    LabeledContent("Correct direction", value: "+10")
-                    LabeledContent("Exact match (both)", value: "+30")
+                Section {
+                    let scoring = state.snapshot?.scoring ?? .standard
+                    LabeledContent("Correct play type", value: "+\(scoring.type)")
+                    LabeledContent("Correct direction", value: "+\(scoring.direction)")
+                    LabeledContent("Correct distance", value: "+\(scoring.yardage)")
+                    LabeledContent("All three (perfect call)", value: "\(scoring.exact)")
                     Button("Practice mode") { state.showPractice = true }
+                } header: {
+                    Text("How scoring works")
+                } footer: {
+                    Text("Directions are as the QB looks downfield. Distance is total yards gained on the play: Short 0–5 yds (an incomplete pass is 0), Medium 6–10, Long 11+. A loss of yards scores no distance points.")
                 }
 
                 if let server = state.server {

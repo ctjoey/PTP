@@ -166,9 +166,15 @@ username only after adding the icon.
 ### A8. Run the game
 
 On the computer, open **http://127.0.0.1:8000/admin** in a web browser. The admin key is `admin`.
-Create the game, then for each play: **Open Next Play**, **Lock Predictions**, choose what actually
-happened, and **Resolve & Score Play**. Every phone updates instantly. The [README](README.md#running-a-game-admin)
-has the details and keyboard shortcuts.
+Pick the two teams from the lists (city names with their team colors; Chicago at Detroit is filled in)
+and click **Create Game**. Then for each play: **Open Next Play**, **Lock Predictions**, choose what
+actually happened (run or pass; left, center or right as the quarterback looks downfield; and the
+distance: Short, Medium, Long or Loss, or just type the yards gained), and **Resolve & Score Play**.
+Every phone updates instantly.
+
+Players pick all three too, and score 10 points for each one they get right (30 for all three). A
+loss of yards scores no distance points. The [README](README.md#running-a-game-admin) has the details
+and keyboard shortcuts.
 
 Anyone on your Wi-Fi who knows the address could open the admin page. To use your own password,
 stop the server (click in its window and press `Ctrl + C`), then start it again like this. Replace
@@ -183,7 +189,8 @@ stop the server (click in its window and press `Ctrl + C`), then start it again 
    one, leave out the `PTP_ADMIN_KEY` part):
    - **Mac:** `PTP_ADMIN_KEY='your-password' caffeinate -i venv/bin/python app.py --phone`
    - **Windows:** `$env:PTP_ADMIN_KEY = 'your-password'`, then `.\venv\Scripts\python.exe app.py --phone`
-3. On the computer, open **http://127.0.0.1:8000/admin** and click **Create Game** for today's matchup.
+3. On the computer, open **http://127.0.0.1:8000/admin**, pick today's two teams from the lists and
+   click **Create Game**.
    This ends last week's game; season points carry over. Then run each play as in A8.
 4. Tap the Pick the Play icon on your iPhone.
 

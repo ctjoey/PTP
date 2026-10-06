@@ -71,9 +71,9 @@ struct APIClient {
         try await request("POST", "/api/lounges/\(code)/join")
     }
 
-    func predict(playId: Int, playType: PlayType, direction: Direction) async throws -> Prediction {
-        try await request("POST", "/api/predictions",
-                          body: ["play_id": playId, "play_type": playType.rawValue, "direction": direction.rawValue])
+    /// HTTP fallback for the socket's `predict`; same body minus the `type` field.
+    func predict(_ pick: PredictMessage) async throws -> Prediction {
+        try await request("POST", "/api/predictions", body: pick.body)
     }
 
     func deleteAccount() async throws {

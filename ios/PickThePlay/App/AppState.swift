@@ -26,6 +26,7 @@ final class AppState: ObservableObject {
     @Published private(set) var activeLoungeID: String? = UserDefaults.standard.string(forKey: Key.lounge)
     @Published private(set) var pickType: PlayType?
     @Published private(set) var pickDirection: Direction?
+    @Published private(set) var pickYardage: Yardage?
     @Published private(set) var savedPick: String?
     @Published private(set) var saving = false
     @Published private(set) var rankMoves: [String: [Int: Int]] = [:]
@@ -94,6 +95,7 @@ final class AppState: ObservableObject {
         snapshot = nil
         pickType = nil
         pickDirection = nil
+        pickYardage = nil
         savedPick = nil
         pickPlayID = nil
         tab = .live
@@ -188,21 +190,35 @@ final class AppState: ObservableObject {
         submitIfReady()
     }
 
-    var pickIsSaved: Bool {
-        guard let pickType, let pickDirection else { return false }
-        return savedPick == Self.key(pickType, pickDirection)
+    func choose(_ yardage: Yardage) {
+        guard canPick else { return }
+        pickYardage = yardage
+        submitIfReady()
     }
 
+    /// True when the server has confirmed exactly the three parts on screen.
+    var pickIsSaved: Bool { currentKey != nil && savedPick == currentKey }
+
+    private var currentKey: String? {
+        guard let pickType, let pickDirection, let pickYardage else { return nil }
+        return Self.key(pickType, pickDirection, pickYardage)
+    }
+
+    /// Sends the pick once all three parts are chosen; every later change re-sends it (the server
+    /// replaces the pick while the play is OPEN).
     private func submitIfReady() {
-        guard let play = snapshot?.play, let pickType, let pickDirection else { return }
+        guard let play = snapshot?.play, let pickType, let pickDirection, let pickYardage else { return }
         saving = true
-        if live.send(PredictMessage(playId: play.id, playType: pickType, direction: pickDirection)) { return }
+        let message = PredictMessage(playId: play.id, playType: pickType, direction: pickDirection, yardage: pickYardage)
+        if live.send(message) { return }
         // Socket down: plain HTTP still gets the pick in before the clock runs out.
-        guard let server, let token else { return }
+        guard let server, let token else {
+            saving = false
+            return
+        }
         Task {
             do {
-                let saved = try await APIClient(server: server, token: token)
-                    .predict(playId: play.id, playType: pickType, direction: pickDirection)
+                let saved = try await APIClient(server: server, token: token).predict(message)
                 onSaved(saved)
             } catch {
                 saving = false
@@ -213,12 +229,22 @@ final class AppState: ObservableObject {
 
     private func onSaved(_ prediction: Prediction) {
         guard prediction.playId == pickPlayID else { return }
-        saving = false
-        savedPick = Self.key(prediction.playType, prediction.direction)
-        snapshot?.myPrediction = prediction
+        var confirmed = prediction
+        // A server that predates the distance pick ignores it; nothing more to save there.
+        if confirmed.yardage == nil { confirmed.yardage = pickYardage }
+        savedPick = Self.key(confirmed)
+        // Still sending if this reply confirms an earlier pick and the player has changed it since.
+        saving = savedPick != currentKey
+        snapshot?.myPrediction = confirmed
     }
 
-    private static func key(_ type: PlayType, _ direction: Direction) -> String { "\(type.rawValue)|\(direction.rawValue)" }
+    private static func key(_ type: PlayType, _ direction: Direction, _ yardage: Yardage?) -> String {
+        "\(type.rawValue)|\(direction.rawValue)|\(yardage?.rawValue ?? "-")"
+    }
+
+    private static func key(_ prediction: Prediction) -> String {
+        key(prediction.playType, prediction.direction, prediction.yardage)
+    }
 
     // MARK: - Server messages
 
@@ -252,13 +278,14 @@ final class AppState: ObservableObject {
             pickPlayID = play.id
             pickType = snapshot.myPrediction?.playType
             pickDirection = snapshot.myPrediction?.direction
-            savedPick = snapshot.myPrediction.map { Self.key($0.playType, $0.direction) }
+            pickYardage = snapshot.myPrediction?.yardage
+            savedPick = snapshot.myPrediction.map(Self.key)
             saving = false
         } else if saving, snapshot.event == "sync" {
-            // A reconnect swallowed the reply to our pick: trust the server's copy, or send it again
-            // (the server upserts picks, so a repeat is harmless).
-            if let mine = snapshot.myPrediction, mine.playType == pickType, mine.direction == pickDirection {
-                savedPick = Self.key(mine.playType, mine.direction)
+            // A reconnect swallowed the reply to our pick: trust the server's copy if it has all three
+            // parts we chose, or send it again (the server upserts picks, so a repeat is harmless).
+            if let mine = snapshot.myPrediction, Self.key(mine) == currentKey {
+                savedPick = currentKey
                 saving = false
             } else {
                 submitIfReady()
@@ -309,7 +336,8 @@ final class AppState: ObservableObject {
         if let pick = sample.snapshot.myPrediction {
             pickType = pick.playType
             pickDirection = pick.direction
-            savedPick = Self.key(pick.playType, pick.direction)
+            pickYardage = pick.yardage
+            savedPick = Self.key(pick)
             pickPlayID = pick.playId
         }
         trackRankMoves(sample.previous)

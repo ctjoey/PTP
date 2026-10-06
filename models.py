@@ -40,60 +40,28 @@ class PlayType(StrEnum):
 
 
 class Direction(StrEnum):
+    """Where the play goes, as the quarterback looks downfield (the offense's left/right)."""
+
     LEFT = "LEFT"
     CENTER = "CENTER"
     RIGHT = "RIGHT"
 
 
-# --------------------------------------------------------------------------- #
-# Scoring engine
-# --------------------------------------------------------------------------- #
+class Yardage(StrEnum):
+    """A player's distance pick: total yards gained on the play."""
 
-TYPE_POINTS = 10
-DIRECTION_POINTS = 10
-EXACT_POINTS = 30
-
-
-@dataclass(frozen=True, slots=True)
-class ScoreResult:
-    points: int
-    type_correct: bool
-    direction_correct: bool
-
-    @property
-    def exact(self) -> bool:
-        return self.type_correct and self.direction_correct
+    SHORT = "SHORT"    # 0-5 yards (an incomplete pass or no gain is 0 = SHORT)
+    MEDIUM = "MEDIUM"  # 6-10 yards
+    LONG = "LONG"      # 11 or more yards
 
 
-def score_prediction(
-    predicted_type: PlayType | str,
-    predicted_direction: Direction | str,
-    actual_type: PlayType | str,
-    actual_direction: Direction | str,
-) -> ScoreResult:
-    """Score one prediction against the actual play outcome.
+class YardageOutcome(StrEnum):
+    """The actual distance bucket of a play. LOSS (negative yards) never matches a pick."""
 
-    * Exact match (type + direction): 30 points
-    * Correct play type only:         10 points
-    * Correct direction only:         10 points
-    * Neither:                         0 points
-    """
-    type_ok = PlayType(predicted_type) == PlayType(actual_type)
-    dir_ok = Direction(predicted_direction) == Direction(actual_direction)
-    if type_ok and dir_ok:
-        points = EXACT_POINTS
-    elif type_ok:
-        points = TYPE_POINTS
-    elif dir_ok:
-        points = DIRECTION_POINTS
-    else:
-        points = 0
-    return ScoreResult(points=points, type_correct=type_ok, direction_correct=dir_ok)
-
-
-# --------------------------------------------------------------------------- #
-# Validation helpers
-# --------------------------------------------------------------------------- #
+    SHORT = "SHORT"
+    MEDIUM = "MEDIUM"
+    LONG = "LONG"
+    LOSS = "LOSS"
 
 
 class GameError(Exception):
@@ -103,6 +71,109 @@ class GameError(Exception):
         super().__init__(message)
         self.message = message
         self.status_code = status_code
+
+
+# Yards gained the admin (or a data feed) may report.
+MIN_YARDS, MAX_YARDS = -99, 99
+
+
+# --------------------------------------------------------------------------- #
+# Scoring engine
+# --------------------------------------------------------------------------- #
+
+TYPE_POINTS = 10
+DIRECTION_POINTS = 10
+YARDAGE_POINTS = 10
+EXACT_POINTS = TYPE_POINTS + DIRECTION_POINTS + YARDAGE_POINTS  # all three right (no extra bonus)
+
+
+@dataclass(frozen=True, slots=True)
+class ScoreResult:
+    points: int
+    type_correct: bool
+    direction_correct: bool
+    yardage_correct: bool
+
+    @property
+    def exact(self) -> bool:
+        return self.type_correct and self.direction_correct and self.yardage_correct
+
+
+def score_prediction(
+    predicted_type: PlayType | str,
+    predicted_direction: Direction | str,
+    predicted_yardage: Yardage | str | None,
+    actual_type: PlayType | str,
+    actual_direction: Direction | str,
+    actual_yardage: YardageOutcome | str | None,
+) -> ScoreResult:
+    """Score one prediction against the actual play outcome: 10 points per correct part.
+
+    * Correct play type (RUN / PASS):             +10
+    * Correct direction (LEFT / CENTER / RIGHT):  +10
+    * Correct distance (SHORT / MEDIUM / LONG):   +10
+    * All three right: 30 (``exact``). No extra bonus.
+
+    A LOSS never matches a pick, so a loss of yards scores no distance points. A pick with no
+    distance (``None``: made before distance picks existed) scores its distance as wrong, and so
+    does a play with no recorded distance.
+    """
+    type_ok = PlayType(predicted_type) == PlayType(actual_type)
+    dir_ok = Direction(predicted_direction) == Direction(actual_direction)
+    picked = Yardage(predicted_yardage) if predicted_yardage is not None else None
+    actual = YardageOutcome(actual_yardage) if actual_yardage is not None else None
+    yardage_ok = picked is not None and actual is not None and picked.value == actual.value
+    points = TYPE_POINTS * type_ok + DIRECTION_POINTS * dir_ok + YARDAGE_POINTS * yardage_ok
+    return ScoreResult(points=points, type_correct=type_ok, direction_correct=dir_ok,
+                       yardage_correct=yardage_ok)
+
+
+def yardage_for_yards(yards: int) -> YardageOutcome:
+    """The distance bucket for a play's total yards gained.
+
+    Negative = LOSS, 0-5 = SHORT (an incomplete pass or no gain is 0), 6-10 = MEDIUM, 11+ = LONG.
+    """
+    if isinstance(yards, bool) or not isinstance(yards, int):
+        raise GameError("Yards gained must be a whole number.", 422)
+    if not MIN_YARDS <= yards <= MAX_YARDS:
+        raise GameError(f"Yards gained must be between {MIN_YARDS} and {MAX_YARDS}.", 422)
+    if yards < 0:
+        return YardageOutcome.LOSS
+    if yards <= 5:
+        return YardageOutcome.SHORT
+    if yards <= 10:
+        return YardageOutcome.MEDIUM
+    return YardageOutcome.LONG
+
+
+def resolve_yardage(
+    yardage: YardageOutcome | str | None, yards: int | None
+) -> tuple[YardageOutcome, int | None]:
+    """Work out a play's distance bucket from the admin's ``yardage`` and/or ``yards``.
+
+    At least one is required. With ``yards`` alone the bucket is derived; with both they must
+    agree. Returns ``(bucket, yards)``. Raises ``GameError`` (422) otherwise.
+    """
+    if yardage is None and yards is None:
+        raise GameError("Choose the distance (Short, Medium, Long or Loss) or enter the yards gained.", 422)
+    if yardage is not None:
+        try:
+            yardage = YardageOutcome(yardage)
+        except ValueError:
+            raise GameError("Distance must be SHORT, MEDIUM, LONG or LOSS.", 422) from None
+    if yards is None:
+        return yardage, None  # type: ignore[return-value]
+    derived = yardage_for_yards(yards)
+    if yardage is not None and yardage != derived:
+        raise GameError(
+            f"{yards} yards is {derived}, not {yardage}. Fix the distance or the yards gained.", 422
+        )
+    return derived, yards
+
+
+# --------------------------------------------------------------------------- #
+# Validation helpers
+# --------------------------------------------------------------------------- #
 
 
 HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
@@ -279,6 +350,8 @@ CREATE TABLE IF NOT EXISTS plays (
     state              TEXT NOT NULL CHECK (state IN ('OPEN', 'LOCKED', 'RESOLVED')),
     correct_play_type  TEXT CHECK (correct_play_type IN ('RUN', 'PASS')),
     correct_direction  TEXT CHECK (correct_direction IN ('LEFT', 'CENTER', 'RIGHT')),
+    correct_yardage    TEXT CHECK (correct_yardage IN ('SHORT', 'MEDIUM', 'LONG', 'LOSS')),
+    yards_gained       INTEGER,  -- optional; when given, correct_yardage is derived from it
     voided             INTEGER NOT NULL DEFAULT 0,
     opened_at          REAL NOT NULL,
     locks_at           REAL NOT NULL,
@@ -304,6 +377,7 @@ CREATE TABLE IF NOT EXISTS predictions (
     play_id        INTEGER NOT NULL REFERENCES plays(id) ON DELETE CASCADE,
     play_type      TEXT NOT NULL CHECK (play_type IN ('RUN', 'PASS')),
     direction      TEXT NOT NULL CHECK (direction IN ('LEFT', 'CENTER', 'RIGHT')),
+    yardage        TEXT CHECK (yardage IN ('SHORT', 'MEDIUM', 'LONG')),  -- NULL: picked before distance picks
     points_earned  INTEGER,  -- NULL until the play is resolved
     submitted_at   REAL NOT NULL,
     UNIQUE (user_id, play_id)
@@ -326,13 +400,27 @@ CREATE TABLE IF NOT EXISTS lounge_members (
 CREATE INDEX IF NOT EXISTS ix_lounge_members_user ON lounge_members(user_id);
 """
 
+# Columns added after the first release. ``Store`` adds any that an older database (for example a
+# game.db on a host's persistent disk) is missing, so upgrading keeps every game, player and score.
+MIGRATIONS: dict[str, dict[str, str]] = {
+    "plays": {
+        "correct_yardage": "TEXT CHECK (correct_yardage IN ('SHORT', 'MEDIUM', 'LONG', 'LOSS'))",
+        "yards_gained": "INTEGER",
+    },
+    "predictions": {
+        "yardage": "TEXT CHECK (yardage IN ('SHORT', 'MEDIUM', 'LONG'))",
+    },
+}
+
 MAX_LOUNGE_MEMBERS = 50
 
-# Exact-match test shared by the leaderboard queries (aliases: pr, pl).
+# All-three-right test shared by the leaderboard queries (aliases: pr, pl). A LOSS or a NULL
+# distance never matches.
 _EXACT_SQL = (
     "CASE WHEN pl.voided = 0 AND pl.state = 'RESOLVED'"
     " AND pr.play_type = pl.correct_play_type"
-    " AND pr.direction = pl.correct_direction THEN 1 ELSE 0 END"
+    " AND pr.direction = pl.correct_direction"
+    " AND pr.yardage = pl.correct_yardage THEN 1 ELSE 0 END"
 )
 
 
@@ -368,6 +456,16 @@ class Store:
         if path != ":memory:":
             self._conn.execute("PRAGMA journal_mode = WAL")
         self._conn.executescript(SCHEMA)
+        self._migrate()
+
+    def _migrate(self) -> None:
+        """Add columns that a database created by an older version is missing (idempotent)."""
+        with self._tx() as c:
+            for table, columns in MIGRATIONS.items():
+                have = {row["name"] for row in c.execute(f"PRAGMA table_info({table})")}
+                for name, decl in columns.items():
+                    if name not in have:
+                        c.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
 
     def close(self) -> None:
         with self._lock:
@@ -460,7 +558,10 @@ class Store:
         home_name = validate_team_name(home_name)
         away_name = validate_team_name(away_name)
         if home_name.lower() == away_name.lower():
-            raise GameError("Home and away teams must be different.")
+            raise GameError(
+                "Home and away teams must be different. For two teams from one city, add a word "
+                'to each, e.g. "New York Blue" / "New York Green".'
+            )
         colors = [validate_color(c) for c in (home_primary, home_secondary, away_primary, away_secondary)]
         with self._tx() as c:
             current = _row(c.execute("SELECT * FROM games ORDER BY id DESC LIMIT 1").fetchone())
@@ -574,9 +675,20 @@ class Store:
             )
         return self.get_play(play["id"])  # type: ignore[return-value]
 
-    def resolve_play(self, play_type: PlayType, direction: Direction) -> dict[str, Any]:
-        """Record the actual outcome of the LOCKED play and score every prediction."""
+    def resolve_play(
+        self,
+        play_type: PlayType,
+        direction: Direction,
+        yardage: YardageOutcome | str | None = None,
+        yards: int | None = None,
+    ) -> dict[str, Any]:
+        """Record the actual outcome of the LOCKED play and score every prediction.
+
+        The distance comes from ``yardage`` (SHORT/MEDIUM/LONG/LOSS), ``yards`` (total yards
+        gained, from which the bucket is derived) or both, which must then agree.
+        """
         play_type, direction = PlayType(play_type), Direction(direction)
+        yardage, yards = resolve_yardage(yardage, yards)
         with self._tx() as c:
             game = _row(c.execute("SELECT id FROM games ORDER BY id DESC LIMIT 1").fetchone())
             play = self._active_play_in(c, game["id"]) if game else None
@@ -585,16 +697,17 @@ class Store:
             if play["state"] != PlayState.LOCKED:
                 raise GameError("Lock predictions before resolving the play.", 409)
             c.execute(
-                """UPDATE plays SET state = 'RESOLVED', correct_play_type = ?,
-                          correct_direction = ?, resolved_at = ? WHERE id = ?""",
-                (play_type, direction, time.time(), play["id"]),
+                """UPDATE plays SET state = 'RESOLVED', correct_play_type = ?, correct_direction = ?,
+                          correct_yardage = ?, yards_gained = ?, resolved_at = ? WHERE id = ?""",
+                (play_type, direction, yardage, yards, time.time(), play["id"]),
             )
             preds = c.execute(
-                "SELECT id, user_id, play_type, direction FROM predictions WHERE play_id = ?",
+                "SELECT id, user_id, play_type, direction, yardage FROM predictions WHERE play_id = ?",
                 (play["id"],),
             ).fetchall()
             scored = [
-                (score_prediction(p["play_type"], p["direction"], play_type, direction).points,
+                (score_prediction(p["play_type"], p["direction"], p["yardage"],
+                                  play_type, direction, yardage).points,
                  p["id"], p["user_id"])
                 for p in preds
             ]
@@ -624,6 +737,7 @@ class Store:
         return self._all(
             f"""SELECT pl.id, pl.play_number, pl.down, pl.distance, pl.state, pl.voided,
                        pl.correct_play_type, pl.correct_direction,
+                       pl.correct_yardage, pl.yards_gained,
                        COUNT(pr.id) AS picks,
                        COALESCE(SUM({_EXACT_SQL}), 0) AS exact_hits
                 FROM plays pl LEFT JOIN predictions pr ON pr.play_id = pl.id
@@ -640,10 +754,11 @@ class Store:
         play_id: int,
         play_type: PlayType,
         direction: Direction,
+        yardage: Yardage,
         grace_seconds: float = 0.0,
     ) -> dict[str, Any]:
         """Create or update a user's pick while the play is OPEN and the timer runs."""
-        play_type, direction = PlayType(play_type), Direction(direction)
+        play_type, direction, yardage = PlayType(play_type), Direction(direction), Yardage(yardage)
         now = time.time()
         with self._tx() as c:
             play = _row(c.execute("SELECT * FROM plays WHERE id = ?", (play_id,)).fetchone())
@@ -654,20 +769,22 @@ class Store:
             if not c.execute("SELECT 1 FROM users WHERE id = ?", (user_id,)).fetchone():
                 raise GameError("Your account was deleted.", 401)  # deleted mid-session
             c.execute(
-                """INSERT INTO predictions (user_id, play_id, play_type, direction, submitted_at)
-                   VALUES (?, ?, ?, ?, ?)
+                """INSERT INTO predictions (user_id, play_id, play_type, direction, yardage, submitted_at)
+                   VALUES (?, ?, ?, ?, ?, ?)
                    ON CONFLICT (user_id, play_id) DO UPDATE SET
                        play_type = excluded.play_type,
                        direction = excluded.direction,
+                       yardage = excluded.yardage,
                        submitted_at = excluded.submitted_at""",
-                (user_id, play_id, play_type, direction, now),
+                (user_id, play_id, play_type, direction, yardage, now),
             )
         return {"play_id": play_id, "play_type": str(play_type), "direction": str(direction),
-                "points_earned": None}
+                "yardage": str(yardage), "points_earned": None}
 
     def predictions_for_play(self, play_id: int) -> dict[int, dict[str, Any]]:
         rows = self._all(
-            "SELECT user_id, play_id, play_type, direction, points_earned FROM predictions WHERE play_id = ?",
+            """SELECT user_id, play_id, play_type, direction, yardage, points_earned
+               FROM predictions WHERE play_id = ?""",
             (play_id,),
         )
         return {r["user_id"]: r for r in rows}
@@ -680,6 +797,9 @@ class Store:
                       COALESCE(SUM(direction = 'LEFT'), 0)    AS "LEFT",
                       COALESCE(SUM(direction = 'CENTER'), 0)  AS "CENTER",
                       COALESCE(SUM(direction = 'RIGHT'), 0)   AS "RIGHT",
+                      COALESCE(SUM(yardage = 'SHORT'), 0)     AS "SHORT",
+                      COALESCE(SUM(yardage = 'MEDIUM'), 0)    AS "MEDIUM",
+                      COALESCE(SUM(yardage = 'LONG'), 0)      AS "LONG",
                       COALESCE(SUM(points_earned = ?), 0)     AS exact,
                       COALESCE(SUM(points_earned > 0), 0)     AS scored
                FROM predictions WHERE play_id = ?""",

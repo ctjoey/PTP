@@ -17,6 +17,10 @@ enum Theme {
     static let gold = Color(hex: "#FFD25E")
     static let blue = Color(hex: "#4EA4FF")
 
+    /// Usable height (inside the safe area, between the bars) below which the pick and result screens
+    /// go compact. iPhone SE (667 pt tall) has about 554 pt under the tab bar; every other iPhone has more.
+    static let compactBelow: CGFloat = 620
+
     /// Black or white text, whichever reads better on a team colour (WCAG relative luminance).
     static func ink(on hex: String) -> Color {
         let rgb = Color.rgb(hex)
@@ -37,6 +41,19 @@ extension Color {
         if text.hasPrefix("#") { text.removeFirst() }
         let value = UInt64(text, radix: 16) ?? 0
         return (Double((value >> 16) & 0xFF) / 255, Double((value >> 8) & 0xFF) / 255, Double(value & 0xFF) / 255)
+    }
+}
+
+/// Tighter pick and result layouts for short screens (iPhone SE: 375×667 pt), set by the screens that
+/// measure their height. Everything else gets the roomier default.
+private struct CompactLayoutKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    var compactLayout: Bool {
+        get { self[CompactLayoutKey.self] }
+        set { self[CompactLayoutKey.self] = newValue }
     }
 }
 

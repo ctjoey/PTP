@@ -44,24 +44,23 @@
       <section class="card">
         <h2 class="card-title">Game Setup</h2>
         <form class="team-form" id="game-form" novalidate>
+          {% for side in ("away", "home") %}{% set team = defaults[side] %}
           <fieldset class="team-fieldset">
-            <legend>Away team</legend>
-            <input class="input" name="away_name" value="Chicago" maxlength="24" aria-label="Away team name" required>
+            <legend>{{ side|capitalize }} team</legend>
+            <select class="input" data-preset="{{ side }}" aria-label="{{ side|capitalize }} team preset">
+              <option value="">Custom (type a name, pick colors)</option>
+              {% for t in teams %}<option value="{{ loop.index0 }}"{% if t is sameas team %} selected{% endif %}>{{ t.label }}</option>
+              {% endfor %}
+            </select>
+            <input class="input" name="{{ side }}_name" value="{{ team.name }}" maxlength="24" aria-label="{{ side|capitalize }} team name" required>
             <div class="color-row">
-              <label class="color-field"><input type="color" name="away_primary" value="#14213D">Primary</label>
-              <label class="color-field"><input type="color" name="away_secondary" value="#F26A1B">Accent</label>
+              <label class="color-field"><input type="color" name="{{ side }}_primary" value="{{ team.primary }}">Primary</label>
+              <label class="color-field"><input type="color" name="{{ side }}_secondary" value="{{ team.secondary }}">Accent</label>
             </div>
           </fieldset>
-          <fieldset class="team-fieldset">
-            <legend>Home team</legend>
-            <input class="input" name="home_name" value="Green Bay" maxlength="24" aria-label="Home team name" required>
-            <div class="color-row">
-              <label class="color-field"><input type="color" name="home_primary" value="#1F6B3A">Primary</label>
-              <label class="color-field"><input type="color" name="home_secondary" value="#F2C230">Accent</label>
-            </div>
-          </fieldset>
-          <p class="legal-note">Use generic city or region identifiers with custom colors only. Official league marks,
-            club nicknames and logos are blocked by the server.</p>
+          {% endfor %}
+          <p class="legal-note">City or region names with team colors only. Nicknames, logos and league marks are
+            blocked by the server. Two teams from one city? Add a word to each, e.g. "New York Blue" / "New York Green".</p>
           <button class="btn btn-primary btn-block" type="submit" id="create-game-btn">Create Game</button>
         </form>
       </section>
@@ -120,15 +119,28 @@
             <button class="pick-btn" type="button" data-rtype="RUN">RUN<small>R</small></button>
             <button class="pick-btn" type="button" data-rtype="PASS">PASS<small>P</small></button>
           </div>
-          <div class="pick-label">Actual direction</div>
+          <div class="pick-label pick-label-row">Actual direction <span class="qb-hint">As the QB looks downfield</span></div>
           <div class="pick-grid three result-grid">
             <button class="pick-btn" type="button" data-rdir="LEFT">LEFT<small>←</small></button>
             <button class="pick-btn" type="button" data-rdir="CENTER">CENTER<small>↑</small></button>
             <button class="pick-btn" type="button" data-rdir="RIGHT">RIGHT<small>→</small></button>
           </div>
+          <div class="pick-label pick-label-row">Actual distance <span class="qb-hint">Total yards gained: pick a bucket or type the yards</span></div>
+          <div class="yardage-row">
+            <div class="pick-grid four result-grid">
+              <button class="pick-btn" type="button" data-ryard="SHORT">SHORT<small>S · 0-5</small></button>
+              <button class="pick-btn" type="button" data-ryard="MEDIUM">MEDIUM<small>M · 6-10</small></button>
+              <button class="pick-btn" type="button" data-ryard="LONG">LONG<small>G · 11+</small></button>
+              <button class="pick-btn loss" type="button" data-ryard="LOSS">LOSS<small>X · &lt;0</small></button>
+            </div>
+            <label class="yards-box" title="Total yards gained (negative for a loss). Picks the distance for you.">
+              <input id="yards" type="number" inputmode="numeric" min="-99" max="99" step="1" placeholder="Yds" aria-label="Yards gained (optional)">
+              <small>Y · yards</small>
+            </label>
+          </div>
           <button class="big-btn btn-resolve" type="button" id="resolve-btn">Resolve &amp; Score Play <kbd>Enter</kbd></button>
           <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap">
-            <span class="shortcuts">Keys: <kbd>O</kbd> open · <kbd>L</kbd> lock · <kbd>R</kbd>/<kbd>P</kbd> type · <kbd>←</kbd><kbd>↑</kbd><kbd>→</kbd> direction · <kbd>Enter</kbd> resolve</span>
+            <span class="shortcuts">Keys: <kbd>O</kbd> open · <kbd>L</kbd> lock · <kbd>R</kbd>/<kbd>P</kbd> type · <kbd>←</kbd><kbd>↑</kbd><kbd>→</kbd> direction · <kbd>S</kbd>/<kbd>M</kbd>/<kbd>G</kbd> short/medium/long · <kbd>X</kbd> loss · <kbd>Y</kbd> yards · <kbd>Enter</kbd> resolve</span>
             <button class="text-btn" type="button" id="void-btn">Void play (penalty / no play)</button>
           </div>
         </div>
@@ -159,4 +171,5 @@
   </div>
 </main>
 {% endblock %}
-{% block scripts %}<script src="/static/js/admin.js?v={{ v }}"></script>{% endblock %}
+{% block scripts %}<script type="application/json" id="team-presets">{{ teams|tojson }}</script>
+<script src="/static/js/admin.js?v={{ v }}"></script>{% endblock %}

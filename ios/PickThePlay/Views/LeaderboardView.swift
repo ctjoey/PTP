@@ -85,7 +85,7 @@ struct BoardRowView: View {
                             .foregroundStyle(Theme.accentInk)
                     }
                 }
-                Text(showPicks ? "\(row.picks) \(row.picks == 1 ? "pick" : "picks") · \(row.exactHits) exact" : "\(row.exactHits) exact")
+                Text(showPicks ? "\(row.picks) \(row.picks == 1 ? "pick" : "picks") · \(row.exactHits) perfect" : "\(row.exactHits) perfect")
                     .font(.system(size: 11)).foregroundStyle(Theme.muted)
             }
             Spacer(minLength: 4)

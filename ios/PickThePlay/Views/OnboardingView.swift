@@ -17,17 +17,24 @@ struct OnboardingView: View {
                 Text("Call every snap before it happens.")
                     .font(.system(size: 30, weight: .black))
                     .foregroundStyle(Theme.text)
-                Text("When a play opens you have 15 seconds to pick **Run or Pass** and **Left, Center or Right**. Points land the moment the play is scored.")
+                Text("When a play opens you have 15 seconds to make a three-part call: **Run or Pass**, **Left, Center or Right** as the QB looks downfield, and **how far**: Short (0–5 yds), Medium (6–10) or Long (11+). Points land the moment the play is scored.")
                     .foregroundStyle(Theme.muted)
 
-                VStack(spacing: 0) {
+                VStack(alignment: .leading, spacing: 0) {
                     scoringRow("Correct play type", "+10")
                     Divider().overlay(Theme.border)
                     scoringRow("Correct direction", "+10")
                     Divider().overlay(Theme.border)
-                    scoringRow("Exact match (both)", "+30")
+                    scoringRow("Correct distance", "+10")
+                    Divider().overlay(Theme.border)
+                    scoringRow("All three (perfect call)", "30", gold: true)
+                    Text("A loss of yards scores no distance points.")
+                        .font(.footnote).foregroundStyle(Theme.muted)
+                        .padding(.top, 4)
                 }
                 .card(padding: 14)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(ScoreRules.summary())
 
                 if showsServerField {
                     VStack(alignment: .leading, spacing: 8) {
@@ -97,11 +104,11 @@ struct OnboardingView: View {
     /// or a finished Wi-Fi game can always be corrected from here).
     private var showsServerField: Bool { ServerConfig.bundled == nil || state.server != ServerConfig.bundled }
 
-    private func scoringRow(_ title: String, _ points: String) -> some View {
+    private func scoringRow(_ title: String, _ points: String, gold: Bool = false) -> some View {
         HStack {
             Text(title).foregroundStyle(Theme.text)
             Spacer()
-            Text(points).font(.system(size: 16, weight: .black)).foregroundStyle(Theme.accent)
+            Text(points).font(.system(size: 16, weight: .black)).foregroundStyle(gold ? Theme.gold : Theme.accent)
         }
         .padding(.vertical, 8)
     }

@@ -2,7 +2,7 @@
 "use strict";
 
 (() => {
-  const { $, $$, el, toast, LiveSocket, now, downDistance } = PTP;
+  const { $, $$, el, toast, LiveSocket, now, downDistance, bucketForYards, yardsText } = PTP;
 
   const KEY_STORAGE = "ptp_admin_key";
   const ACK_TIMEOUT_MS = 8000;
@@ -18,6 +18,8 @@
     down: 1,
     rtype: null,
     rdir: null,
+    ryard: null,
+    playId: null,
     busy: false,
     seq: 0,
     pending: new Map(),
@@ -61,12 +63,19 @@
         storage.del(KEY_STORAGE);
         showAuth(msg.message);
         break;
-      case "admin_state":
+      case "admin_state": {
         $("#auth").hidden = true;
         $("#console").hidden = false;
         A.state = msg;
+        const playId = msg.play ? msg.play.id : null;
+        if (playId !== A.playId) {
+          // A new play (perhaps opened from another console): start its result entry fresh.
+          A.playId = playId;
+          clearResult();
+        }
         render();
         break;
+      }
       case "admin_ack": {
         const done = A.pending.get(msg.request_id);
         A.pending.delete(msg.request_id);
@@ -143,7 +152,12 @@
       b.classList.toggle("selected", b.dataset.rdir === A.rdir);
       b.disabled = !active;
     }
-    $("#resolve-btn").disabled = A.busy || !play || play.state !== "LOCKED" || !A.rtype || !A.rdir;
+    for (const b of $$("[data-ryard]")) {
+      b.classList.toggle("selected", b.dataset.ryard === A.ryard);
+      b.disabled = !active;
+    }
+    $("#yards").disabled = !active;
+    $("#resolve-btn").disabled = A.busy || !resolveReady();
     $("#void-btn").disabled = A.busy || !active;
     for (const b of $$("[data-down]")) b.classList.toggle("selected", Number(b.dataset.down) === A.down);
 
@@ -152,7 +166,7 @@
     $("#kpi-picks").textContent = String(stats.total || 0);
     $("#kpi-online").textContent = String(st.players_online);
     $("#kpi-ranked").textContent = String(st.ranked_players);
-    PTP.crowdBars($("#admin-crowd"), stats, ["RUN", "PASS", "LEFT", "CENTER", "RIGHT"]);
+    PTP.crowdBars($("#admin-crowd"), stats, ["RUN", "PASS", "LEFT", "CENTER", "RIGHT", "SHORT", "MEDIUM", "LONG"]);
 
     renderBoard(st.leaderboard);
     renderHistory(st.history);
@@ -188,7 +202,7 @@
         el("span", { class: "board-rank" }, String(r.rank)),
         el("span", { class: "board-name" },
           el("strong", {}, r.username),
-          el("span", {}, `${r.picks} picks · ${r.exact_hits} exact`)),
+          el("span", {}, `${count(r.picks, "pick")} · ${r.exact_hits} perfect`)),
         el("span", { class: "board-score" }, String(r.score)))));
   }
 
@@ -200,15 +214,24 @@
     }
     list.replaceChildren(...rows.map((p) => {
       const result = p.voided ? "VOID"
-        : p.state === "RESOLVED" ? `${p.correct_play_type} · ${p.correct_direction}`
+        : p.state === "RESOLVED" ? resultText(p.correct_play_type, p.correct_direction, p.correct_yardage, p.yards_gained)
           : p.state;
       return el("li", {},
         el("span", { class: "h-num" }, `#${p.play_number}`),
         el("span", {},
           el("span", { class: "h-res" }, result),
           downDistance(p) ? el("span", { class: "muted" }, ` · ${downDistance(p)}`) : null),
-        el("span", { class: "h-meta" }, `${p.picks} picks · ${p.exact_hits} exact`));
+        el("span", { class: "h-meta" }, `${count(p.picks, "pick")} · ${p.exact_hits} perfect`));
     }));
+  }
+
+  const count = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+  /** "PASS · LEFT · MEDIUM (7 yds)"; older plays may have no distance. */
+  function resultText(type, dir, yardage, yards) {
+    const parts = [type, dir];
+    if (yardage) parts.push(yards === null || yards === undefined ? yardage : `${yardage} (${yardsText(yards)})`);
+    return parts.join(" · ");
   }
 
   // ------------------------------------------------------------------ actions
@@ -222,13 +245,77 @@
         !confirm(`Start a new game? "${game.away_name} @ ${game.home_name}" will be marked FINAL.`)) return;
     const ack = await act("create_game", payload);
     if (ack && ack.ok) {
-      A.rtype = A.rdir = null;
+      clearResult();
       A.down = 1;
       $("#distance").value = "10";
       render();
       toast("Game created. Open the first play when you're ready.", "success");
     }
   }
+
+  function clearResult() {
+    A.rtype = A.rdir = A.ryard = null;
+    $("#yards").value = "";
+  }
+
+  /** The yards field as a whole number, null when empty, NaN when not a valid number. */
+  function typedYards() {
+    const raw = $("#yards").value.trim();
+    if (raw === "") return null;
+    const n = Number(raw);
+    return Number.isInteger(n) && n >= -99 && n <= 99 ? n : NaN;
+  }
+
+  function resolveReady() {
+    const play = A.state && A.state.play;
+    return !!(play && play.state === "LOCKED" && A.rtype && A.rdir && A.ryard && !Number.isNaN(typedYards()));
+  }
+
+  /** Pick a distance bucket; a typed yardage that disagrees with it is cleared. */
+  function chooseYardage(bucket) {
+    A.ryard = bucket;
+    const yards = typedYards();
+    if (yards !== null && bucketForYards(yards) !== bucket) $("#yards").value = "";
+    render();
+  }
+
+  function presetsFromPage() {
+    try {
+      return JSON.parse($("#team-presets").textContent) || [];
+    } catch {
+      return [];
+    }
+  }
+
+  /** Team preset dropdowns fill the name and both colors; editing them by hand switches to Custom. */
+  function wirePresets() {
+    const presets = presetsFromPage();
+    const form = $("#game-form");
+    for (const select of $$("[data-preset]")) {
+      const side = select.dataset.preset;
+      const field = (k) => form.elements[`${side}_${k}`];
+      select.addEventListener("change", () => {
+        const team = presets[Number(select.value)];
+        if (select.value === "" || !team) {
+          field("name").focus();
+          field("name").select();
+          return;
+        }
+        field("name").value = team.name;
+        field("primary").value = team.primary.toLowerCase();
+        field("secondary").value = team.secondary.toLowerCase();
+      });
+      const syncSelect = () => {
+        const name = field("name").value.trim().toLowerCase();
+        const match = presets.findIndex((t) => t.name.toLowerCase() === name &&
+          t.primary.toLowerCase() === field("primary").value.toLowerCase() &&
+          t.secondary.toLowerCase() === field("secondary").value.toLowerCase());
+        select.value = match >= 0 ? String(match) : "";
+      };
+      for (const k of ["name", "primary", "secondary"]) field(k).addEventListener("input", syncSelect);
+    }
+  }
+
 
   async function openPlay() {
     const windowSeconds = Number($("#window").value) || 15;
@@ -238,16 +325,21 @@
       window_seconds: Math.min(60, Math.max(5, windowSeconds)),
     });
     if (ack && ack.ok) {
-      A.rtype = A.rdir = null;
+      clearResult();
       render();
     }
   }
 
   async function resolvePlay() {
-    const ack = await act("resolve_play", { play_type: A.rtype, direction: A.rdir });
+    if (!resolveReady()) return;
+    const yards = typedYards();
+    const payload = { play_type: A.rtype, direction: A.rdir, yardage: A.ryard };
+    if (yards !== null) payload.yards = yards;
+    const ack = await act("resolve_play", payload);
     if (ack && ack.ok) {
-      toast(`Scored: ${A.rtype} · ${A.rdir}`, "success");
-      A.rtype = A.rdir = null;
+      const p = ack.result;
+      toast(`Scored: ${resultText(p.correct_play_type, p.correct_direction, p.correct_yardage, p.yards_gained)}`, "success");
+      clearResult();
       render();
     }
   }
@@ -272,6 +364,7 @@
     });
 
     $("#game-form").addEventListener("submit", createGame);
+    wirePresets();
     $("#go-live").addEventListener("click", () => act("set_status", { status: "LIVE" }));
     $("#go-final").addEventListener("click", () => {
       if (confirm("End the game and mark it FINAL?")) act("set_status", { status: "FINAL" });
@@ -288,6 +381,21 @@
     $("#lock-btn").addEventListener("click", () => act("lock_play"));
     for (const b of $$("[data-rtype]")) b.addEventListener("click", () => { A.rtype = b.dataset.rtype; render(); });
     for (const b of $$("[data-rdir]")) b.addEventListener("click", () => { A.rdir = b.dataset.rdir; render(); });
+    for (const b of $$("[data-ryard]")) b.addEventListener("click", () => chooseYardage(b.dataset.ryard));
+    const yardsInput = $("#yards");
+    yardsInput.addEventListener("input", () => {
+      const yards = typedYards();
+      if (yards !== null && !Number.isNaN(yards)) A.ryard = bucketForYards(yards);
+      render();
+    });
+    yardsInput.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") {
+        ev.preventDefault();
+        click("#resolve-btn");
+      } else if (ev.key === "Escape") {
+        yardsInput.blur();
+      }
+    });
     $("#resolve-btn").addEventListener("click", resolvePlay);
     $("#void-btn").addEventListener("click", () => {
       if (confirm("Void this play? Nobody scores and players see 'No play'.")) act("void_play");
@@ -304,6 +412,16 @@
         arrowleft: () => click('[data-rdir="LEFT"]'),
         arrowup: () => click('[data-rdir="CENTER"]'),
         arrowright: () => click('[data-rdir="RIGHT"]'),
+        s: () => click('[data-ryard="SHORT"]'),
+        m: () => click('[data-ryard="MEDIUM"]'),
+        g: () => click('[data-ryard="LONG"]'),
+        x: () => click('[data-ryard="LOSS"]'),
+        y: () => {
+          if (!yardsInput.disabled) {
+            yardsInput.focus();
+            yardsInput.select();
+          }
+        },
         enter: () => click("#resolve-btn"),
       };
       const fn = map[ev.key.toLowerCase()];

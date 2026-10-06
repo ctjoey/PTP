@@ -1,8 +1,9 @@
 # Pick the Play: Live Pro Football Game
 
 A real-time, second-screen prediction game for live pro football. Before every snap, players have
-**15 seconds** to call the play — **Run or Pass** and **Left, Center or Right** — then watch points
-and leaderboards update the instant the admin scores the play.
+**15 seconds** to call the play — **Run or Pass**, **Left, Center or Right** (as the QB looks
+downfield) and **how far: Short, Medium or Long** — then watch points and leaderboards update the
+instant the admin scores the play. For example: *Run, Left, Short*.
 
 The MVP is a single Python FastAPI server with three web surfaces, synchronised over WebSockets:
 
@@ -68,18 +69,33 @@ in the [iPhone guide](IPHONE_GUIDE.md).
 
 ## Running a game (admin)
 
-1. **Create Game.** Enter generic team identifiers (e.g. *Chicago* at *Green Bay*) and pick
-   primary/accent colors. Official league marks and club nicknames are rejected.
-2. **Open Next Play.** Set down and distance, then open. Every player gets the pick grid and a
-   synchronised 15-second countdown. (The game goes LIVE automatically on the first play.)
+1. **Create Game.** Pick each team from the preset list (32 cities with their real team colors, e.g.
+   *Chicago* at *Detroit*, the default), or choose **Custom** and type a city or region name and pick
+   colors. Teams are city names only: official league marks and club nicknames are rejected. Two
+   clubs share New York and two share Los Angeles; their presets fill the plain city name, so for a
+   game between them add a word to each (e.g. *New York Blue* at *New York Green*).
+2. **Open Next Play.** Set down and distance (e.g. 3rd & 7), then open. Every player gets the pick
+   grid and a synchronised 15-second countdown. (The game goes LIVE automatically on the first play.)
 3. **Lock Predictions.** Lock early, or let the timer lock it automatically. Late picks are rejected
    by the server.
-4. **Resolve & Score Play.** Select the actual type and direction. Points are calculated, totals and
-   leaderboards update, and every player sees their result animation.
+4. **Resolve & Score Play.** Select what actually happened: the play type, the direction **as the QB
+   looks downfield** (the offense's left and right, not the TV picture's), and the distance:
+   **Short** (0-5 yards), **Medium** (6-10), **Long** (11+) or **Loss** (negative yards). Or type the
+   **yards gained** (e.g. `7`, or `-4` for a sack) and the distance is picked for you; an incomplete
+   pass or no gain is 0 yards = Short. Points are calculated, totals and leaderboards update, and every
+   player sees their result animation.
 5. Repeat. Use **Void play** for penalties or no-plays (nobody scores). **End Game** marks it FINAL.
 
-Keyboard shortcuts in the console: `O` open · `L` lock · `R`/`P` run/pass ·
-`←` `↑` `→` left/center/right · `Enter` resolve.
+Keyboard shortcuts in the console:
+
+| Key | Action |
+| --- | --- |
+| `O` / `L` | Open the next play / lock predictions |
+| `R` / `P` | Run / pass |
+| `←` `↑` `→` | Left / center / right (as the QB looks downfield) |
+| `S` / `M` / `G` / `X` | Short / medium / long / loss |
+| `Y` | Type the yards gained (then `Enter` resolves) |
+| `Enter` | Resolve & score the play |
 
 ### Play state machine
 
@@ -94,14 +110,21 @@ Only one play per game can be OPEN or LOCKED at a time (enforced by a partial un
 
 ## Scoring
 
-| Prediction vs. actual | Points |
-| --- | --- |
-| Exact match (type **and** direction) | **+30** |
-| Correct play type only | +10 |
-| Correct direction only | +10 |
-| Neither | 0 |
+Each play has three picks, and each one you get right is worth **10 points**:
 
-Ties share a rank (1, 2, 2, 4). Within a tie, more exact hits sort first.
+| Pick | Choices | Points if right |
+| --- | --- | --- |
+| Play type | Run · Pass | +10 |
+| Direction (as the QB looks downfield) | Left · Center · Right | +10 |
+| Distance (total yards gained) | Short 0-5 yds · Medium 6-10 · Long 11+ | +10 |
+| **All three right** (a "perfect call") | | **30** |
+
+There is no extra bonus: the most a play can earn is 30. A **loss of yards** (a sack, a run stopped
+behind the line) scores no distance points, so a loss earns at most 20. An incomplete pass or no gain
+is 0 yards, which is Short. Example: you pick *Run, Left, Short* and it's a run to the left for 7 yards
+(Medium): **20 points**.
+
+Ties share a rank (1, 2, 2, 4). Within a tie, more perfect calls (all three right) sort first.
 The live leaderboard ranks points in the current game; *Season pts* is the user's all-time total.
 
 ## Head-to-Head Lounges
@@ -120,7 +143,8 @@ Inside a lounge you play the same live game, with a private leaderboard tab of e
 
 ```
 ├── app.py              # FastAPI server: routes, WebSocket hub, game controller, auto-lock timer
-├── models.py           # SQLite schema, Store (data access), validation, scoring engine
+├── models.py           # SQLite schema + migrations, Store (data access), validation, scoring engine
+├── teams.py            # Team presets for the admin: 32 city names with team colors
 ├── static/
 │   ├── css/style.css   # Dark, mobile-first styles shared by all pages
 │   ├── js/common.js    # DOM helpers, reconnecting WebSocket, server-clock sync
@@ -129,7 +153,7 @@ Inside a lounge you play the same live game, with a private leaderboard tab of e
 │   ├── img/            # app icons (generated by ios/scripts/make_icons.py)
 │   └── manifest.webmanifest
 ├── templates/          # Jinja2: base.html, player.html, admin.html
-├── tests/              # pytest: scoring, data layer, HTTP + WebSocket end-to-end
+├── tests/              # pytest: scoring, data layer, HTTP + WebSocket end-to-end; iOS fixture capture
 ├── requirements.txt
 ├── requirements-dev.txt
 ├── .python-version    # Python version for cloud hosts (3.14)
@@ -158,10 +182,10 @@ Inside a lounge you play the same live game, with a private leaderboard tab of e
 | Direction | Message |
 | --- | --- |
 | → | `{"type":"hello","token":"…","lounge":"1234"}` first (token optional = spectator) |
-| → | `{"type":"predict","play_id":7,"play_type":"PASS","direction":"LEFT"}` (repeat to change the pick while OPEN) |
+| → | `{"type":"predict","play_id":7,"play_type":"PASS","direction":"LEFT","yardage":"SHORT"}` (all four fields required; repeat to change the pick while OPEN) |
 | → | `{"type":"sync"}` · `{"type":"ping"}` |
 | ← | `{"type":"state","event":"play_opened"\|"play_locked"\|"play_resolved"\|"play_voided"\|"game_created"\|"game_status"\|"lounge_updated"\|"sync", …snapshot}` |
-| ← | `{"type":"prediction_saved","prediction":{…}}` · `{"type":"error","message":"…"}` |
+| ← | `{"type":"prediction_saved","prediction":{"play_id":7,"play_type":"PASS","direction":"LEFT","yardage":"SHORT","points_earned":null}}` · `{"type":"error","message":"…"}` |
 
 **Admin — `/ws/admin`**
 
@@ -169,8 +193,35 @@ Inside a lounge you play the same live game, with a private leaderboard tab of e
 | --- | --- |
 | → | `{"type":"auth","key":"…"}` first |
 | → | `{"action":"create_game"\|"set_status"\|"open_play"\|"lock_play"\|"resolve_play"\|"void_play","request_id":1, …payload}` |
+| → | e.g. `{"action":"resolve_play","request_id":2,"play_type":"RUN","direction":"LEFT","yardage":"MEDIUM","yards":7}` |
 | ← | `{"type":"admin_state", …}` with live pick stats, players online, leaderboard and play log |
 | ← | `{"type":"admin_ack","request_id":1,"ok":true\|false,"error":"…"}` |
+
+**Picks, results and the fields that carry them**
+
+| Field | Values |
+| --- | --- |
+| `play_type` | `RUN` · `PASS` |
+| `direction` | `LEFT` · `CENTER` · `RIGHT`, as the QB looks downfield |
+| `yardage` (a pick) | `SHORT` (0-5 yds) · `MEDIUM` (6-10) · `LONG` (11+). Required on every new pick. Never called "distance" in code or JSON: `distance` is the down-and-distance ("3rd & **7**") |
+| `correct_yardage` (a result) | `SHORT` · `MEDIUM` · `LONG` · `LOSS` (negative yards), `null` until resolved |
+| `yards_gained` (a result) | Whole number -99..99 when the admin or a data feed entered it, otherwise `null` |
+
+- **Resolving** (`resolve_play` / `POST /api/admin/play/resolve`) takes `play_type`, `direction` and
+  `yardage` (`SHORT`/`MEDIUM`/`LONG`/`LOSS`) and/or `yards`. With `yards` alone the server derives the
+  bucket (below 0 = `LOSS`, 0-5 = `SHORT`, 6-10 = `MEDIUM`, 11+ = `LONG`); with both they must agree.
+  Missing both, a mismatch, or yards outside -99..99 is a validation error (HTTP `422`, or an
+  `admin_ack` with `"ok": false`).
+- **Every play object** carries `correct_play_type`, `correct_direction`, `correct_yardage` and
+  `yards_gained` (all `null` until the play is resolved), plus `down`, `distance`, `state`, `voided`,
+  `opened_at` and `locks_at`.
+- **Every prediction object** (`my_prediction`, `prediction_saved`) carries `play_type`, `direction`,
+  `yardage` (`null` for picks made before distance picks existed) and `points_earned`. Once the play is
+  resolved, `my_prediction` adds `type_correct`, `direction_correct` and `yardage_correct`.
+- **Snapshots** carry `"scoring": {"type": 10, "direction": 10, "yardage": 10, "exact": 30}` (`exact` =
+  all three right), and `crowd` (hidden while OPEN) counts `RUN`, `PASS`, `LEFT`, `CENTER`, `RIGHT`,
+  `SHORT`, `MEDIUM`, `LONG`, `total`, `exact` (picks worth 30) and `scored` (picks worth more than 0).
+  Leaderboard `exact_hits` counts plays with all three right.
 
 ### REST API
 
@@ -184,17 +235,22 @@ handy for scripting.
 | `GET /api/me` | Current user and their lounges |
 | `DELETE /api/me` | Permanently delete the account → `204 No Content`. Removes the user's picks, lounge memberships and hosted lounges; their open sockets get `{"type":"error","code":"account_deleted"}` and close with code `4401`; everyone else gets a `leaderboard_updated` snapshot |
 | `GET /api/state` | Public snapshot |
-| `POST /api/predictions` | Submit a pick (HTTP fallback when the socket is down) |
+| `POST /api/predictions` `{play_id, play_type, direction, yardage}` | Submit a pick (HTTP fallback when the socket is down) |
 | `POST /api/lounges` `{name}` | Create a lounge (returns its 4-digit code) |
 | `GET /api/lounges/{code}` · `POST /api/lounges/{code}/join` | Look up or join a lounge |
 | `GET /api/admin/state` | Admin snapshot |
 | `POST /api/admin/game` | Create a game |
 | `POST /api/admin/game/status` `{status}` | `LIVE` / `FINAL` |
 | `POST /api/admin/play/open` `{down, distance, window_seconds}` | Open the next play |
-| `POST /api/admin/play/lock` · `/resolve` `{play_type, direction}` · `/void` | Drive the play |
+| `POST /api/admin/play/lock` · `/resolve` `{play_type, direction, yardage?, yards?}` · `/void` | Drive the play (resolve needs `yardage`, `yards` or both) |
 | `GET /privacy` · `GET /support` | Privacy policy and support pages (HTML; use as the App Store privacy policy and support URLs) |
 
 Interactive docs: <http://127.0.0.1:8000/docs>.
+
+**Data feeds.** A play-by-play feed can drive the game through the admin API: open a play before the
+snap, lock it, then resolve it with the feed's play type, direction and `yards` (the server picks the
+distance bucket). Feeds report direction in different ways (some by field side, some by the offense's
+left/right), so convert to the QB's view looking downfield before sending.
 
 **App Store.** App Review needs a privacy policy URL, a support URL, in-app account deletion and
 filtering of user-visible names. Point App Store Connect at `https://<your server>/privacy` and
@@ -207,10 +263,14 @@ offensive usernames and lounge names are rejected with "Please choose a differen
 | Table | Key columns |
 | --- | --- |
 | `games` | id, home/away name, home/away primary + secondary hex colors, status (`SCHEDULED`/`LIVE`/`FINAL`) |
-| `plays` | id, game_id, play_number, down, distance, state (`OPEN`/`LOCKED`/`RESOLVED`), correct_play_type, correct_direction, voided, locks_at |
+| `plays` | id, game_id, play_number, down, distance (down-and-distance, e.g. `7`), state (`OPEN`/`LOCKED`/`RESOLVED`), correct_play_type, correct_direction, correct_yardage (`SHORT`/`MEDIUM`/`LONG`/`LOSS`), yards_gained, voided, locks_at |
 | `users` | id, username (unique, case-insensitive), token, total_score |
-| `predictions` | user_id, play_id (unique together), play_type, direction, points_earned |
+| `predictions` | user_id, play_id (unique together), play_type, direction, yardage (`SHORT`/`MEDIUM`/`LONG`; NULL for older picks), points_earned |
 | `lounges` / `lounge_members` | id (= 4-digit code), name, host_user_id; membership join table |
+
+Upgrading keeps your data: on start-up `Store` adds any columns an older `game.db` is missing
+(`models.MIGRATIONS`), for example the distance columns on a database kept on a host's disk. Picks made
+before the upgrade have no distance and score it as wrong; scores already earned are unchanged.
 
 ## Configuration
 
@@ -230,17 +290,24 @@ venv/bin/python -m pip install -r requirements-dev.txt   # Windows: .\venv\Scrip
 venv/bin/python -m pytest -q                             # Windows: .\venv\Scripts\python.exe -m pytest -q
 ```
 
-The suite covers every scoring combination, the play state machine, late-pick rejection, voids,
-ties, lounges, the trademark filter, and full end-to-end flows over the real HTTP and WebSocket
-endpoints (including the auto-lock timer).
+The suite covers every scoring combination over all three picks (including losses and picks with no
+distance), yards-to-distance boundaries, resolve validation, migrating a database from the previous
+version, the team presets, the play state machine, late-pick rejection, voids, ties, lounges, the
+trademark filter, and full end-to-end flows over the real HTTP and WebSocket endpoints (including the
+auto-lock timer).
+
+The iOS app's contract tests decode real server messages saved in `ios/PickThePlayTests/Fixtures/`.
+After changing what the server sends, regenerate them from a real running server (temporary database,
+random port): `venv/bin/python tests/capture_ios_fixtures.py`.
 
 ## Legal & branding safeguards
 
 - No official league names, club nicknames, logos or wordmarks ship with the app.
 - The server rejects team names containing league marks or club nicknames (`models.PROTECTED_MARKS`).
   Use city or region identifiers instead.
-- Teams are shown as generated initials on custom hex colors (defaults are generic green/yellow vs.
-  navy/orange shades), with a "not affiliated" notice on the player app.
+- Teams are shown as a city or region name and generated initials (CHI, DET, NY, ...) on team colors,
+  with no nicknames or logos, and a "not affiliated" notice on the player app. The presets live in
+  `teams.py`.
 - Free to play, with no wagering or prizes. If you add prizes, check sweepstakes and contest rules
   where you operate.
 
