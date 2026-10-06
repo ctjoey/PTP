@@ -11,7 +11,10 @@ upload it to TestFlight. You never open Xcode. The recipe is in `.github/workflo
 - **Build + test on every push** to `ios/`. Each run also takes the App Store screenshots.
 - **TestFlight upload on demand**, using the same cloud signing as GameDial. Apple creates the
   certificates and profiles for you. The build number goes up by itself each run.
-- **App icon**: the green football from the web app, at App Store size (`icon-1024.png`).
+- **App icon**: "Play Call", a chalk-talk X and O with one bold mint route arrow, at App Store size
+  (`icon-1024.png`). Its source is `ios/scripts/app-icon.svg`; after editing it, run
+  `NODE_PATH=$(npm root -g) node ios/scripts/render_icon.js` to regenerate the PNG. You can also
+  drop your own square artwork in as `AppIcon.appiconset/artwork.png` and CI will normalise it.
 
 ## Heads-up: build minutes cost something on this repo
 
