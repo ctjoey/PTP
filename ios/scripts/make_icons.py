@@ -29,13 +29,13 @@ from PIL import Image, ImageFilter
 ROOT = Path(__file__).resolve().parents[2]
 SRC = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).with_name("PTP-Logo.png")
 SCALE = 0.94   # artwork size inside the square; the rest is turf, keeping text inside iOS's mask
-INSET = 3      # px trimmed inside the frame so its anti-aliased edge never survives
+INSET = 2      # px trimmed inside the frame so its anti-aliased edge never survives
 
 
 def turf(a):
     """Green-dominant pixels: the field, including its dark vignette, but not lettering or chalk."""
     r, g, b = a[..., 0], a[..., 1], a[..., 2]
-    return (g > r + 12) & (g > b + 5)
+    return (g > r + 12) & (g > b + 5) & (g - np.maximum(r, b) > 0.18 * g)   # not pale line/letter edges
 
 
 def field_box(a):
@@ -84,6 +84,10 @@ def build_icon(logo):
     field = a[t + INSET:b - INSET, l + INSET:r - INSET]
     h, w = field.shape[:2]
     holes = frame_holes(field)
+    # Widen each corner hole by 3px over dark pixels only: removes the frame's inner shadow on the arc
+    # without nibbling the white goal lines or lettering.
+    grown = np.asarray(Image.fromarray((holes * 255).astype(np.uint8)).filter(ImageFilter.MaxFilter(7))) > 0
+    holes |= grown & (field.max(-1) < 120)
 
     side = int(round(max(h, w) / SCALE))
     canvas = np.zeros((side, side, 3))
