@@ -98,9 +98,12 @@ jobs:
           UDID=$(xcrun simctl create shots "$DEVTYPE" "$RUNTIME")
           xcrun simctl boot "$UDID"
           xcrun simctl bootstatus "$UDID" -b
-          xcrun simctl status_bar "$UDID" override --time "2026-09-13T09:41:00+00:00" \
-            --cellularBars 4 --wifiBars 3 --batteryState charged --batteryLevel 100 \
-            || echo "status bar override refused; continuing with the default bar"
+          # Xcode 26 rejected the "+00:00" form ("Invalid, non-ISO date/time string"), so try the
+          # forms simctl has accepted over the years before giving up on the 9:41 clock.
+          for t in "2026-09-13T09:41:00Z" "9:41"; do
+            xcrun simctl status_bar "$UDID" override --time "$t" \
+              --cellularBars 4 --wifiBars 3 --batteryState charged --batteryLevel 100 && break
+          done || echo "status bar override refused; continuing with the default bar"
           xcrun simctl install "$UDID" "$APP"
           mkdir -p screenshots/raw
           shoot () {   # <screen> <output name>
