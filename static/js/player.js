@@ -1,0 +1,652 @@
+/* Pick the Play — live player app (also powers /lounge/<code>). */
+"use strict";
+
+(() => {
+  const { $, $$, el, toast, api, LiveSocket, now, downDistance, pct } = PTP;
+
+  const TOKEN_KEY = "ptp_token";
+  const loungeId = document.body.dataset.lounge || null;
+
+  const storage = {
+    get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
+    set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* private mode */ } },
+    del: (k) => { try { localStorage.removeItem(k); } catch { /* private mode */ } },
+  };
+
+  const S = {
+    token: storage.get(TOKEN_KEY),
+    user: null,
+    state: null,
+    view: "loading",
+    board: loungeId ? "lounge" : "global",
+    selection: { playId: null, type: null, dir: null },
+    savedKey: null,
+    saving: false,
+    timer: null,
+    timerPlayId: null,
+    animatedPlayId: null,
+    ranks: { global: new Map(), lounge: new Map() },
+    moves: { global: new Map(), lounge: new Map() },
+    gameId: null,
+  };
+  let socket = null;
+
+  // ------------------------------------------------------------------ boot
+
+  async function init() {
+    wireUI();
+    const params = new URLSearchParams(location.search);
+    if (params.has("missing_lounge")) {
+      const code = params.get("missing_lounge");
+      toast(code ? `No lounge found with code ${code}.` : "That lounge doesn't exist.", "error");
+      history.replaceState(null, "", "/");
+    }
+
+    if (S.token) {
+      try {
+        S.user = (await api("/api/me", { token: S.token })).user;
+      } catch (err) {
+        if (err.status === 401) forgetToken();
+      }
+    }
+
+    // Spectate right away; reconnect with credentials once signed in.
+    socket = new LiveSocket("/ws", {
+      hello: () => ({ type: "hello", token: S.token, lounge: loungeId }),
+      onMessage: handleMessage,
+      onStatus: setConn,
+    });
+    socket.connect();
+
+    let reconnect = false;
+    if (!S.token) {
+      await signIn();
+      reconnect = true;
+    }
+    if (loungeId) reconnect = (await ensureLoungeMember()) || reconnect;
+    if (reconnect) socket.connect(true);
+  }
+
+  function forgetToken() {
+    S.token = null;
+    S.user = null;
+    storage.del(TOKEN_KEY);
+  }
+
+  function signIn() {
+    const modal = $("#signin-modal");
+    const input = $("#username");
+    const error = $("#signin-error");
+    const submit = $("#signin-submit");
+    modal.hidden = false;
+    setTimeout(() => input.focus(), 50);
+    return new Promise((resolve) => {
+      $("#signin-form").onsubmit = async (ev) => {
+        ev.preventDefault();
+        error.textContent = "";
+        const username = input.value.trim();
+        if (username.length < 2) {
+          error.textContent = "Pick a username with at least 2 characters.";
+          return;
+        }
+        submit.disabled = true;
+        try {
+          const user = await api("/api/users", { method: "POST", body: { username } });
+          S.token = user.token;
+          S.user = user;
+          storage.set(TOKEN_KEY, user.token);
+          modal.hidden = true;
+          toast(`You're in, ${user.username}! 🏈`, "success");
+          resolve();
+        } catch (err) {
+          error.textContent = err.message;
+        } finally {
+          submit.disabled = false;
+        }
+      };
+    });
+  }
+
+  async function ensureLoungeMember() {
+    try {
+      await api(`/api/lounges/${encodeURIComponent(loungeId)}/join`, { method: "POST", token: S.token });
+      return true;
+    } catch (err) {
+      if (err.status === 404) {
+        location.replace(`/?missing_lounge=${encodeURIComponent(loungeId)}`);
+      } else {
+        toast(err.message, "error");
+      }
+      return false;
+    }
+  }
+
+  // ------------------------------------------------------------------ socket
+
+  function setConn(status) {
+    const dot = $("#conn");
+    dot.className = `conn ${status}`;
+    dot.setAttribute("aria-label", { online: "Live", connecting: "Connecting", offline: "Offline" }[status]);
+    if (status === "offline" && S.state) setPickStatus("Reconnecting…", "error");
+  }
+
+  function handleMessage(msg) {
+    switch (msg.type) {
+      case "state":
+        applyState(msg);
+        break;
+      case "prediction_saved":
+        onPredictionSaved(msg.prediction);
+        break;
+      case "error":
+        if (msg.code === "bad_token") {
+          forgetToken();
+          location.reload();
+          return;
+        }
+        S.saving = false;
+        toast(msg.message, "error");
+        if (S.view === "open") paintPicks(msg.message);
+        break;
+      default:
+        break;
+    }
+  }
+
+  // ------------------------------------------------------------------ state
+
+  function applyState(st) {
+    const prev = S.state;
+    S.state = st;
+    if (st.me) S.user = { ...(S.user || {}), ...st.me };
+
+    const gameId = st.game ? st.game.id : null;
+    if (gameId !== S.gameId) {
+      S.gameId = gameId;
+      S.ranks = { global: new Map(), lounge: new Map() };
+      S.moves = { global: new Map(), lounge: new Map() };
+    }
+    trackRankMoves(st, st.event === "play_resolved");
+
+    PTP.renderScorebug($("#scorebug"), st.game, st.play);
+    renderLoungeStrip(st.lounge);
+    renderStage(st);
+    renderMe(st, prev);
+    renderBoard();
+  }
+
+  function trackRankMoves(st, recordMoves) {
+    const boards = { global: st.leaderboard || [], lounge: (st.lounge && st.lounge.leaderboard) || [] };
+    for (const [name, rows] of Object.entries(boards)) {
+      const before = S.ranks[name];
+      const after = new Map(rows.map((r) => [r.user_id, r.rank]));
+      if (recordMoves) {
+        S.moves[name] = new Map(
+          rows.filter((r) => before.has(r.user_id)).map((r) => [r.user_id, before.get(r.user_id) - r.rank]),
+        );
+      }
+      if (recordMoves || before.size === 0) S.ranks[name] = after;
+    }
+  }
+
+  function pickView(st) {
+    const { game, play } = st;
+    if (!game) return "nogame";
+    if (game.status === "FINAL" && (!play || play.state === "RESOLVED")) return "final";
+    if (!play) return "waiting";
+    return { OPEN: "open", LOCKED: "locked", RESOLVED: "result" }[play.state] || "waiting";
+  }
+
+  function showView(name) {
+    if (S.view === name) return;
+    S.view = name;
+    for (const v of $$("[data-view]")) v.hidden = v.dataset.view !== name;
+    if (name !== "open") stopTimer();
+  }
+
+  function playLabel(play) {
+    return [`Play ${play.play_number}`, downDistance(play)].filter(Boolean).join(" · ");
+  }
+
+  function renderStage(st) {
+    const view = pickView(st);
+    showView(view);
+    if (view === "waiting") renderWaiting(st);
+    else if (view === "open") renderOpen(st);
+    else if (view === "locked") renderLocked(st);
+    else if (view === "result") renderResult(st);
+    else if (view === "final") renderFinal(st);
+  }
+
+  function renderWaiting(st) {
+    const scheduled = st.game.status === "SCHEDULED";
+    $("#waiting-kicker").textContent = scheduled ? "Kickoff soon" : "Get ready";
+    $("#waiting-title").textContent = scheduled ? "The game hasn't started yet" : "Waiting for the next play…";
+  }
+
+  // -- OPEN: the pick grid + countdown -------------------------------------
+
+  function remaining() {
+    const play = S.state && S.state.play;
+    return play ? Math.max(0, play.locks_at - now()) : 0;
+  }
+
+  function renderOpen(st) {
+    const play = st.play;
+    if (S.selection.playId !== play.id) {
+      const mine = st.my_prediction;
+      S.selection = { playId: play.id, type: mine ? mine.play_type : null, dir: mine ? mine.direction : null };
+      S.savedKey = mine ? `${mine.play_type}|${mine.direction}` : null;
+      S.saving = false;
+    }
+    $("#open-kicker").textContent = playLabel(play);
+    startTimer(play);
+    paintPicks();
+  }
+
+  function paintPicks(errorText) {
+    const expired = remaining() <= 0;
+    const canPick = !expired && !!S.token;
+    const { type, dir } = S.selection;
+    for (const b of $$("[data-type]")) {
+      const on = b.dataset.type === type;
+      b.classList.toggle("selected", on);
+      b.setAttribute("aria-pressed", String(on));
+      b.disabled = !canPick;
+    }
+    for (const b of $$("[data-dir]")) {
+      const on = b.dataset.dir === dir;
+      b.classList.toggle("selected", on);
+      b.setAttribute("aria-pressed", String(on));
+      b.disabled = !canPick;
+    }
+    const key = type && dir ? `${type}|${dir}` : null;
+    if (errorText) setPickStatus(errorText, "error");
+    else if (!S.token) setPickStatus("Sign in to make picks");
+    else if (expired) setPickStatus("Time! Locking predictions…");
+    else if (S.saving) setPickStatus("Sending your pick…");
+    else if (key && key === S.savedKey) setPickStatus(`✓ Locked in: ${type} · ${dir} — change it before 0`, "saved");
+    else if (type && !dir) setPickStatus("Now pick a direction");
+    else if (dir && !type) setPickStatus("Now pick Run or Pass");
+    else setPickStatus("Make your call: type + direction");
+  }
+
+  function setPickStatus(text, kind = "") {
+    const node = $("#pick-status");
+    node.textContent = text;
+    node.className = `pick-status ${kind}`;
+  }
+
+  function choose(kind, value) {
+    if (remaining() <= 0 || !S.state || !S.state.play || S.state.play.state !== "OPEN") return;
+    S.selection[kind] = value;
+    if (navigator.vibrate) navigator.vibrate(8);
+    if (S.selection.type && S.selection.dir) submitPick();
+    paintPicks();
+  }
+
+  async function submitPick() {
+    const { playId, type, dir } = S.selection;
+    const payload = { play_id: playId, play_type: type, direction: dir };
+    S.saving = true;
+    if (socket && socket.send({ type: "predict", ...payload })) return;
+    // Socket is down: fall back to plain HTTP so the pick still lands.
+    try {
+      onPredictionSaved(await api("/api/predictions", { method: "POST", token: S.token, body: payload }));
+    } catch (err) {
+      S.saving = false;
+      paintPicks(err.message);
+    }
+  }
+
+  function onPredictionSaved(pred) {
+    if (!pred || pred.play_id !== S.selection.playId) return;
+    S.saving = false;
+    S.savedKey = `${pred.play_type}|${pred.direction}`;
+    if (S.state) S.state.my_prediction = pred;
+    if (S.view === "open") paintPicks();
+  }
+
+  function startTimer(play) {
+    if (S.timer && S.timerPlayId === play.id) return;
+    stopTimer();
+    S.timerPlayId = play.id;
+    const total = Math.max(1, play.locks_at - play.opened_at);
+    const ring = $("#ring");
+    const box = $("#countdown");
+    const num = $("#countdown-num");
+    const C = 2 * Math.PI * 36;
+    ring.style.strokeDasharray = String(C);
+    let lastShown = null;
+    const tick = () => {
+      const rem = remaining();
+      const shown = Math.ceil(rem);
+      ring.style.strokeDashoffset = String(C * (1 - rem / total));
+      if (shown !== lastShown) {
+        lastShown = shown;
+        num.textContent = String(shown);
+        box.classList.toggle("hurry", rem <= 7 && rem > 3);
+        box.classList.toggle("critical", rem <= 3);
+      }
+      if (rem <= 0) {
+        stopTimer();
+        paintPicks();
+      }
+    };
+    tick();
+    S.timer = setInterval(tick, 100);
+  }
+
+  function stopTimer() {
+    clearInterval(S.timer);
+    S.timer = null;
+    S.timerPlayId = null;
+  }
+
+  // -- LOCKED ----------------------------------------------------------------
+
+  function pickChips(container, pick, play) {
+    container.replaceChildren();
+    if (!pick) {
+      container.append(el("span", { class: "chip" }, "No pick this play"));
+      return;
+    }
+    const graded = play && play.state === "RESOLVED" && !play.voided && "type_correct" in pick;
+    const chip = (text, ok) =>
+      el("span", { class: `chip ${graded ? (ok ? "good" : "bad") : ""}` }, graded ? `${text} ${ok ? "✓" : "✗"}` : text);
+    container.append(
+      el("span", { class: "chip" }, "Your pick"),
+      chip(pick.play_type, pick.type_correct),
+      chip(pick.direction, pick.direction_correct),
+    );
+  }
+
+  function renderLocked(st) {
+    $("#locked-kicker").textContent = playLabel(st.play);
+    pickChips($("#locked-pick"), st.my_prediction, st.play);
+    const crowd = $("#locked-crowd");
+    crowd.replaceChildren();
+    const stats = st.crowd;
+    if (stats && stats.total) {
+      const typeBars = el("div", { class: "crowd" });
+      const dirBars = el("div", { class: "crowd" });
+      crowd.append(
+        el("div", { class: "pick-label", style: { marginBottom: "0" } }, `How ${stats.total} players called it`),
+        typeBars,
+        dirBars,
+      );
+      PTP.crowdBars(typeBars, stats, ["RUN", "PASS"]);
+      PTP.crowdBars(dirBars, stats, ["LEFT", "CENTER", "RIGHT"]);
+    }
+  }
+
+  // -- RESOLVED --------------------------------------------------------------
+
+  function renderResult(st) {
+    const { play, my_prediction: pick, crowd } = st;
+    const view = $('[data-view="result"]');
+    const animate = st.event === "play_resolved" && S.animatedPlayId !== play.id;
+    if (animate) S.animatedPlayId = play.id;
+
+    const points = $("#result-points");
+    const label = $("#result-label");
+    $("#result-body").hidden = play.voided;
+    $("#result-kicker").textContent = `${playLabel(play)} — ${play.voided ? "No play" : "Result"}`;
+
+    if (play.voided) {
+      points.textContent = "VOID";
+      points.className = "points zero";
+      label.textContent = "Play voided (penalty / no play) — no points";
+      $("#result-pick").replaceChildren();
+      $("#result-crowd").textContent = "";
+    } else {
+      $("#reveal-type").textContent = play.correct_play_type;
+      $("#reveal-dir").textContent = play.correct_direction;
+      const pts = pick ? pick.points_earned || 0 : null;
+      points.textContent = pts === null ? "—" : `+${pts}`;
+      points.className = `points ${pts === st.scoring.exact ? "exact" : pts ? "some" : "zero"}`;
+      label.textContent =
+        pts === null ? "You didn't pick this play"
+          : pts === st.scoring.exact ? "Exact match! 🔥"
+            : pick.type_correct ? "Play type correct"
+              : pick.direction_correct ? "Direction correct"
+                : "No points this time";
+      pickChips($("#result-pick"), pick, play);
+      $("#result-crowd").textContent =
+        crowd && crowd.total
+          ? `${pct(crowd.exact, crowd.total)}% of ${crowd.total} players called it exactly · ${pct(crowd.scored, crowd.total)}% scored`
+          : "";
+    }
+
+    if (animate) {
+      view.classList.remove("animate");
+      void view.offsetWidth; // restart CSS animations
+      view.classList.add("animate");
+      if (pick && pick.points_earned === st.scoring.exact) confetti();
+      if (navigator.vibrate && pick && pick.points_earned) navigator.vibrate([20, 40, 20]);
+    } else if (st.event !== "play_resolved") {
+      view.classList.remove("animate");
+    }
+  }
+
+  function confetti() {
+    const host = $("#confetti");
+    const css = getComputedStyle(document.documentElement);
+    const colors = ["--home-1", "--home-2", "--away-2", "--gold", "--accent"].map((v) => css.getPropertyValue(v).trim());
+    host.replaceChildren();
+    for (let i = 0; i < 48; i += 1) {
+      const bit = el("i");
+      bit.style.left = `${Math.random() * 100}%`;
+      bit.style.background = colors[i % colors.length];
+      bit.style.animationDelay = `${0.4 + Math.random() * 0.5}s`;
+      bit.style.setProperty("--dx", `${Math.round((Math.random() - 0.5) * 180)}px`);
+      bit.style.setProperty("--rot", `${Math.round(180 + Math.random() * 720)}deg`);
+      host.append(bit);
+    }
+    setTimeout(() => host.replaceChildren(), 3600);
+  }
+
+  // -- FINAL -----------------------------------------------------------------
+
+  function renderFinal(st) {
+    const { game, me } = st;
+    $("#final-title").textContent = `Final: ${game.away_name} @ ${game.home_name}`;
+    if (!me) {
+      $("#final-text").textContent = "Thanks for watching!";
+    } else if (me.rank) {
+      let text = `You finished #${me.rank} of ${st.ranked_players} with ${me.game_score} points.`;
+      if (st.lounge) {
+        const row = st.lounge.leaderboard.find((r) => r.user_id === me.id);
+        if (row) text += ` #${row.rank} in ${st.lounge.name}.`;
+      }
+      $("#final-text").textContent = text;
+    } else {
+      $("#final-text").textContent = "You didn't make any picks this game. Catch the next one!";
+    }
+  }
+
+  // ------------------------------------------------------------------ me + board
+
+  function renderMe(st, prev) {
+    const box = $("#me-stats");
+    box.hidden = !st.me;
+    if (!st.me) return;
+    const set = (id, value, prevValue) => {
+      const node = $(id);
+      node.textContent = value;
+      if (prevValue !== undefined && prevValue !== value) {
+        node.classList.remove("bump");
+        void node.offsetWidth;
+        node.classList.add("bump");
+      }
+    };
+    const p = prev && prev.me;
+    set("#me-score", String(st.me.game_score), p ? String(p.game_score) : undefined);
+    set("#me-rank", st.me.rank ? `#${st.me.rank}` : "—", p ? (p.rank ? `#${p.rank}` : "—") : undefined);
+    set("#me-total", String(st.me.total_score), p ? String(p.total_score) : undefined);
+  }
+
+  function renderLoungeStrip(lounge) {
+    $("#lounge-strip").hidden = !lounge;
+    $("#board-tabs").hidden = !lounge;
+    if (!lounge) {
+      S.board = "global";
+      return;
+    }
+    $("#lounge-name").textContent = lounge.name;
+    $("#lounge-code").textContent = lounge.id;
+    $("#lounge-count").textContent = `${lounge.member_count} ${lounge.member_count === 1 ? "player" : "players"}`;
+    $("#lounge-tab").textContent = lounge.name;
+  }
+
+  function renderBoard() {
+    const st = S.state;
+    if (!st) return;
+    const lounge = S.board === "lounge" ? st.lounge : null;
+    for (const t of $$("[data-board]")) {
+      const on = t.dataset.board === (lounge ? "lounge" : "global");
+      t.classList.toggle("active", on);
+      t.setAttribute("aria-selected", String(on));
+    }
+    const rows = lounge ? lounge.leaderboard : st.leaderboard;
+    const moves = S.moves[lounge ? "lounge" : "global"];
+    $("#board-title").textContent = lounge
+      ? `${lounge.name} · Head-to-Head`
+      : `Live Game Leaderboard${st.ranked_players ? ` · ${st.ranked_players} players` : ""}`;
+
+    const board = $("#board");
+    board.replaceChildren();
+    if (!rows.length) {
+      board.append(el("li", { class: "empty" }, st.game ? "No scores yet. Make your first pick!" : "Leaderboard opens at kickoff."));
+      return;
+    }
+    const myId = st.me && st.me.id;
+    const row = (r) => {
+      const move = moves.get(r.user_id) || 0;
+      return el("li", { class: `board-row${r.user_id === myId ? " me" : ""}${move > 0 ? " flash" : ""}` },
+        el("span", { class: "board-rank" }, String(r.rank)),
+        el("span", { class: "board-name" },
+          el("strong", {}, r.is_host ? "👑 " : "", r.username, r.user_id === myId ? el("span", { class: "you-tag" }, "YOU") : null),
+          el("span", {}, r.picks == null
+            ? `${r.exact_hits} exact`
+            : `${r.picks} ${r.picks === 1 ? "pick" : "picks"} · ${r.exact_hits} exact`)),
+        el("span", { class: "board-score" },
+          move ? el("span", { class: `move ${move > 0 ? "up" : "down"}` }, `${move > 0 ? "▲" : "▼"}${Math.abs(move)}`) : null,
+          String(r.score)));
+    };
+    for (const r of rows) board.append(row(r));
+    if (!lounge && st.me && st.me.rank && !rows.some((r) => r.user_id === myId)) {
+      board.append(el("li", { class: "empty", style: { padding: "4px" } }, "⋯"));
+      board.append(row({ user_id: myId, username: st.me.username, rank: st.me.rank, score: st.me.game_score,
+        exact_hits: st.me.exact_hits, picks: null }));
+    }
+  }
+
+  // ------------------------------------------------------------------ lounges UI
+
+  async function openLoungeModal() {
+    const modal = $("#lounge-modal");
+    modal.hidden = false;
+    $("#join-error").textContent = "";
+    $("#create-error").textContent = "";
+    if (!S.token) return;
+    try {
+      const { lounges } = await api("/api/me", { token: S.token });
+      const list = $("#my-lounges");
+      list.replaceChildren(...lounges.map((l) =>
+        el("li", {}, el("a", { href: `/lounge/${l.id}` },
+          l.name, el("span", { class: "num" }, `#${l.id} · ${l.member_count} ${l.member_count === 1 ? "player" : "players"}`)))));
+      $("#my-lounges-section").hidden = !lounges.length;
+    } catch { /* offline; the forms still work once back */ }
+  }
+
+  async function shareLounge(code, name) {
+    const url = `${location.origin}/lounge/${code}`;
+    const text = `Join my Pick the Play lounge "${name}" — code ${code}`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "Pick the Play", text, url });
+        return;
+      }
+      await navigator.clipboard.writeText(`${text}: ${url}`);
+      toast("Invite link copied!", "success");
+    } catch (err) {
+      if (err && err.name === "AbortError") return;
+      toast(`Share this code: ${code}`, "info", 5000);
+    }
+  }
+
+  function wireUI() {
+    for (const b of $$("[data-type]")) b.addEventListener("click", () => choose("type", b.dataset.type));
+    for (const b of $$("[data-dir]")) b.addEventListener("click", () => choose("dir", b.dataset.dir));
+    for (const t of $$("[data-board]")) {
+      t.addEventListener("click", () => {
+        S.board = t.dataset.board;
+        renderBoard();
+      });
+    }
+
+    const modal = $("#lounge-modal");
+    $("#lounge-btn").addEventListener("click", openLoungeModal);
+    modal.addEventListener("click", (ev) => {
+      if (ev.target === modal || ev.target.closest("[data-close]")) modal.hidden = true;
+    });
+    document.addEventListener("keydown", (ev) => {
+      if (ev.key === "Escape") modal.hidden = true;
+    });
+
+    $("#join-code").addEventListener("input", (ev) => {
+      ev.target.value = ev.target.value.replace(/\D/g, "").slice(0, 4);
+    });
+    $("#join-form").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const code = $("#join-code").value;
+      const error = $("#join-error");
+      if (!/^\d{4}$/.test(code)) {
+        error.textContent = "Enter the 4-digit code your friend shared.";
+        return;
+      }
+      if (!S.token) {
+        error.textContent = "Sign in first.";
+        return;
+      }
+      try {
+        await api(`/api/lounges/${code}/join`, { method: "POST", token: S.token });
+        location.href = `/lounge/${code}`;
+      } catch (err) {
+        error.textContent = err.message;
+      }
+    });
+
+    $("#create-form").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const error = $("#create-error");
+      error.textContent = "";
+      const name = $("#create-name").value.trim();
+      if (name.length < 2) {
+        error.textContent = "Give your lounge a name (2+ characters).";
+        return;
+      }
+      if (!S.token) {
+        error.textContent = "Sign in first.";
+        return;
+      }
+      try {
+        const lounge = await api("/api/lounges", { method: "POST", token: S.token, body: { name } });
+        $("#created").hidden = false;
+        $("#created-code").textContent = lounge.id;
+        $("#go-created").href = `/lounge/${lounge.id}`;
+        $("#share-created").onclick = () => shareLounge(lounge.id, lounge.name);
+      } catch (err) {
+        error.textContent = err.message;
+      }
+    });
+
+    $("#invite-btn").addEventListener("click", () => {
+      const lounge = S.state && S.state.lounge;
+      if (lounge) shareLounge(lounge.id, lounge.name);
+    });
+  }
+
+  init();
+})();

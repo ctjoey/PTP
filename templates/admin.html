@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% block title %}Admin Console · Pick the Play{% endblock %}
+{% block body_class %}admin-body{% endblock %}
+{% block body %}
+<div class="auth-wrap" id="auth" hidden>
+  <form class="card auth-card" id="auth-form">
+    <div class="brand">
+      <span class="brand-name">PICK THE <b>PLAY</b></span>
+      <span class="brand-sub">ADMIN CONSOLE</span>
+    </div>
+    <div class="field">
+      <label for="admin-key">Admin key</label>
+      <input class="input" type="password" id="admin-key" autocomplete="current-password" required>
+    </div>
+    <p class="form-error" id="auth-error"></p>
+    <button class="btn btn-primary btn-block" type="submit">Enter Console</button>
+    <p class="small muted" style="margin:0">Set the key with the <code>PTP_ADMIN_KEY</code> environment variable.</p>
+  </form>
+</div>
+
+<main class="app" id="console" hidden>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-name">PICK THE <b>PLAY</b></span>
+      <span class="brand-sub">ADMIN CONSOLE</span>
+    </div>
+    <div class="topbar-actions">
+      <span class="chip" id="online-chip">0 players online</span>
+      <a class="btn btn-sm" href="/" target="_blank" rel="noopener">Player view ↗</a>
+      <button class="btn btn-sm btn-ghost" type="button" id="logout">Sign out</button>
+      <span class="conn connecting" id="conn" role="img" aria-label="Connecting"></span>
+    </div>
+  </header>
+
+  <section class="scorebug" id="scorebug" hidden>
+    <div class="team away"><div class="team-abbr"></div><div class="team-name"></div><div class="team-tag">AWAY</div></div>
+    <div class="bug-mid"><span class="status-pill"></span><span class="bug-at">@</span><span class="bug-info"></span></div>
+    <div class="team home"><div class="team-abbr"></div><div class="team-name"></div><div class="team-tag">HOME</div></div>
+  </section>
+
+  <div class="admin-grid">
+    <!-- Setup -->
+    <div class="admin-col">
+      <section class="card">
+        <h2 class="card-title">Game Setup</h2>
+        <form class="team-form" id="game-form" novalidate>
+          <fieldset class="team-fieldset">
+            <legend>Away team</legend>
+            <input class="input" name="away_name" value="Chicago" maxlength="24" aria-label="Away team name" required>
+            <div class="color-row">
+              <label class="color-field"><input type="color" name="away_primary" value="#14213D">Primary</label>
+              <label class="color-field"><input type="color" name="away_secondary" value="#F26A1B">Accent</label>
+            </div>
+          </fieldset>
+          <fieldset class="team-fieldset">
+            <legend>Home team</legend>
+            <input class="input" name="home_name" value="Green Bay" maxlength="24" aria-label="Home team name" required>
+            <div class="color-row">
+              <label class="color-field"><input type="color" name="home_primary" value="#1F6B3A">Primary</label>
+              <label class="color-field"><input type="color" name="home_secondary" value="#F2C230">Accent</label>
+            </div>
+          </fieldset>
+          <p class="legal-note">Use generic city or region identifiers with custom colors only. Official league marks,
+            club nicknames and logos are blocked by the server.</p>
+          <button class="btn btn-primary btn-block" type="submit" id="create-game-btn">Create Game</button>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2 class="card-title">Game Status</h2>
+        <p class="small muted" id="game-meta" style="margin-top:0">No game yet. Create one above.</p>
+        <div class="row">
+          <button class="btn btn-block" type="button" id="go-live">● Go Live</button>
+          <button class="btn btn-block" type="button" id="go-final">End Game (Final)</button>
+        </div>
+      </section>
+    </div>
+
+    <!-- Controller -->
+    <div class="admin-col">
+      <section class="card">
+        <h2 class="card-title">Play Controller</h2>
+        <div class="ctrl-section">
+          <div class="ctrl-state">
+            <div>
+              <div class="view-kicker" id="ctrl-play">No play yet</div>
+              <span class="state-badge" id="ctrl-badge">IDLE</span>
+            </div>
+            <div class="ctrl-timer" id="ctrl-timer" aria-live="off">--</div>
+          </div>
+        </div>
+
+        <div class="ctrl-section">
+          <div class="ctrl-row">
+            <div class="field">
+              <label>Down</label>
+              <div class="seg" id="down-seg">
+                <button type="button" data-down="1" class="selected">1</button>
+                <button type="button" data-down="2">2</button>
+                <button type="button" data-down="3">3</button>
+                <button type="button" data-down="4">4</button>
+              </div>
+            </div>
+            <div class="field">
+              <label for="distance">Distance</label>
+              <input class="input" id="distance" maxlength="8" placeholder="10 / Goal" value="10">
+            </div>
+            <div class="field">
+              <label for="window">Timer (s)</label>
+              <input class="input" id="window" type="number" min="5" max="60" value="15">
+            </div>
+          </div>
+          <button class="big-btn btn-open" type="button" id="open-btn">Open Next Play <kbd>O</kbd></button>
+          <button class="big-btn btn-lock" type="button" id="lock-btn">Lock Predictions <kbd>L</kbd></button>
+        </div>
+
+        <div class="ctrl-section">
+          <div class="pick-label">Actual play type</div>
+          <div class="pick-grid two result-grid">
+            <button class="pick-btn" type="button" data-rtype="RUN">RUN<small>R</small></button>
+            <button class="pick-btn" type="button" data-rtype="PASS">PASS<small>P</small></button>
+          </div>
+          <div class="pick-label">Actual direction</div>
+          <div class="pick-grid three result-grid">
+            <button class="pick-btn" type="button" data-rdir="LEFT">LEFT<small>←</small></button>
+            <button class="pick-btn" type="button" data-rdir="CENTER">CENTER<small>↑</small></button>
+            <button class="pick-btn" type="button" data-rdir="RIGHT">RIGHT<small>→</small></button>
+          </div>
+          <button class="big-btn btn-resolve" type="button" id="resolve-btn">Resolve &amp; Score Play <kbd>Enter</kbd></button>
+          <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap">
+            <span class="shortcuts">Keys: <kbd>O</kbd> open · <kbd>L</kbd> lock · <kbd>R</kbd>/<kbd>P</kbd> type · <kbd>←</kbd><kbd>↑</kbd><kbd>→</kbd> direction · <kbd>Enter</kbd> resolve</span>
+            <button class="text-btn" type="button" id="void-btn">Void play (penalty / no play)</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2 class="card-title">Live Picks · Current Play</h2>
+        <div class="kpis">
+          <div class="kpi"><b id="kpi-picks">0</b><span>Picks</span></div>
+          <div class="kpi"><b id="kpi-online">0</b><span>Online</span></div>
+          <div class="kpi"><b id="kpi-ranked">0</b><span>Ranked</span></div>
+        </div>
+        <div class="crowd" id="admin-crowd" style="margin-top:12px"></div>
+      </section>
+    </div>
+
+    <!-- Results -->
+    <div class="admin-col">
+      <section class="card">
+        <h2 class="card-title">Live Leaderboard</h2>
+        <ol class="board" id="board"></ol>
+      </section>
+      <section class="card">
+        <h2 class="card-title">Play Log</h2>
+        <ul class="history" id="history"></ul>
+      </section>
+    </div>
+  </div>
+</main>
+{% endblock %}
+{% block scripts %}<script src="/static/js/admin.js?v={{ v }}"></script>{% endblock %}

@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+{% block title %}{% if lounge_id %}Lounge {{ lounge_id }} · {% endif %}Pick the Play: Live Pro Football Game{% endblock %}
+{% block body_attrs %}data-lounge="{{ lounge_id or '' }}"{% endblock %}
+{% block body %}
+<main class="app">
+  <header class="topbar">
+    <a class="brand" href="/" style="color:inherit;text-decoration:none">
+      <span class="brand-name">PICK THE <b>PLAY</b></span>
+      <span class="brand-sub">LIVE PRO FOOTBALL</span>
+    </a>
+    <div class="topbar-actions">
+      <button class="btn btn-sm" id="lounge-btn" type="button">H2H Lounges</button>
+      <span class="conn connecting" id="conn" role="img" aria-label="Connecting"></span>
+    </div>
+  </header>
+
+  <section class="lounge-strip" id="lounge-strip" hidden>
+    <div>
+      <div class="lounge-strip-name" id="lounge-name"></div>
+      <div class="lounge-strip-code">Private lounge · Code <b class="num" id="lounge-code"></b> · <span id="lounge-count"></span></div>
+    </div>
+    <div class="row">
+      <button class="btn btn-sm" id="invite-btn" type="button">Invite</button>
+      <a class="btn btn-sm btn-ghost" href="/">Exit</a>
+    </div>
+  </section>
+
+  <section class="scorebug" id="scorebug" hidden>
+    <div class="team away"><div class="team-abbr"></div><div class="team-name"></div><div class="team-tag">AWAY</div></div>
+    <div class="bug-mid"><span class="status-pill"></span><span class="bug-at">@</span><span class="bug-info"></span></div>
+    <div class="team home"><div class="team-abbr"></div><div class="team-name"></div><div class="team-tag">HOME</div></div>
+  </section>
+
+  <section class="card stage" id="stage" aria-live="polite">
+    <div class="view view-center" data-view="loading">
+      <div class="big-icon bounce" aria-hidden="true">🏈</div>
+      <p class="view-text">Connecting to the stadium…</p>
+    </div>
+
+    <div class="view view-center" data-view="nogame" hidden>
+      <div class="big-icon" aria-hidden="true">🏟️</div>
+      <h2 class="view-title">No game on right now</h2>
+      <p class="view-text">Keep this page open. When the admin starts a game, it shows up here instantly.</p>
+    </div>
+
+    <div class="view view-center" data-view="waiting" hidden>
+      <div class="big-icon bounce" aria-hidden="true">🏈</div>
+      <div class="view-kicker" id="waiting-kicker">Get ready</div>
+      <h2 class="view-title" id="waiting-title">Waiting for the next play…</h2>
+      <p class="view-text">You get 15 seconds to call it once the play opens.</p>
+    </div>
+
+    <div class="view" data-view="open" hidden>
+      <div class="open-head">
+        <div>
+          <div class="view-kicker" id="open-kicker"></div>
+          <h2 class="view-title">Call the play!</h2>
+        </div>
+        <div class="countdown" id="countdown" role="timer" aria-live="off">
+          <svg viewBox="0 0 84 84" aria-hidden="true">
+            <circle class="ring-bg" cx="42" cy="42" r="36" fill="none" stroke-width="8"/>
+            <circle class="ring-fg" id="ring" cx="42" cy="42" r="36" fill="none" stroke-width="8"/>
+          </svg>
+          <div class="countdown-num" id="countdown-num">15</div>
+        </div>
+      </div>
+      <div class="pick-label">Run or pass?</div>
+      <div class="pick-grid two">
+        <button class="pick-btn" type="button" data-type="RUN" aria-pressed="false">RUN<small>On the ground</small></button>
+        <button class="pick-btn" type="button" data-type="PASS" aria-pressed="false">PASS<small>Through the air</small></button>
+      </div>
+      <div class="pick-label">Which direction?</div>
+      <div class="pick-grid three">
+        <button class="pick-btn" type="button" data-dir="LEFT" aria-pressed="false">LEFT<small>◀</small></button>
+        <button class="pick-btn" type="button" data-dir="CENTER" aria-pressed="false">CENTER<small>▲</small></button>
+        <button class="pick-btn" type="button" data-dir="RIGHT" aria-pressed="false">RIGHT<small>▶</small></button>
+      </div>
+      <div class="pick-status" id="pick-status">Make your call: type + direction</div>
+      <div class="points-hint">
+        <span class="chip">Type +10</span><span class="chip">Direction +10</span><span class="chip gold">Both +30</span>
+      </div>
+    </div>
+
+    <div class="view view-center" data-view="locked" hidden>
+      <div class="lock-badge" aria-hidden="true">
+        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+      </div>
+      <div class="view-kicker" id="locked-kicker"></div>
+      <h2 class="view-title">Predictions Locked — Play in Progress</h2>
+      <div class="progress-stripes" aria-hidden="true"></div>
+      <div class="your-pick" id="locked-pick"></div>
+      <div class="crowd" id="locked-crowd"></div>
+    </div>
+
+    <div class="view view-center" data-view="result" hidden>
+      <div class="view-kicker" id="result-kicker"></div>
+      <div id="result-body">
+        <div class="reveal">
+          <div class="reveal-tile"><div class="lbl">PLAY TYPE</div><div class="val" id="reveal-type"></div></div>
+          <div class="reveal-tile"><div class="lbl">DIRECTION</div><div class="val" id="reveal-dir"></div></div>
+        </div>
+      </div>
+      <div class="points" id="result-points"></div>
+      <div class="points-label" id="result-label"></div>
+      <div class="your-pick" id="result-pick"></div>
+      <p class="view-text small" id="result-crowd"></p>
+      <p class="view-text small">Next play coming up…</p>
+    </div>
+
+    <div class="view view-center" data-view="final" hidden>
+      <div class="big-icon" aria-hidden="true">🏆</div>
+      <div class="view-kicker">Final</div>
+      <h2 class="view-title" id="final-title">That's the game!</h2>
+      <p class="view-text" id="final-text"></p>
+    </div>
+
+    <div class="confetti" id="confetti" aria-hidden="true"></div>
+  </section>
+
+  <section class="me-stats" id="me-stats" hidden>
+    <div class="stat"><div class="stat-label">Game pts</div><div class="stat-value" id="me-score">0</div></div>
+    <div class="stat"><div class="stat-label">Rank</div><div class="stat-value" id="me-rank">—</div></div>
+    <div class="stat"><div class="stat-label">Season pts</div><div class="stat-value" id="me-total">0</div></div>
+  </section>
+
+  <section class="card">
+    <div class="tabs" id="board-tabs" role="tablist" hidden>
+      <button class="tab" type="button" role="tab" data-board="global">Live Game</button>
+      <button class="tab" type="button" role="tab" data-board="lounge" id="lounge-tab">Lounge</button>
+    </div>
+    <h2 class="card-title" id="board-title">Live Leaderboard</h2>
+    <ol class="board" id="board"></ol>
+  </section>
+
+  <p class="footer-note">
+    Pick the Play is an independent fan prediction game for entertainment only. It is not affiliated with,
+    endorsed by, or sponsored by any professional football league or club. Team identifiers and colors are generic.
+  </p>
+</main>
+
+<!-- Sign-up -->
+<div class="modal-backdrop" id="signin-modal" hidden>
+  <form class="modal" id="signin-form" novalidate role="dialog" aria-modal="true" aria-labelledby="signin-title">
+    <h2 id="signin-title">Welcome to Pick the Play</h2>
+    <p class="muted">Call every snap before it happens. When a play opens you have 15 seconds to pick
+      <b>Run or Pass</b> and <b>Left, Center or Right</b>.</p>
+    <table class="scoring-table">
+      <tr><td>Correct play type</td><td>+10</td></tr>
+      <tr><td>Correct direction</td><td>+10</td></tr>
+      <tr><td>Exact match (both)</td><td>+30</td></tr>
+    </table>
+    <div class="field" style="margin-top:16px">
+      <label for="username">Choose a username</label>
+      <input class="input" id="username" maxlength="20" autocomplete="nickname" autocapitalize="off" spellcheck="false" required>
+    </div>
+    <p class="form-error" id="signin-error"></p>
+    <button class="btn btn-primary btn-block" type="submit" id="signin-submit">Let's Play</button>
+  </form>
+</div>
+
+<!-- Head-to-head lounges -->
+<div class="modal-backdrop" id="lounge-modal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="lounge-modal-title">
+    <div class="modal-head">
+      <h2 id="lounge-modal-title">Head-to-Head Lounges</h2>
+      <button class="btn btn-sm btn-ghost" type="button" data-close aria-label="Close">✕</button>
+    </div>
+    <p class="muted small">Play the same live game against your friends in a private room with its own leaderboard.</p>
+
+    <section class="modal-section" id="my-lounges-section" hidden>
+      <h3>Your lounges</h3>
+      <ul class="lounge-list" id="my-lounges"></ul>
+    </section>
+
+    <section class="modal-section">
+      <h3>Join with a 4-digit code</h3>
+      <form class="row" id="join-form" novalidate>
+        <input class="input code" id="join-code" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="0000" autocomplete="off" aria-label="Lounge code">
+        <button class="btn btn-primary" type="submit">Join</button>
+      </form>
+      <p class="form-error" id="join-error"></p>
+    </section>
+
+    <section class="modal-section">
+      <h3>Create a lounge</h3>
+      <form class="row" id="create-form" novalidate>
+        <input class="input" id="create-name" maxlength="32" placeholder="e.g. Sunday Crew" aria-label="Lounge name">
+        <button class="btn btn-primary" type="submit">Create</button>
+      </form>
+      <p class="form-error" id="create-error"></p>
+      <div id="created" hidden>
+        <div class="code-display">
+          <div class="small muted">Share this code with friends</div>
+          <div class="code" id="created-code"></div>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <button class="btn btn-block" type="button" id="share-created">Share invite</button>
+          <a class="btn btn-primary btn-block" id="go-created" href="/">Enter lounge</a>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}<script src="/static/js/player.js?v={{ v }}"></script>{% endblock %}

@@ -1,0 +1,14 @@
+{
+  "name": "Pick the Play: Live Pro Football Game",
+  "short_name": "Pick the Play",
+  "description": "Call every play live: Run or Pass, Left, Center or Right.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#070b12",
+  "theme_color": "#070b12",
+  "icons": [
+    { "src": "/static/img/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

@@ -1,0 +1,224 @@
+# Pick the Play: Live Pro Football Game
+
+A real-time, second-screen prediction game for live pro football. Before every snap, players have
+**15 seconds** to call the play — **Run or Pass** and **Left, Center or Right** — then watch points
+and leaderboards update the instant the admin scores the play.
+
+The MVP is a single Python 3.12 FastAPI server with three web surfaces, synchronised over WebSockets:
+
+| Surface | URL | Who |
+| --- | --- | --- |
+| **Live Player App** | `/` | Fans. Mobile-first, dark mode, installable to the iPhone home screen. |
+| **Head-to-Head Lounges** | `/lounge/<4-digit code>` | Friends playing each other with a private leaderboard. |
+| **Admin Console** | `/admin` | The operator watching the game and driving each play. |
+
+> Pick the Play is an independent fan game. It is not affiliated with, endorsed by, or sponsored by
+> any professional football league or club, and it uses no official names, marks or logos.
+
+---
+
+## Quick start
+
+Requires **Python 3.12**.
+
+```bash
+python3.12 -m venv venv
+source venv/bin/activate            # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+
+python app.py                       # or: uvicorn app:app --reload
+```
+
+Then open:
+
+- Admin console: <http://127.0.0.1:8000/admin> (default key `admin`; set `PTP_ADMIN_KEY` for anything real)
+- Player app: <http://127.0.0.1:8000/> (open it in a second browser or on your phone)
+
+The SQLite database `game.db` is created automatically next to `app.py`. Delete it to start fresh.
+
+### Play on your iPhone
+
+1. Start the server on your LAN: `HOST=0.0.0.0 python app.py`
+2. On the iPhone (same Wi-Fi), open `http://<your-computer-ip>:8000/`
+3. Optional: Share → **Add to Home Screen**. It launches full screen like a native app
+   (PWA manifest, `apple-mobile-web-app-capable`, safe-area insets).
+
+---
+
+## Running a game (admin)
+
+1. **Create Game.** Enter generic team identifiers (e.g. *Chicago* at *Green Bay*) and pick
+   primary/accent colors. Official league marks and club nicknames are rejected.
+2. **Open Next Play.** Set down and distance, then open. Every player gets the pick grid and a
+   synchronised 15-second countdown. (The game goes LIVE automatically on the first play.)
+3. **Lock Predictions.** Lock early, or let the timer lock it automatically. Late picks are rejected
+   by the server.
+4. **Resolve & Score Play.** Select the actual type and direction. Points are calculated, totals and
+   leaderboards update, and every player sees their result animation.
+5. Repeat. Use **Void play** for penalties or no-plays (nobody scores). **End Game** marks it FINAL.
+
+Keyboard shortcuts in the console: `O` open · `L` lock · `R`/`P` run/pass ·
+`←` `↑` `→` left/center/right · `Enter` resolve.
+
+### Play state machine
+
+```
+            Open Next Play             Lock (admin or 15 s timer)        Resolve & Score
+  (idle) ─────────────────▶  OPEN  ─────────────────────────────▶ LOCKED ──────────────────▶ RESOLVED
+                               │                                     │
+                               └──────────── Void play ──────────────┴──▶ RESOLVED (voided, 0 pts)
+```
+
+Only one play per game can be OPEN or LOCKED at a time (enforced by a partial unique index).
+
+## Scoring
+
+| Prediction vs. actual | Points |
+| --- | --- |
+| Exact match (type **and** direction) | **+30** |
+| Correct play type only | +10 |
+| Correct direction only | +10 |
+| Neither | 0 |
+
+Ties share a rank (1, 2, 2, 4). Within a tie, more exact hits sort first.
+The live leaderboard ranks points in the current game; *Season pts* is the user's all-time total.
+
+## Head-to-Head Lounges
+
+From the player app, tap **H2H Lounges** to:
+
+- **Create** a lounge. You become the host (👑) and get a 4-digit code plus a share link
+  (uses the iOS share sheet where available).
+- **Join** with a friend's 4-digit code, or open `/lounge/<code>` directly.
+
+Inside a lounge you play the same live game, with a private leaderboard tab of every member's points.
+
+---
+
+## Project structure
+
+```
+├── app.py              # FastAPI server: routes, WebSocket hub, game controller, auto-lock timer
+├── models.py           # SQLite schema, Store (data access), validation, scoring engine
+├── static/
+│   ├── css/style.css   # Dark, mobile-first styles shared by all pages
+│   ├── js/common.js    # DOM helpers, reconnecting WebSocket, server-clock sync
+│   ├── js/player.js    # Player app + lounges
+│   ├── js/admin.js     # Admin console
+│   ├── img/icon.svg
+│   └── manifest.webmanifest
+├── templates/          # Jinja2: base.html, player.html, admin.html
+├── tests/              # pytest: scoring, data layer, HTTP + WebSocket end-to-end
+├── requirements.txt
+├── requirements-dev.txt
+└── README.md
+```
+
+## Architecture
+
+- **Server-authoritative state.** Everything lives in SQLite (`game.db`, WAL mode). Each admin action
+  is one transaction in `Store`, after which `GameController` broadcasts.
+- **Personalised snapshots.** On every change each connected player receives a full `state` snapshot:
+  game, current play, *their* pick and points, *their* rank, the top-25 leaderboard and (in a lounge)
+  the lounge leaderboard. Clients just re-render, so a reconnect is always consistent. Shared data is
+  computed once per broadcast, not once per client.
+- **Synchronised timers.** Snapshots carry `server_time` and the play's `locks_at`, so each device
+  counts down against server time rather than its own clock. The server auto-locks at `locks_at`
+  plus a 0.5 s grace for in-flight picks, and re-arms the timer after a restart.
+- **The crowd split stays hidden** while a play is OPEN, so it can't influence picks. It appears once
+  the play is locked.
+
+### WebSocket protocol
+
+**Player — `/ws`**
+
+| Direction | Message |
+| --- | --- |
+| → | `{"type":"hello","token":"…","lounge":"1234"}` first (token optional = spectator) |
+| → | `{"type":"predict","play_id":7,"play_type":"PASS","direction":"LEFT"}` (repeat to change the pick while OPEN) |
+| → | `{"type":"sync"}` · `{"type":"ping"}` |
+| ← | `{"type":"state","event":"play_opened"\|"play_locked"\|"play_resolved"\|"play_voided"\|"game_created"\|"game_status"\|"lounge_updated"\|"sync", …snapshot}` |
+| ← | `{"type":"prediction_saved","prediction":{…}}` · `{"type":"error","message":"…"}` |
+
+**Admin — `/ws/admin`**
+
+| Direction | Message |
+| --- | --- |
+| → | `{"type":"auth","key":"…"}` first |
+| → | `{"action":"create_game"\|"set_status"\|"open_play"\|"lock_play"\|"resolve_play"\|"void_play","request_id":1, …payload}` |
+| ← | `{"type":"admin_state", …}` with live pick stats, players online, leaderboard and play log |
+| ← | `{"type":"admin_ack","request_id":1,"ok":true\|false,"error":"…"}` |
+
+### REST API
+
+Player endpoints use `Authorization: Bearer <token>` (issued by `POST /api/users`).
+Admin endpoints use the `X-Admin-Key` header and mirror the admin socket actions, which makes them
+handy for scripting.
+
+| Method & path | Purpose |
+| --- | --- |
+| `POST /api/users` `{username}` | Register and get a token |
+| `GET /api/me` | Current user and their lounges |
+| `GET /api/state` | Public snapshot |
+| `POST /api/predictions` | Submit a pick (HTTP fallback when the socket is down) |
+| `POST /api/lounges` `{name}` | Create a lounge (returns its 4-digit code) |
+| `GET /api/lounges/{code}` · `POST /api/lounges/{code}/join` | Look up or join a lounge |
+| `GET /api/admin/state` | Admin snapshot |
+| `POST /api/admin/game` | Create a game |
+| `POST /api/admin/game/status` `{status}` | `LIVE` / `FINAL` |
+| `POST /api/admin/play/open` `{down, distance, window_seconds}` | Open the next play |
+| `POST /api/admin/play/lock` · `/resolve` `{play_type, direction}` · `/void` | Drive the play |
+
+Interactive docs: <http://127.0.0.1:8000/docs>.
+
+### Data model
+
+| Table | Key columns |
+| --- | --- |
+| `games` | id, home/away name, home/away primary + secondary hex colors, status (`SCHEDULED`/`LIVE`/`FINAL`) |
+| `plays` | id, game_id, play_number, down, distance, state (`OPEN`/`LOCKED`/`RESOLVED`), correct_play_type, correct_direction, voided, locks_at |
+| `users` | id, username (unique, case-insensitive), token, total_score |
+| `predictions` | user_id, play_id (unique together), play_type, direction, points_earned |
+| `lounges` / `lounge_members` | id (= 4-digit code), name, host_user_id; membership join table |
+
+## Configuration
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `PTP_ADMIN_KEY` | `admin` | Admin console key. **Change it** before inviting real players. |
+| `PTP_DB_PATH` | `./game.db` | SQLite file location |
+| `PTP_PREDICTION_WINDOW` | `15` | Default seconds a play stays open |
+| `HOST` / `PORT` | `127.0.0.1` / `8000` | Bind address when using `python app.py` |
+| `PTP_RELOAD` | unset | Set to `1` for auto-reload during development |
+
+## Tests
+
+```bash
+pip install -r requirements-dev.txt
+pytest -q
+```
+
+The suite covers every scoring combination, the play state machine, late-pick rejection, voids,
+ties, lounges, the trademark filter, and full end-to-end flows over the real HTTP and WebSocket
+endpoints (including the auto-lock timer).
+
+## Legal & branding safeguards
+
+- No official league names, club nicknames, logos or wordmarks ship with the app.
+- The server rejects team names containing league marks or club nicknames (`models.PROTECTED_MARKS`).
+  Use city or region identifiers instead.
+- Teams are shown as generated initials on custom hex colors (defaults are generic green/yellow vs.
+  navy/orange shades), with a "not affiliated" notice on the player app.
+- Free to play, with no wagering or prizes. If you add prizes, check sweepstakes and contest rules
+  where you operate.
+
+## Production notes and next steps
+
+- **Single process.** Connected sockets are tracked in memory, so run one worker
+  (`uvicorn app:app --workers 1`). To scale out, move broadcasts to Redis pub/sub and SQLite to Postgres.
+- Serve behind HTTPS so sockets use `wss://`. The client picks `ws`/`wss` automatically.
+- Accounts are device tokens (localStorage). Add Sign in with Apple or email login for cross-device play.
+- Lounge codes are 4 digits by design (easy to share, but guessable). Add host approval or longer
+  codes if lounges need to be private.
+- **Native iOS.** The web app is already mobile- and PWA-ready. Wrap it with Capacitor or a SwiftUI
+  `WKWebView` shell for the App Store, adding push notifications ("Play is open!") and haptics.

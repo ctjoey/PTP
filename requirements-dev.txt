@@ -1,0 +1,4 @@
+-r requirements.txt
+pytest>=8.0
+httpx>=0.27   # TestClient transport (older Starlette)
+httpx2>=2.13  # TestClient transport (Starlette 1.x)
