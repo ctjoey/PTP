@@ -147,20 +147,109 @@ def validate_color(color: str) -> str:
     return color.upper()
 
 
+# Offensive-name filter (App Store Guideline 1.2: usernames and lounge names are
+# shown to other players). Names are lower-cased and common leetspeak is undone
+# (0->o, 1->i, 3->e, 4->a, 5->s, 7->t, @->a, $->s). Anything else that isn't a
+# letter separates words. Words written apart ("dick head") or spelled out
+# ("f u c k", "f.u.c.k") are joined back up, and stretched letters are squeezed
+# ("fuuuck").
+#
+# Trade-off: the lists are matched against WHOLE words, so ordinary names that
+# merely contain a rude string pass: Scunthorpe, Cassidy, Hancock, Essex,
+# Dickens, Arsenal, Cumming, Shiitake, Therapist, Grapes. BLOCKED_STEMS also
+# match with a common ending ("-s", "-er", "-ing", "-y", "-head", ...);
+# BLOCKED_EXACT words don't, because their endings are innocent words ("spicy",
+# "Spicer"). Only a few slurs with no innocent use are matched anywhere inside a
+# name (BLOCKED_ANYWHERE). Deliberately left out: words that are also real names
+# or everyday words ("Dick", "Cox", "Willy", "Fanny", "Coon", "Dyke"/"Van Dyke",
+# Spanish "Kike", "cum laude"), so a player called Dick Butkus can still sign up.
+# Determined trolls can always find a spelling a list misses; the aim is to stop
+# the obvious ones without blocking real names.
+_LEET = str.maketrans("013457@$", "oieastas")
+BLOCKED_STEMS = frozenset({
+    "fuck", "motherfuck", "fucktard", "shit", "bullshit", "cunt", "twat",
+    "wank", "bitch", "bastard", "asshole", "arsehole", "dickhead", "cocksucker",
+    "pussy", "whore", "slut", "jizz", "dildo", "porn", "piss", "blowjob",
+    "handjob", "rape", "rapist", "nazi",
+})
+BLOCKED_EXACT = frozenset({
+    "fuk", "fck", "fuckin", "shite", "bollocks", "pussies", "porno", "cumshot",
+    "tits", "raped", "hitler", "fag", "fags", "tranny", "trannies", "spic",
+    "spics", "chink", "chinks", "gook", "gooks", "wetback", "wetbacks", "paki",
+    "pakis", "raghead", "ragheads", "towelhead", "towelheads",
+    "retard", "retards", "retarded",  # not "retarder"/"retarding" (brakes, slowing)
+})
+BLOCKED_ENDINGS = ("s", "es", "er", "ers", "ing", "ed", "y", "ty", "head", "face", "hole")
+BLOCKED_ANYWHERE = ("nigger", "nigga", "faggot")
+# Innocent words that contain a BLOCKED_ANYWHERE string.
+_ANYWHERE_EXCEPTIONS = ("snigger", "niggard")
+_REPEATS_RE = re.compile(r"(.)\1{2,}")
+
+
+def _spellings(word: str) -> set[str]:
+    """``word`` plus stretched letters squeezed: 'fuuuck' -> 'fuck', 'asssss' -> 'ass'."""
+    return {word, _REPEATS_RE.sub(r"\1", word), _REPEATS_RE.sub(r"\1\1", word)}
+
+
+def _is_blocked_word(word: str) -> bool:
+    if word in BLOCKED_EXACT or word in BLOCKED_STEMS:
+        return True
+    for end in BLOCKED_ENDINGS:
+        stem = word[: -len(end)]
+        if word.endswith(end) and (
+            stem in BLOCKED_STEMS
+            # doubled last letter: "shitting", "shitter"
+            or (len(stem) > 2 and stem[-1] == stem[-2] and stem[:-1] in BLOCKED_STEMS)
+        ):
+            return True
+    return False
+
+
+def is_offensive_name(name: str) -> bool:
+    """True if ``name`` contains strong profanity or a slur (see notes above)."""
+    words = re.findall(r"[a-z]+", name.lower().translate(_LEET))
+    candidates = set(words)
+    # Two words written apart ("dick head", "mother fucker").
+    candidates.update(a + b for a, b in zip(words, words[1:]))
+    # Letters spelled out one at a time ("f u c k", "f.u.c.k").
+    run = ""
+    for w in [*words, ""]:
+        if len(w) == 1:
+            run += w
+            continue
+        if len(run) > 1:
+            candidates.add(run)
+        run = ""
+    if any(_is_blocked_word(s) for c in candidates for s in _spellings(c)):
+        return True
+    for squashed in _spellings("".join(words)):
+        for ok in _ANYWHERE_EXCEPTIONS:
+            squashed = squashed.replace(ok, " ")
+        if any(slur in squashed for slur in BLOCKED_ANYWHERE):
+            return True
+    return False
+
+
+def _check_name_is_clean(name: str) -> str:
+    if is_offensive_name(name):
+        raise GameError("Please choose a different name.")
+    return name
+
+
 def validate_username(username: str) -> str:
     username = " ".join(username.split())
     if not USERNAME_RE.match(username) or len(username) < 2:
         raise GameError(
             "Usernames must be 2-20 characters: letters, numbers, spaces, _ . -"
         )
-    return username
+    return _check_name_is_clean(username)
 
 
 def validate_lounge_name(name: str) -> str:
     name = " ".join(name.split())
     if not LOUNGE_NAME_RE.match(name):
         raise GameError("Lounge names must be 2-32 characters.")
-    return name
+    return _check_name_is_clean(name)
 
 
 # --------------------------------------------------------------------------- #
@@ -330,6 +419,19 @@ class Store:
 
     def get_user(self, user_id: int) -> dict[str, Any] | None:
         return self._one("SELECT id, username, total_score FROM users WHERE id = ?", (user_id,))
+
+    def delete_user(self, user_id: int) -> bool:
+        """Permanently delete an account (App Store Guideline 5.1.1(v)).
+
+        ``ON DELETE CASCADE`` (with ``PRAGMA foreign_keys = ON``) removes the
+        user's predictions, their lounge memberships, and every lounge they
+        host together with that lounge's memberships. Other players' scores are
+        untouched, and the username becomes available again. Returns False if
+        the user was already gone.
+        """
+        with self._tx() as c:
+            cur = c.execute("DELETE FROM users WHERE id = ?", (user_id,))
+        return cur.rowcount > 0
 
     def total_scores(self, user_ids: list[int]) -> dict[int, int]:
         if not user_ids:
@@ -549,6 +651,8 @@ class Store:
                 raise GameError("Unknown play.", 404)
             if play["state"] != PlayState.OPEN or now > play["locks_at"] + grace_seconds:
                 raise GameError("Too late — predictions for this play are locked.", 409)
+            if not c.execute("SELECT 1 FROM users WHERE id = ?", (user_id,)).fetchone():
+                raise GameError("Your account was deleted.", 401)  # deleted mid-session
             c.execute(
                 """INSERT INTO predictions (user_id, play_id, play_type, direction, submitted_at)
                    VALUES (?, ?, ?, ?, ?)

@@ -1,0 +1,107 @@
+import Foundation
+
+/// Store-listing capture mode (same approach as GameDial). CI launches the app with
+/// SIMCTL_CHILD_SCREENSHOT=<screen>, which the app sees as the SCREENSHOT environment variable, and the
+/// app renders that screen from built-in sample data instead of connecting to a server. Real users
+/// can't reach this path: the variable only exists when a simulator launch sets it.
+enum ScreenshotMode {
+    enum Screen: String {
+        case open, locked, result, board, lounges
+    }
+
+    static var screen: Screen? {
+        if let value = ProcessInfo.processInfo.environment["SCREENSHOT"], let screen = Screen(rawValue: value) { return screen }
+        let args = ProcessInfo.processInfo.arguments
+        if let i = args.firstIndex(of: "-screenshot"), i + 1 < args.count { return Screen(rawValue: args[i + 1]) }
+        return nil
+    }
+
+    struct Sample {
+        var snapshot: StateSnapshot
+        var previous: StateSnapshot
+        var lounges: [Lounge]
+        var tab: AppState.Tab
+    }
+
+    static func sample(for screen: Screen) -> Sample {
+        let now = Date().timeIntervalSince1970
+        let game = Game(id: 7, homeName: "Green Bay", homePrimary: "#1F6B3A", homeSecondary: "#F2C230",
+                        awayName: "Chicago", awayPrimary: "#14213D", awaySecondary: "#F26A1B", status: .live)
+        var play = Play(id: 42, gameId: 7, playNumber: 23, down: 3, distance: "7", state: .open, voided: false,
+                        openedAt: now - 4, locksAt: now + 11, correctPlayType: nil, correctDirection: nil)
+
+        let before = board([("Mia", 140, 4), ("JoeyC", 120, 3), ("Dre", 120, 2), ("Sam", 110, 3), ("Kat", 90, 1),
+                            ("Big Lou", 80, 1), ("Tasha", 60, 1), ("Rico", 40, 0)])
+        let after = board([("JoeyC", 150, 4), ("Mia", 140, 4), ("Dre", 130, 2), ("Sam", 110, 3), ("Kat", 100, 1),
+                           ("Big Lou", 80, 1), ("Tasha", 70, 1), ("Rico", 40, 0)])
+        var myPick: Prediction? = Prediction(userId: 2, playId: 42, playType: .pass, direction: .left,
+                                              pointsEarned: nil, typeCorrect: nil, directionCorrect: nil)
+        var crowd: Crowd?
+        var rows = before
+        var me = Me(id: 2, username: "JoeyC", gameScore: 120, rank: 2, exactHits: 3, totalScore: 860)
+        var event = "play_opened"
+
+        switch screen {
+        case .open:
+            break
+        case .locked:
+            play.state = .locked
+            crowd = Crowd(total: 48, run: 19, pass: 29, left: 22, center: 9, right: 17, exact: 0, scored: 0)
+            event = "play_locked"
+        case .result, .board, .lounges:
+            play.state = .resolved
+            play.correctPlayType = .pass
+            play.correctDirection = .left
+            myPick?.pointsEarned = 30
+            myPick?.typeCorrect = true
+            myPick?.directionCorrect = true
+            crowd = Crowd(total: 48, run: 19, pass: 29, left: 22, center: 9, right: 17, exact: 11, scored: 35)
+            rows = after
+            me = Me(id: 2, username: "JoeyC", gameScore: 150, rank: 1, exactHits: 4, totalScore: 890)
+            event = "play_resolved"
+        }
+
+        let loungeRows = rows.filter { ["JoeyC", "Mia", "Sam", "Big Lou"].contains($0.username) }
+            .enumerated().map { index, row -> BoardRow in
+                var r = row
+                r.rank = index + 1
+                r.isHost = row.username == "JoeyC"
+                return r
+            }
+        let lounge = Lounge(id: "4180", name: "Sunday Crew", hostUserId: 2, hostUsername: "JoeyC", memberCount: 4,
+                            leaderboard: loungeRows)
+        let lounges = [lounge, Lounge(id: "2297", name: "Office League", hostUserId: 9, hostUsername: "Kat",
+                                      memberCount: 11, leaderboard: nil)]
+
+        let snapshot = StateSnapshot(event: event, serverTime: now, game: game, play: play, myPrediction: myPick, me: me,
+                                     leaderboard: rows, rankedPlayers: 48, crowd: crowd, lounge: lounge, scoring: .standard)
+        var previous = snapshot
+        previous.event = "sync"
+        previous.leaderboard = before
+        previous.lounge?.leaderboard = before.filter { ["JoeyC", "Mia", "Sam", "Big Lou"].contains($0.username) }
+            .enumerated().map { index, row -> BoardRow in
+                var r = row
+                r.rank = index + 1
+                return r
+            }
+
+        let tab: AppState.Tab = screen == .board ? .board : (screen == .lounges ? .lounges : .live)
+        return Sample(snapshot: snapshot, previous: previous, lounges: lounges, tab: tab)
+    }
+
+    private static let names = ["Mia", "JoeyC", "Dre", "Sam", "Kat", "Big Lou", "Tasha", "Rico"]
+
+    private static func board(_ entries: [(String, Int, Int)]) -> [BoardRow] {
+        var rows: [BoardRow] = []
+        var rank = 0
+        var lastScore: Int?
+        for (index, entry) in entries.enumerated() {
+            if entry.1 != lastScore { rank = index + 1; lastScore = entry.1 }
+            // Stable ids per name so rank movement between the two samples is computed per player.
+            let id = entry.0 == "JoeyC" ? 2 : 100 + (names.firstIndex(of: entry.0) ?? index)
+            rows.append(BoardRow(userId: id, username: entry.0, score: entry.1, rank: rank, exactHits: entry.2,
+                                 picks: 23, isHost: nil, totalScore: nil))
+        }
+        return rows
+    }
+}

@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Support · Pick the Play{% endblock %}
+{% block body_class %}doc-page{% endblock %}
+{% block body %}
+<style>
+  .doc-page .card h2 { margin: 0 0 8px; font-size: 18px; font-weight: 800; line-height: 1.25; }
+  .doc-page .card p, .doc-page .card li { color: var(--text); font-size: 15px; line-height: 1.55; }
+  .doc-page .card p { margin: 0 0 10px; }
+  .doc-page .card p:last-child, .doc-page .card ul:last-child, .doc-page .card table:last-child { margin-bottom: 0; }
+  .doc-page .card ul, .doc-page .card ol { margin: 0 0 10px; padding-left: 20px; }
+  .doc-page .card li + li { margin-top: 6px; }
+  .doc-page .card .scoring-table { width: 100%; border-collapse: collapse; margin: 0 0 10px; font-size: 15px; }
+  .doc-page .card .scoring-table td { padding: 8px 0; border-top: 1px solid var(--border); }
+  .doc-page .card .scoring-table td:last-child { text-align: right; font-weight: 900; color: var(--accent); }
+  .doc-page .doc-head h1 { margin: 0; font-size: 26px; font-weight: 900; line-height: 1.15; }
+  .doc-page .doc-links { text-align: center; font-size: 13px; }
+  .doc-page a { overflow-wrap: anywhere; }
+</style>
+<main class="app">
+  <header class="topbar">
+    <a class="brand" href="/" style="color:inherit;text-decoration:none">
+      <span class="brand-name">PICK THE <b>PLAY</b></span>
+      <span class="brand-sub">LIVE PRO FOOTBALL</span>
+    </a>
+  </header>
+
+  <section class="doc-head">
+    <h1>Support</h1>
+    <p class="muted small" style="margin:6px 0 0">How to play, lounges, your account, and how to reach us.</p>
+  </section>
+
+  <section class="card">
+    <h2>How to play</h2>
+    <p>Follow a live game with Pick the Play open. Before each snap a play opens, and you have
+      <b>{{ window_seconds }} seconds</b> to call it:</p>
+    <ol>
+      <li><b>Run or pass?</b></li>
+      <li><b>Left, center or right?</b></li>
+    </ol>
+    <p>You can change your pick until the timer runs out. Then predictions lock, the play runs, and
+      everyone sees the result and the updated leaderboard at the same moment.</p>
+    <table class="scoring-table">
+      <tr><td>Correct play type</td><td>+{{ scoring.type }}</td></tr>
+      <tr><td>Correct direction</td><td>+{{ scoring.direction }}</td></tr>
+      <tr><td>Exact match (both)</td><td>+{{ scoring.exact }}</td></tr>
+    </table>
+    <p>The live leaderboard ranks points in the current game. Your season points add up across every
+      game. Plays cancelled by a penalty or no-play score nothing for anyone.</p>
+  </section>
+
+  <section class="card">
+    <h2>Head-to-head lounges</h2>
+    <p>Play the same live game against friends with your own private leaderboard.</p>
+    <ul>
+      <li><b>Create a lounge</b> and give it a name. You get a <b>4-digit code</b> to share.</li>
+      <li><b>Join a lounge</b> by entering a friend's 4-digit code.</li>
+      <li>A lounge holds up to {{ max_lounge_members }} players. Anyone with the code can join, so only
+        share it with people you want to play with.</li>
+    </ul>
+  </section>
+
+  <section class="card">
+    <h2>Names</h2>
+    <p>Usernames and lounge names are shown to other players. Names that are already taken, or that
+      are offensive, are turned down, so just choose a different one.</p>
+  </section>
+
+  <section class="card">
+    <h2>Deleting your account</h2>
+    <p>In the iPhone app, go to <b>Settings &gt; Delete account</b> and confirm. Your account is deleted
+      immediately and permanently, including your username, picks and points, your lounge memberships,
+      and any lounges you host. This can't be undone. You can start again any time with a new
+      username.</p>
+    <p>See the <a href="/privacy">Privacy Policy</a> for exactly what is stored.</p>
+  </section>
+
+  <section class="card">
+    <h2>Troubleshooting</h2>
+    <ul>
+      <li><b>"Too late" when picking:</b> the {{ window_seconds }}-second window had closed. Picks
+        open again for the next play.</li>
+      <li><b>Nothing happening:</b> the game updates live, so check your internet connection. Between
+        plays you'll see "Waiting for the next play".</li>
+      <li><b>New phone or reinstalled the app:</b> there's no password or email, so your sign-in
+        stays on the device you used. If it's gone, pick a new username.</li>
+    </ul>
+  </section>
+
+  <section class="card">
+    <h2>Contact</h2>
+    {% if contact_email %}
+    <p>Questions, problems or feedback: <a href="mailto:{{ contact_email }}">{{ contact_email }}</a></p>
+    {% else %}
+    <p>Questions, problems or feedback: contact the developer through the Pick the Play listing on
+      the App Store.</p>
+    {% endif %}
+  </section>
+
+  <p class="doc-links"><a href="/privacy">Privacy Policy</a> · <a href="/">Back to the game</a></p>
+
+  <p class="footer-note">
+    Pick the Play is an independent fan prediction game for entertainment only. It is not affiliated with,
+    endorsed by, or sponsored by any professional football league or club.
+  </p>
+</main>
+{% endblock %}

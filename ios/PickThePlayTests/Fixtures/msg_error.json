@@ -1,0 +1,4 @@
+{
+  "message": "play_type: Input should be 'RUN' or 'PASS'",
+  "type": "error"
+}

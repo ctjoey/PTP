@@ -1,0 +1,75 @@
+{
+  "crowd": null,
+  "event": "play_opened",
+  "game": {
+    "away_name": "Chicago",
+    "away_primary": "#14213D",
+    "away_secondary": "#F26A1B",
+    "created_at": 1791255699.250814,
+    "home_name": "Green Bay",
+    "home_primary": "#1F6B3A",
+    "home_secondary": "#F2C230",
+    "id": 1,
+    "status": "LIVE"
+  },
+  "leaderboard": [],
+  "lounge": {
+    "host_user_id": 1,
+    "host_username": "JoeyC",
+    "id": "7508",
+    "leaderboard": [
+      {
+        "exact_hits": 0,
+        "is_host": true,
+        "picks": 0,
+        "rank": 1,
+        "score": 0,
+        "total_score": 0,
+        "user_id": 1,
+        "username": "JoeyC"
+      },
+      {
+        "exact_hits": 0,
+        "is_host": false,
+        "picks": 0,
+        "rank": 1,
+        "score": 0,
+        "total_score": 0,
+        "user_id": 2,
+        "username": "Sam"
+      }
+    ],
+    "member_count": 2,
+    "name": "Sunday Crew"
+  },
+  "me": {
+    "exact_hits": 0,
+    "game_score": 0,
+    "id": 1,
+    "rank": null,
+    "total_score": 0,
+    "username": "JoeyC"
+  },
+  "my_prediction": null,
+  "play": {
+    "correct_direction": null,
+    "correct_play_type": null,
+    "distance": "7",
+    "down": 3,
+    "game_id": 1,
+    "id": 1,
+    "locks_at": 1791255714.255351,
+    "opened_at": 1791255699.255351,
+    "play_number": 1,
+    "state": "OPEN",
+    "voided": false
+  },
+  "ranked_players": 0,
+  "scoring": {
+    "direction": 10,
+    "exact": 30,
+    "type": 10
+  },
+  "server_time": 1791255699.2563326,
+  "type": "state"
+}

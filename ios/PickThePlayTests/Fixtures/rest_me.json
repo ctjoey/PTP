@@ -1,0 +1,15 @@
+{
+  "lounges": [
+    {
+      "host_user_id": 1,
+      "id": "7508",
+      "member_count": 2,
+      "name": "Sunday Crew"
+    }
+  ],
+  "user": {
+    "id": 1,
+    "total_score": 0,
+    "username": "JoeyC"
+  }
+}

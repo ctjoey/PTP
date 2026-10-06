@@ -1,0 +1,234 @@
+# Builds and tests the iOS app on GitHub's hosted macOS runners (no Mac needed), and can ship
+# a signed build to TestFlight when the App Store Connect secrets are present.
+#
+# Secrets/variables to add in GitHub → Settings → Secrets and variables → Actions:
+#   Variables:  BUNDLE_ID_PREFIX   e.g. com.nfl-gtr            (defaults to com.yourcompany)
+#               PTP_SERVER_URL     https address of the hosted game server, no trailing slash,
+#                                  e.g. https://pick-the-play.onrender.com
+#   Secrets:    APPLE_TEAM_ID      10-char Team ID from developer.apple.com/account
+#               ASC_KEY_ID         App Store Connect API key ID
+#               ASC_ISSUER_ID      App Store Connect API issuer ID
+#               ASC_KEY_P8         contents of the AuthKey_XXXX.p8 file
+name: iOS
+
+on:
+  push:
+    paths: ['ios/**', '.github/workflows/ios.yml']
+  workflow_dispatch:
+    inputs:
+      testflight:
+        description: 'Archive, sign and upload to TestFlight'
+        type: boolean
+        default: false
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build + test (Simulator)
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select the newest Xcode (App Store requires the iOS 26 SDK or later)
+        run: |
+          ls -d /Applications/Xcode*.app
+          sudo xcode-select -s "$(ls -d /Applications/Xcode*.app | sort -V | tail -1)"
+          xcodebuild -version
+          xcrun simctl list runtimes | tail -5
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Normalize uploaded icon artwork (if any)
+        working-directory: ios
+        run: |
+          ART=PickThePlay/Assets.xcassets/AppIcon.appiconset/artwork.png
+          # Optional: the committed icon-1024.png is already normalized. If artwork.png exists, re-derive it,
+          # but never fail the build over it (the runner's Python needs a venv for pip installs).
+          if [ -f "$ART" ]; then
+            (python3 -m venv .venv && .venv/bin/pip install --quiet pillow && .venv/bin/python scripts/normalize_icon.py "$ART" PickThePlay/Assets.xcassets/AppIcon.appiconset/icon-1024.png) || echo "normalizer unavailable; using committed icon-1024.png"
+          else echo "no artwork.png; using icon-1024.png as committed"; fi
+      - name: Generate project
+        working-directory: ios
+        run: |
+          sed -i '' "s/com.yourcompany/${{ vars.BUNDLE_ID_PREFIX || 'com.yourcompany' }}/g" project.yml
+          xcodegen generate
+      - name: Pick a simulator
+        id: sim
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c "import json,sys;d=json.load(sys.stdin)['devices'];c=[x for k,v in d.items() if 'iOS' in k for x in v if x['name'].startswith('iPhone 16')] or [x for k,v in d.items() if 'iOS' in k for x in v if x['name'].startswith('iPhone')];print(c[-1]['udid'])")
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+          xcrun simctl boot "$UDID" || true
+      - name: Build
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild build -project PickThePlay.xcodeproj -scheme PickThePlay \
+            -destination "id=${{ steps.sim.outputs.udid }}" -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO ONLY_ACTIVE_ARCH=YES \
+            PTP_SERVER_URL="${{ vars.PTP_SERVER_URL }}" \
+            | tee build.log | grep -E "error:|warning: unre|BUILD (SUCCEEDED|FAILED)" || true
+          grep -q "BUILD SUCCEEDED" build.log
+      - name: Test
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild test -project PickThePlay.xcodeproj -scheme PickThePlay \
+            -destination "id=${{ steps.sim.outputs.udid }}" -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            PTP_SERVER_URL="${{ vars.PTP_SERVER_URL }}" \
+            | tee test.log | grep -E "error:|Test Case.*(passed|failed)|Executed|TEST (SUCCEEDED|FAILED)" || true
+          grep -q "TEST SUCCEEDED" test.log
+      - name: App Store screenshots
+        if: always()
+        continue-on-error: true
+        working-directory: ios
+        run: |
+          # Never fail the build over a listing asset, but never fail silently either: every
+          # command is traced into a log that ships with the artifact.
+          mkdir -p screenshots
+          exec > >(tee screenshots/_capture.log) 2>&1
+          set -x
+          APP=$(find build/Build/Products -name "PickThePlay.app" -path "*iphonesimulator*" | head -1)
+          if [ -z "$APP" ]; then echo "NO APP BUILT - nothing to capture"; exit 1; fi
+          BID=$(defaults read "$PWD/$APP/Info" CFBundleIdentifier)
+          RUNTIME=$(xcrun simctl list runtimes -j | python3 -c "import json,sys;print([r['identifier'] for r in json.load(sys.stdin)['runtimes'] if r['isAvailable'] and 'iOS' in r['name']][-1])")
+          DEVTYPE=$(xcrun simctl list devicetypes -j | python3 -c "import json,re,sys;c=[x['identifier'] for x in json.load(sys.stdin)['devicetypes'] if 'Pro-Max' in x['identifier']];print(sorted(c,key=lambda i:int(re.search(r'iPhone-(\d+)',i).group(1)))[-1])")
+          UDID=$(xcrun simctl create shots "$DEVTYPE" "$RUNTIME")
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl status_bar "$UDID" override --time "2026-09-13T09:41:00+00:00" \
+            --cellularBars 4 --wifiBars 3 --batteryState charged --batteryLevel 100 \
+            || echo "status bar override refused; continuing with the default bar"
+          xcrun simctl install "$UDID" "$APP"
+          mkdir -p screenshots/raw
+          shoot () {   # <screen> <output name>
+            xcrun simctl terminate "$UDID" "$BID" || true
+            SIMCTL_CHILD_SCREENSHOT="$1" xcrun simctl launch "$UDID" "$BID"
+            sleep 10
+            xcrun simctl io "$UDID" screenshot "screenshots/raw/$2.png"
+          }
+          shoot open    01-call-the-play
+          shoot result  02-result
+          shoot locked  03-locked
+          shoot board   04-leaderboard
+          shoot lounges 05-lounges
+          xcrun simctl shutdown "$UDID" || true
+          xcrun simctl delete "$UDID" || true
+          ls -l screenshots/raw
+          # Apple accepts only exact pixel sizes and rejects anything else outright.
+          for size in "1290x2796:6.9-inch" "1284x2778:6.5-inch"; do
+            px=${size%%:*}; dir=screenshots/${size##*:}
+            mkdir -p "$dir"
+            for f in screenshots/raw/*.png; do
+              sips -s format png --resampleHeightWidth "${px#*x}" "${px%x*}" "$f" --out "$dir/$(basename "$f")"
+            done
+          done
+          rm -rf screenshots/raw
+          find screenshots -name '*.png' | sort
+          find screenshots -name '*.png' -exec sips -g pixelWidth -g pixelHeight {} +
+      - name: Upload the App Store screenshot set on its own
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-store-screenshots-${{ github.run_number }}
+          path: ios/screenshots
+          if-no-files-found: ignore
+      - name: Upload logs, app and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build-${{ github.run_number }}
+          path: |
+            ios/build.log
+            ios/test.log
+            ios/screenshots
+            ios/build/Build/Products/*/PickThePlay.app
+          if-no-files-found: ignore
+
+  testflight:
+    name: Archive + upload to TestFlight
+    if: github.event_name == 'workflow_dispatch' && inputs.testflight
+    needs: build-and-test
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select the newest Xcode (App Store requires the iOS 26 SDK or later)
+        run: |
+          ls -d /Applications/Xcode*.app
+          sudo xcode-select -s "$(ls -d /Applications/Xcode*.app | sort -V | tail -1)"
+          xcodebuild -version
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Normalize uploaded icon artwork (if any)
+        working-directory: ios
+        run: |
+          ART=PickThePlay/Assets.xcassets/AppIcon.appiconset/artwork.png
+          # Optional: the committed icon-1024.png is already normalized. If artwork.png exists, re-derive it,
+          # but never fail the build over it (the runner's Python needs a venv for pip installs).
+          if [ -f "$ART" ]; then
+            (python3 -m venv .venv && .venv/bin/pip install --quiet pillow && .venv/bin/python scripts/normalize_icon.py "$ART" PickThePlay/Assets.xcassets/AppIcon.appiconset/icon-1024.png) || echo "normalizer unavailable; using committed icon-1024.png"
+          else echo "no artwork.png; using icon-1024.png as committed"; fi
+      - name: Generate project (with team + bundle id)
+        working-directory: ios
+        env:
+          TEAM: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          sed -i '' "s/com.yourcompany/${{ vars.BUNDLE_ID_PREFIX || 'com.yourcompany' }}/g" project.yml
+          sed -i '' "s/DEVELOPMENT_TEAM: \"\"/DEVELOPMENT_TEAM: \"$TEAM\"/" project.yml
+          sed -i '' "s/CURRENT_PROJECT_VERSION: \"1\"/CURRENT_PROJECT_VERSION: \"${{ github.run_number }}\"/" project.yml
+          xcodegen generate
+      - name: App Store Connect API key
+        run: |
+          mkdir -p ~/private_keys
+          echo "${{ secrets.ASC_KEY_P8 }}" > ~/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8
+      # Archive unsigned. Signing during archive makes Xcode request an "iOS App Development"
+      # profile, which requires registered device UDIDs that a CI team does not have. The export
+      # step below signs with an App Store distribution profile, which needs no devices.
+      - name: Archive (unsigned)
+        working-directory: ios
+        run: |
+          set -o pipefail
+          # A TestFlight build without a server address cannot reach the live game; say so loudly.
+          [ -n "${{ vars.PTP_SERVER_URL }}" ] || echo "::warning::Variable PTP_SERVER_URL is not set, so this build has no game server address built in."
+          xcodebuild archive -project PickThePlay.xcodeproj -scheme PickThePlay \
+            -configuration Release \
+            -destination "generic/platform=iOS" -archivePath build/App.xcarchive \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM=${{ secrets.APPLE_TEAM_ID }} \
+            PTP_SERVER_URL="${{ vars.PTP_SERVER_URL }}" \
+            | tee archive.log | grep -E "error:|ARCHIVE (SUCCEEDED|FAILED)" || true
+          grep -q "ARCHIVE SUCCEEDED" archive.log
+      - name: Export IPA
+        working-directory: ios
+        run: |
+          cat > ExportOptions.plist <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>export</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>teamID</key><string>${{ secrets.APPLE_TEAM_ID }}</string>
+            <key>uploadSymbols</key><true/>
+          </dict></plist>
+          PLIST
+          xcodebuild -exportArchive -archivePath build/App.xcarchive -exportPath build/export -exportOptionsPlist ExportOptions.plist \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath ~/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8 \
+            -authenticationKeyID ${{ secrets.ASC_KEY_ID }} -authenticationKeyIssuerID ${{ secrets.ASC_ISSUER_ID }}
+          ls -la build/export
+      - name: Upload to TestFlight
+        working-directory: ios
+        run: |
+          IPA=$(ls build/export/*.ipa | head -1)
+          xcrun altool --upload-app -f "$IPA" --type ios --apiKey ${{ secrets.ASC_KEY_ID }} --apiIssuer ${{ secrets.ASC_ISSUER_ID }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ipa-${{ github.run_number }}
+          path: ios/build/export/*.ipa
+          if-no-files-found: ignore

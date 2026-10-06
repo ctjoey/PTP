@@ -5,6 +5,7 @@ FastAPI app serving three surfaces:
 * ``/``                  live player app
 * ``/lounge/{code}``     private head-to-head lounge (same app, lounge leaderboard)
 * ``/admin``             admin console that drives the play state machine
+* ``/privacy``, ``/support``  privacy policy and support pages (App Store listing URLs)
 
 Real-time sync uses two WebSocket endpoints (``/ws`` for players, ``/ws/admin``
 for the console). Every state change is pushed to each player as a personalised
@@ -33,7 +34,7 @@ from pathlib import Path
 from typing import Any, Awaitable, Callable
 
 from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Request, WebSocket
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field, ValidationError
@@ -43,6 +44,7 @@ from models import (
     DIRECTION_POINTS,
     EXACT_POINTS,
     LOUNGE_CODE_RE,
+    MAX_LOUNGE_MEMBERS,
     TYPE_POINTS,
     Direction,
     GameError,
@@ -69,6 +71,8 @@ class Settings:
     db_path: str = field(default_factory=lambda: os.environ.get("PTP_DB_PATH", str(BASE_DIR / "game.db")))
     admin_key: str = field(default_factory=lambda: os.environ.get("PTP_ADMIN_KEY", DEFAULT_ADMIN_KEY))
     window_seconds: float = field(default_factory=lambda: float(os.environ.get("PTP_PREDICTION_WINDOW", "15")))
+    # Shown on /privacy and /support. Empty: those pages point to the App Store listing instead.
+    contact_email: str = field(default_factory=lambda: os.environ.get("PTP_CONTACT_EMAIL", "").strip())
     # Picks sent in the final instant still count if they arrive this late.
     grace_seconds: float = 0.5
 
@@ -304,6 +308,25 @@ class GameController:
         self.request_admin_push()
         return pred
 
+    async def delete_account(self, user: dict[str, Any]) -> None:
+        """Delete the account, sign out its open sockets and refresh everyone's boards."""
+        self.store.delete_user(user["id"])
+        doomed = [c for c in self.hub.players if c.user and c.user["id"] == user["id"]]
+        self.hub.players.difference_update(doomed)
+        notice = {"type": "error", "code": "account_deleted", "message": "Your account was deleted."}
+        await self.hub.send_many([(c.ws, notice) for c in doomed])
+        await asyncio.gather(*(self._close(c.ws, 4401) for c in doomed))
+        await self.broadcast("leaderboard_updated")
+
+    @staticmethod
+    async def _close(ws: WebSocket, code: int) -> None:
+        if ws.client_state != WebSocketState.CONNECTED:
+            return
+        try:
+            await asyncio.wait_for(ws.close(code=code), SEND_TIMEOUT)
+        except Exception:  # already gone
+            pass
+
     # -- snapshots -------------------------------------------------------- #
 
     def _snapshot(self, user_ids: list[int]) -> _Snapshot:
@@ -489,6 +512,19 @@ async def admin_page(request: Request) -> HTMLResponse:
     return _page(request, "admin.html")
 
 
+@router.get("/privacy", response_class=HTMLResponse)
+async def privacy_page(request: Request) -> HTMLResponse:
+    return _page(request, "privacy.html", contact_email=request.app.state.settings.contact_email)
+
+
+@router.get("/support", response_class=HTMLResponse)
+async def support_page(request: Request) -> HTMLResponse:
+    return _page(request, "support.html", contact_email=request.app.state.settings.contact_email,
+                 window_seconds=round(request.app.state.settings.window_seconds),
+                 max_lounge_members=MAX_LOUNGE_MEMBERS,
+                 scoring={"type": TYPE_POINTS, "direction": DIRECTION_POINTS, "exact": EXACT_POINTS})
+
+
 @router.get("/healthz")
 async def healthz() -> dict[str, Any]:
     return {"ok": True}
@@ -505,6 +541,13 @@ async def create_user(body: UserIn, ctrl: GameController = Depends(get_ctrl)) ->
 @router.get("/api/me")
 async def me(user: dict = Depends(require_user), ctrl: GameController = Depends(get_ctrl)) -> dict[str, Any]:
     return {"user": user, "lounges": ctrl.store.user_lounges(user["id"])}
+
+
+@router.delete("/api/me", status_code=204, response_class=Response)
+async def delete_me(user: dict = Depends(require_user), ctrl: GameController = Depends(get_ctrl)) -> Response:
+    """Permanently delete the signed-in account and everything tied to it."""
+    await ctrl.delete_account(user)
+    return Response(status_code=204)
 
 
 @router.get("/api/state")
@@ -794,9 +837,8 @@ if __name__ == "__main__":
     host = "0.0.0.0" if cli.phone else os.environ.get("HOST", "127.0.0.1")
 
     if not port_is_free(host, cli.port):
-        flag = " --phone" if cli.phone else ""
-        sys.exit(f"\n  Port {cli.port} is already in use (is Pick the Play already running in another window?)."
-                 f"\n  Close that window, or use another port:  python app.py{flag} --port {cli.port + 1}\n")
+        sys.exit(f"\n  Port {cli.port} is already in use: Pick the Play is probably already running in another window."
+                 "\n  Use that window, or click in it, press Ctrl+C to stop it, and start again here.\n")
 
     logging.basicConfig(level=logging.INFO)
     if host == "0.0.0.0":

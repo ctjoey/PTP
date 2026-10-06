@@ -1,0 +1,124 @@
+import SwiftUI
+
+/// First run: explain the game, set the server if the build doesn't have one, pick a username.
+struct OnboardingView: View {
+    @EnvironmentObject var state: AppState
+    @State private var username = ""
+    @State private var serverText = ""
+    @State private var working = false
+    @State private var error: String?
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                BrandMark().padding(.top, 24)
+
+                Text("Call every snap before it happens.")
+                    .font(.system(size: 30, weight: .black))
+                    .foregroundStyle(Theme.text)
+                Text("When a play opens you have 15 seconds to pick **Run or Pass** and **Left, Center or Right**. Points land the moment the play is scored.")
+                    .foregroundStyle(Theme.muted)
+
+                VStack(spacing: 0) {
+                    scoringRow("Correct play type", "+10")
+                    Divider().overlay(Theme.border)
+                    scoringRow("Correct direction", "+10")
+                    Divider().overlay(Theme.border)
+                    scoringRow("Exact match (both)", "+30")
+                }
+                .card(padding: 14)
+
+                if ServerConfig.bundled == nil {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Game server").kicker()
+                        TextField("pick-the-play.onrender.com", text: $serverText)
+                            .keyboardType(.URL)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .padding(14)
+                            .background(Theme.surface2, in: RoundedRectangle(cornerRadius: 12))
+                        Text("Ask whoever runs the game for its address.").font(.footnote).foregroundStyle(Theme.muted)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Choose a username").kicker()
+                    TextField("Your name", text: $username)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .textContentType(.nickname)
+                        .focused($focused)
+                        .submitLabel(.go)
+                        .onSubmit { Task { await signUp() } }
+                        .padding(14)
+                        .background(Theme.surface2, in: RoundedRectangle(cornerRadius: 12))
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(focused ? Theme.accent : Theme.border, lineWidth: 1))
+                }
+
+                if let error {
+                    Text(error).font(.system(size: 14, weight: .semibold)).foregroundStyle(Theme.danger)
+                }
+
+                Button {
+                    Task { await signUp() }
+                } label: {
+                    Group {
+                        if working { ProgressView().tint(Theme.accentInk) } else { Text("Let's Play") }
+                    }
+                    .font(.system(size: 18, weight: .black))
+                    .frame(maxWidth: .infinity, minHeight: 52)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Theme.accent)
+                .foregroundStyle(Theme.accentInk)
+                .disabled(working)
+
+                Button {
+                    state.showPractice = true
+                } label: {
+                    Text("Just practice first").font(.system(size: 16, weight: .bold)).frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .buttonStyle(.bordered)
+                .tint(Theme.muted)
+
+                Disclaimer().padding(.top, 8)
+            }
+            .padding(20)
+        }
+        .scrollDismissesKeyboard(.interactively)
+        .background(Theme.bg.ignoresSafeArea())
+        .onAppear { serverText = state.server?.absoluteString ?? "" }
+    }
+
+    private func scoringRow(_ title: String, _ points: String) -> some View {
+        HStack {
+            Text(title).foregroundStyle(Theme.text)
+            Spacer()
+            Text(points).font(.system(size: 16, weight: .black)).foregroundStyle(Theme.accent)
+        }
+        .padding(.vertical, 8)
+    }
+
+    private func signUp() async {
+        error = nil
+        let name = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard name.count >= 2 else {
+            error = "Pick a username with at least 2 characters."
+            return
+        }
+        if ServerConfig.bundled == nil {
+            guard state.setServer(serverText) else {
+                error = "Enter the game server address."
+                return
+            }
+        }
+        working = true
+        defer { working = false }
+        do {
+            try await state.signUp(username: name)
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+}

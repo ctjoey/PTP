@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Privacy Policy · Pick the Play{% endblock %}
+{% block body_class %}doc-page{% endblock %}
+{% block body %}
+<style>
+  .doc-page .card h2 { margin: 0 0 8px; font-size: 18px; font-weight: 800; line-height: 1.25; }
+  .doc-page .card p, .doc-page .card li { color: var(--text); font-size: 15px; line-height: 1.55; }
+  .doc-page .card p { margin: 0 0 10px; }
+  .doc-page .card p:last-child, .doc-page .card ul:last-child { margin-bottom: 0; }
+  .doc-page .card ul { margin: 0 0 10px; padding-left: 20px; }
+  .doc-page .card li + li { margin-top: 6px; }
+  .doc-page .doc-head h1 { margin: 0; font-size: 26px; font-weight: 900; line-height: 1.15; }
+  .doc-page .doc-links { text-align: center; font-size: 13px; }
+  .doc-page a { overflow-wrap: anywhere; }
+</style>
+<main class="app">
+  <header class="topbar">
+    <a class="brand" href="/" style="color:inherit;text-decoration:none">
+      <span class="brand-name">PICK THE <b>PLAY</b></span>
+      <span class="brand-sub">LIVE PRO FOOTBALL</span>
+    </a>
+  </header>
+
+  <section class="doc-head">
+    <h1>Privacy Policy</h1>
+    <p class="muted small" style="margin:6px 0 0">Effective October 6, 2026</p>
+  </section>
+
+  <section class="card">
+    <h2>The short version</h2>
+    <p>Pick the Play only keeps what it needs to run the game: the username you choose, a random
+      sign-in code, and your picks, points and lounges. No email, no phone number, no location, no
+      ads and no tracking. Nothing is sold or shared. You can delete your account at any time.</p>
+  </section>
+
+  <section class="card">
+    <h2>What we store</h2>
+    <ul>
+      <li><b>Your username.</b> The name you pick when you start playing. You don't give us your
+        real name, email address or phone number, and there is no password.</li>
+      <li><b>A sign-in token.</b> A random code created when you sign up. It is kept on your device
+        and on our server so the app can recognize you. It contains nothing about you.</li>
+      <li><b>Your game activity.</b> Each pick you make (run or pass, and direction) and when you
+        made it, the points you earn, your season total, and your positions on the leaderboards.</li>
+      <li><b>Lounges.</b> The names of lounges you create and which lounges you have joined.</li>
+    </ul>
+    <p>Your username, points and leaderboard positions are visible to other players, and lounge
+      names and members are visible to the people in that lounge.</p>
+  </section>
+
+  <section class="card">
+    <h2>What we don't collect</h2>
+    <p>Pick the Play does not collect your email address, phone number, location, contacts,
+      photos, or advertising identifier. It contains no advertising, no analytics or third-party
+      tracking tools, and it does not track you across other apps or websites.</p>
+  </section>
+
+  <section class="card">
+    <h2>How your data is used</h2>
+    <p>Only to run the game: to save your picks, score them, and show the live and lounge
+      leaderboards. We do not sell your data, share it with anyone, or use it for advertising.</p>
+    <p>Like any online service, our server and hosting provider keep standard technical logs,
+      which may include your IP address, to operate the service and keep it secure.</p>
+  </section>
+
+  <section class="card">
+    <h2>How long we keep it and how to delete it</h2>
+    <p>We keep your account until you delete it, or until the game operator resets the game
+      database.</p>
+    <p>To delete your account in the iPhone app, go to <b>Settings &gt; Delete account</b>. This
+      immediately and permanently removes your username, sign-in token, picks and points, your lounge
+      memberships, and any lounges you host. Your username becomes available for others to use.</p>
+  </section>
+
+  <section class="card">
+    <h2>Children</h2>
+    <p>Pick the Play is not directed at children under 13, and we do not knowingly collect
+      information from children under 13. If you believe a child under 13 has created an account,
+      contact us and we will delete it.</p>
+  </section>
+
+  <section class="card">
+    <h2>Changes to this policy</h2>
+    <p>If this policy changes, we will post the new version on this page with a new effective
+      date.</p>
+  </section>
+
+  <section class="card">
+    <h2>Contact</h2>
+    {% if contact_email %}
+    <p>Questions about privacy or your data: <a href="mailto:{{ contact_email }}">{{ contact_email }}</a></p>
+    {% else %}
+    <p>Questions about privacy or your data: contact the developer through the Pick the Play
+      listing on the App Store.</p>
+    {% endif %}
+  </section>
+
+  <p class="doc-links"><a href="/support">Support</a> · <a href="/">Back to the game</a></p>
+
+  <p class="footer-note">
+    Pick the Play is an independent fan prediction game for entertainment only. It is not affiliated with,
+    endorsed by, or sponsored by any professional football league or club.
+  </p>
+</main>
+{% endblock %}

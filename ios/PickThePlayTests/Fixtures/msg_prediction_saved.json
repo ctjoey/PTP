@@ -1,0 +1,9 @@
+{
+  "prediction": {
+    "direction": "LEFT",
+    "play_id": 1,
+    "play_type": "PASS",
+    "points_earned": null
+  },
+  "type": "prediction_saved"
+}

@@ -44,13 +44,14 @@ py -3.14 -m venv venv
 Then open:
 
 - Admin console: <http://127.0.0.1:8000/admin> (default key `admin`; set `PTP_ADMIN_KEY` for anything real)
-- Player app: <http://127.0.0.1:8000/> (open it in a second browser or on your phone)
+- Player app: <http://127.0.0.1:8000/> (open it in a second browser on this computer; for a phone, see [Play on your iPhone](#play-on-your-iphone))
 
 The SQLite database `game.db` is created automatically next to `app.py`. Delete it to start fresh.
 
 ### Play on your iPhone
 
-1. Start the server with `--phone` (same on macOS and Windows), e.g. `venv/bin/python app.py --phone`.
+1. Start the server with `--phone`: `venv/bin/python app.py --phone` (macOS/Linux) or
+   `.\venv\Scripts\python.exe app.py --phone` (Windows).
    It listens on your Wi-Fi and prints the exact address to open on the phone:
    ```
      On your iPhone (same Wi-Fi), open:  http://192.168.1.23:8000/
@@ -181,6 +182,7 @@ handy for scripting.
 | --- | --- |
 | `POST /api/users` `{username}` | Register and get a token |
 | `GET /api/me` | Current user and their lounges |
+| `DELETE /api/me` | Permanently delete the account → `204 No Content`. Removes the user's picks, lounge memberships and hosted lounges; their open sockets get `{"type":"error","code":"account_deleted"}` and close with code `4401`; everyone else gets a `leaderboard_updated` snapshot |
 | `GET /api/state` | Public snapshot |
 | `POST /api/predictions` | Submit a pick (HTTP fallback when the socket is down) |
 | `POST /api/lounges` `{name}` | Create a lounge (returns its 4-digit code) |
@@ -190,8 +192,15 @@ handy for scripting.
 | `POST /api/admin/game/status` `{status}` | `LIVE` / `FINAL` |
 | `POST /api/admin/play/open` `{down, distance, window_seconds}` | Open the next play |
 | `POST /api/admin/play/lock` · `/resolve` `{play_type, direction}` · `/void` | Drive the play |
+| `GET /privacy` · `GET /support` | Privacy policy and support pages (HTML; use as the App Store privacy policy and support URLs) |
 
 Interactive docs: <http://127.0.0.1:8000/docs>.
+
+**App Store.** App Review needs a privacy policy URL, a support URL, in-app account deletion and
+filtering of user-visible names. Point App Store Connect at `https://<your server>/privacy` and
+`/support` (set `PTP_CONTACT_EMAIL` first); the iOS app deletes accounts with `DELETE /api/me`; and
+offensive usernames and lounge names are rejected with "Please choose a different name."
+(`models.is_offensive_name`).
 
 ### Data model
 
@@ -210,6 +219,7 @@ Interactive docs: <http://127.0.0.1:8000/docs>.
 | `PTP_ADMIN_KEY` | `admin` | Admin console key. **Change it** before inviting real players. |
 | `PTP_DB_PATH` | `./game.db` | SQLite file location |
 | `PTP_PREDICTION_WINDOW` | `15` | Default seconds a play stays open |
+| `PTP_CONTACT_EMAIL` | unset | Contact address shown on `/privacy` and `/support` (unset: they point to the App Store listing) |
 | `HOST` / `PORT` | `127.0.0.1` / `8000` | Bind address when using `python app.py` (`--phone` binds `0.0.0.0`; `--port` overrides `PORT`) |
 | `PTP_RELOAD` | unset | Set to `1` for auto-reload during development |
 

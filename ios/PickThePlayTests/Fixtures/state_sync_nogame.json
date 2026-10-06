@@ -1,0 +1,53 @@
+{
+  "crowd": null,
+  "event": "sync",
+  "game": null,
+  "leaderboard": [],
+  "lounge": {
+    "host_user_id": 1,
+    "host_username": "JoeyC",
+    "id": "7508",
+    "leaderboard": [
+      {
+        "exact_hits": 0,
+        "is_host": true,
+        "picks": 0,
+        "rank": 1,
+        "score": 0,
+        "total_score": 0,
+        "user_id": 1,
+        "username": "JoeyC"
+      },
+      {
+        "exact_hits": 0,
+        "is_host": false,
+        "picks": 0,
+        "rank": 1,
+        "score": 0,
+        "total_score": 0,
+        "user_id": 2,
+        "username": "Sam"
+      }
+    ],
+    "member_count": 2,
+    "name": "Sunday Crew"
+  },
+  "me": {
+    "exact_hits": 0,
+    "game_score": 0,
+    "id": 1,
+    "rank": null,
+    "total_score": 0,
+    "username": "JoeyC"
+  },
+  "my_prediction": null,
+  "play": null,
+  "ranked_players": 0,
+  "scoring": {
+    "direction": 10,
+    "exact": 30,
+    "type": 10
+  },
+  "server_time": 1791255699.2463932,
+  "type": "state"
+}
