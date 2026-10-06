@@ -28,7 +28,7 @@ from PIL import Image, ImageFilter
 
 ROOT = Path(__file__).resolve().parents[2]
 SRC = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).with_name("PTP-Logo.png")
-SCALE = 0.94   # artwork size inside the square; the rest is turf, keeping text inside iOS's mask
+SCALE = 0.92   # artwork size inside the square; the rest is turf, keeping text inside iOS's mask
 INSET = 2      # px trimmed inside the frame so its anti-aliased edge never survives
 
 
