@@ -91,7 +91,7 @@ def test_full_live_flow_over_websockets(client):
         admin_do("create_game", **GAME)
         created = recv_until(a, state_event("game_created"))
         assert created["game"]["home_name"] == "Detroit" and created["play"] is None
-        assert created["scoring"] == {"type": 10, "direction": 10, "yardage": 10, "exact": 30}
+        assert created["scoring"] == {"type": 10, "direction": 10, "yardage": 10, "bonus": 10, "exact": 40}
 
         play = admin_do("open_play", down=3, distance="7")
         opened = recv_until(a, state_event("play_opened"))
@@ -132,14 +132,14 @@ def test_full_live_flow_over_websockets(client):
         res_b = recv_until(b, state_event("play_resolved"))
         assert res_a["play"]["correct_play_type"] == "PASS"
         assert (res_a["play"]["correct_yardage"], res_a["play"]["yards_gained"]) == ("MEDIUM", 7)
-        assert res_a["my_prediction"]["points_earned"] == 30
+        assert res_a["my_prediction"]["points_earned"] == 40
         assert {k: res_a["my_prediction"][k] for k in ("type_correct", "direction_correct", "yardage_correct")} \
             == {"type_correct": True, "direction_correct": True, "yardage_correct": True}
         assert res_b["my_prediction"]["points_earned"] == 10
         assert {k: res_b["my_prediction"][k] for k in ("type_correct", "direction_correct", "yardage_correct")} \
             == {"type_correct": False, "direction_correct": True, "yardage_correct": False}
         assert res_a["crowd"]["exact"] == 1 and res_a["crowd"]["scored"] == 2
-        assert res_a["me"] == {**res_a["me"], "game_score": 30, "rank": 1, "total_score": 30}
+        assert res_a["me"] == {**res_a["me"], "game_score": 40, "rank": 1, "total_score": 40}
         assert res_b["me"]["rank"] == 2
         assert [r["username"] for r in res_a["leaderboard"]] == ["alice", "bob"]
 

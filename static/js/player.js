@@ -383,7 +383,7 @@
         yardBars,
       );
       PTP.crowdBars(typeBars, stats, ["RUN", "PASS"]);
-      PTP.crowdBars(dirBars, stats, ["LEFT", "CENTER", "RIGHT"]);
+      PTP.crowdBars(dirBars, stats, ["LEFT", "MIDDLE", "RIGHT"]);
       PTP.crowdBars(yardBars, stats, ["SHORT", "MEDIUM", "LONG"]);
     }
   }
@@ -417,9 +417,10 @@
         play.yards_gained === null || play.yards_gained === undefined ? "" : yardsText(play.yards_gained);
       $("#result-body .reveal").setAttribute("aria-label", `The play: ${PTP.describeResult(play)}`);
       const pts = pick ? pick.points_earned || 0 : null;
+      const right = partsRight(pick, st.scoring);
       points.textContent = pts === null ? "—" : `+${pts}`;
-      points.className = `points ${pts === st.scoring.exact ? "exact" : pts ? "some" : "zero"}`;
-      label.textContent = resultLabel(pts, st.scoring);
+      points.className = `points ${right === 3 ? "exact" : pts ? "some" : "zero"}`;
+      label.textContent = resultLabel(right);
       pickChips($("#result-pick"), pick, play);
       $("#result-crowd").textContent =
         crowd && crowd.total
@@ -431,7 +432,7 @@
       view.classList.remove("animate");
       void view.offsetWidth; // restart CSS animations
       view.classList.add("animate");
-      if (pick && pick.points_earned === st.scoring.exact) confetti();
+      if (partsRight(pick, st.scoring) === 3) confetti();
       if (navigator.vibrate && pick && pick.points_earned) navigator.vibrate([20, 40, 20]);
     } else if (st.event !== "play_resolved") {
       view.classList.remove("animate");
@@ -440,12 +441,24 @@
 
   const players = (n) => `${n} ${n === 1 ? "player" : "players"}`;
 
-  /** By points (10 per correct part): 30 "Perfect call!", 20 "Two of three", 10 "One of three", 0. */
-  function resultLabel(pts, scoring) {
-    if (pts === null) return "You didn't pick this play";
-    if (pts >= scoring.exact) return "Perfect call! 🔥";
-    const right = Math.round(pts / (scoring.type || 10));
-    return ["No points this time", "One of three", "Two of three"][right] || "No points this time";
+  /**
+   * How many of the three calls were right (0-3), or null with no pick. Uses the server's
+   * per-part flags; without them, works it out from the points (10 a part, +10 bonus for all three).
+   */
+  function partsRight(pick, scoring) {
+    if (!pick) return null;
+    if ("type_correct" in pick) {
+      return [pick.type_correct, pick.direction_correct, pick.yardage_correct].filter(Boolean).length;
+    }
+    const pts = pick.points_earned || 0;
+    if (pts >= scoring.exact) return 3;
+    return Math.min(2, Math.floor(pts / (scoring.type || 10)));
+  }
+
+  /** 3 right "Perfect call!" (40 with the bonus), 2 "Two of three" (20), 1 "One of three" (10), 0. */
+  function resultLabel(right) {
+    if (right === null) return "You didn't pick this play";
+    return ["No points this time", "One of three", "Two of three", "Perfect call!"][right];
   }
 
   function confetti() {

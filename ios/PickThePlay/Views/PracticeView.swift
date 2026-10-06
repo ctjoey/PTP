@@ -71,8 +71,7 @@ struct PracticeView: View {
                     .buttonStyle(.borderedProminent)
                     .tint(Theme.blue)
                     .disabled(!game.hasFullPick)
-                    Chip(text: "All three right = \(Scoring.standard.exact)", style: .gold)
-                        .frame(maxWidth: .infinity)
+                    BonusChip()
                 }
             }
         case .locked:

@@ -26,6 +26,7 @@
     </div>
     <div class="topbar-actions">
       <span class="chip" id="online-chip">0 players online</span>
+      <a class="btn btn-sm" href="/rules" target="_blank" rel="noopener">Rules ↗</a>
       <a class="btn btn-sm" href="/" target="_blank" rel="noopener">Player view ↗</a>
       <button class="btn btn-sm btn-ghost" type="button" id="logout">Sign out</button>
       <span class="conn connecting" id="conn" role="img" aria-label="Connecting"></span>
@@ -122,7 +123,7 @@
           <div class="pick-label pick-label-row">Actual direction <span class="qb-hint">As the QB looks downfield</span></div>
           <div class="pick-grid three result-grid">
             <button class="pick-btn" type="button" data-rdir="LEFT">LEFT<small>←</small></button>
-            <button class="pick-btn" type="button" data-rdir="CENTER">CENTER<small>↑</small></button>
+            <button class="pick-btn" type="button" data-rdir="MIDDLE">MIDDLE<small>↑</small></button>
             <button class="pick-btn" type="button" data-rdir="RIGHT">RIGHT<small>→</small></button>
           </div>
           <div class="pick-label pick-label-row">Actual distance <span class="qb-hint">Total yards gained: pick a bucket or type the yards</span></div>
@@ -140,7 +141,7 @@
           </div>
           <button class="big-btn btn-resolve" type="button" id="resolve-btn">Resolve &amp; Score Play <kbd>Enter</kbd></button>
           <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap">
-            <span class="shortcuts">Keys: <kbd>O</kbd> open · <kbd>L</kbd> lock · <kbd>R</kbd>/<kbd>P</kbd> type · <kbd>←</kbd><kbd>↑</kbd><kbd>→</kbd> direction · <kbd>S</kbd>/<kbd>M</kbd>/<kbd>G</kbd> short/medium/long · <kbd>X</kbd> loss · <kbd>Y</kbd> yards · <kbd>Enter</kbd> resolve</span>
+            <span class="shortcuts">Keys: <kbd>O</kbd> open · <kbd>L</kbd> lock · <kbd>R</kbd>/<kbd>P</kbd> type · <kbd>←</kbd><kbd>↑</kbd><kbd>→</kbd> left/middle/right · <kbd>S</kbd>/<kbd>M</kbd>/<kbd>G</kbd> short/medium/long · <kbd>X</kbd> loss · <kbd>Y</kbd> yards · <kbd>Enter</kbd> resolve</span>
             <button class="text-btn" type="button" id="void-btn">Void play (penalty / no play)</button>
           </div>
         </div>

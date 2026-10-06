@@ -2,12 +2,13 @@ import XCTest
 @testable import PickThePlay
 
 final class GameLogicTests: XCTestCase {
-    // MARK: - Scoring (mirrors models.score_prediction on the server)
+    // MARK: - Scoring (mirrors models.score_prediction on the server: +10 a part, +10 bonus for all three)
 
     func testScoringMatchesServerRulesForEveryCombination() {
         let picks: [Yardage?] = Yardage.allCases + [nil]  // nil = a pick made before the distance pick existed
         let actuals: [YardageOutcome?] = YardageOutcome.allCases + [nil]
         var checked = 0
+        var totals: Set<Int> = []
         for type in PlayType.allCases {
             for direction in Direction.allCases {
                 for yardage in picks {
@@ -21,14 +22,16 @@ final class GameLogicTests: XCTestCase {
                                 let dirOK = direction == actualDirection
                                 let yardsOK = yardage != nil && actualYardage != nil && actualYardage != .loss
                                     && yardage?.rawValue == actualYardage?.rawValue
-                                let expected = (typeOK ? 10 : 0) + (dirOK ? 10 : 0) + (yardsOK ? 10 : 0)
+                                let allThree = typeOK && dirOK && yardsOK
+                                let expected = (typeOK ? 10 : 0) + (dirOK ? 10 : 0) + (yardsOK ? 10 : 0) + (allThree ? 10 : 0)
                                 let context = "\(type) \(direction) \(String(describing: yardage)) vs \(actualType) \(actualDirection) \(String(describing: actualYardage))"
                                 XCTAssertEqual(r.points, expected, context)
                                 XCTAssertEqual(r.typeCorrect, typeOK, context)
                                 XCTAssertEqual(r.directionCorrect, dirOK, context)
                                 XCTAssertEqual(r.yardageCorrect, yardsOK, context)
-                                XCTAssertEqual(r.exact, typeOK && dirOK && yardsOK, context)
-                                XCTAssertEqual(r.correctParts * 10, r.points, context)
+                                XCTAssertEqual(r.exact, allThree, context)
+                                XCTAssertEqual(r.correctParts * 10 + (r.exact ? 10 : 0), r.points, context)
+                                totals.insert(r.points)
                                 checked += 1
                             }
                         }
@@ -37,6 +40,35 @@ final class GameLogicTests: XCTestCase {
             }
         }
         XCTAssertEqual(checked, 2 * 3 * 4 * 2 * 3 * 5)
+        XCTAssertEqual(totals, [0, 10, 20, 40], "30 is impossible: the third right part brings the bonus")
+    }
+
+    func testBonusOnlyForAllThree() {
+        let actual = PlayOutcome(playType: .run, direction: .middle, yards: 8)  // Run · Middle · Medium
+        let cases: [(PlayType, Direction, Yardage, Int, String)] = [
+            (.run, .middle, .medium, 40, "Perfect call!"),
+            (.run, .middle, .short, 20, "Two of three"),
+            (.run, .left, .medium, 20, "Two of three"),
+            (.pass, .middle, .medium, 20, "Two of three"),
+            (.run, .left, .short, 10, "One of three"),
+            (.pass, .middle, .long, 10, "One of three"),
+            (.pass, .right, .medium, 10, "One of three"),
+            (.pass, .right, .long, 0, "No points this time"),
+        ]
+        for (type, direction, yardage, points, label) in cases {
+            let r = ScoreRules.score(type: type, direction: direction, yardage: yardage, actual: actual)
+            XCTAssertEqual(r.points, points, "\(type) \(direction) \(yardage)")
+            XCTAssertEqual(r.exact, points == 40)
+            XCTAssertEqual(ScoreRules.label(for: r), label)
+            XCTAssertEqual(ScoreRules.label(points: r.points), label)
+        }
+        // The bonus comes from the scoring the server sends.
+        let custom = Scoring(type: 5, direction: 5, yardage: 5, bonus: 25, exact: 40)
+        let r = ScoreRules.score(type: .run, direction: .middle, yardage: .medium, actual: actual, scoring: custom)
+        XCTAssertEqual(r.points, 40)
+        let noBonus = Scoring(type: 10, direction: 10, yardage: 10, bonus: 0, exact: 30)
+        XCTAssertEqual(ScoreRules.score(type: .run, direction: .middle, yardage: .medium, actual: actual,
+                                        scoring: noBonus).points, 30)
     }
 
     func testOwnersExamples() {
@@ -47,11 +79,12 @@ final class GameLogicTests: XCTestCase {
         XCTAssertFalse(twenty.exact)
         XCTAssertEqual(ScoreRules.label(for: twenty), "Two of three")
 
-        let thirty = ScoreRules.score(type: .run, direction: .left, yardage: .short,
-                                      actual: PlayOutcome(playType: .run, direction: .left, yards: 3))
-        XCTAssertEqual(thirty.points, 30)
-        XCTAssertTrue(thirty.exact)
-        XCTAssertEqual(ScoreRules.label(for: thirty), "Perfect call!")
+        // "Call Run Left Medium: 40" (10 + 10 + 10 + the 10 bonus).
+        let forty = ScoreRules.score(type: .run, direction: .left, yardage: .medium,
+                                     actual: PlayOutcome(playType: .run, direction: .left, yards: 7))
+        XCTAssertEqual(forty.points, 40)
+        XCTAssertTrue(forty.exact)
+        XCTAssertEqual(ScoreRules.label(for: forty), "Perfect call!")
 
         let ten = ScoreRules.score(type: .pass, direction: .left, yardage: .long,
                                    actual: PlayOutcome(playType: .run, direction: .right, yards: 25))
@@ -64,7 +97,7 @@ final class GameLogicTests: XCTestCase {
             let r = ScoreRules.score(type: .pass, direction: .right, yardage: yardage,
                                      actual: PlayOutcome(playType: .pass, direction: .right, yards: -4))
             XCTAssertFalse(r.yardageCorrect)
-            XCTAssertEqual(r.points, 20, "type and direction still score on a loss")
+            XCTAssertEqual(r.points, 20, "type and direction still score on a loss, but no bonus")
             XCTAssertFalse(r.exact)
             XCTAssertFalse(YardageOutcome.loss.matches(yardage))
         }
@@ -73,8 +106,8 @@ final class GameLogicTests: XCTestCase {
     }
 
     func testPickWithoutDistanceScoresNoDistancePoints() {
-        let legacy = ScoreRules.score(type: .run, direction: .center, yardage: nil,
-                                      actual: PlayOutcome(playType: .run, direction: .center, yards: 2))
+        let legacy = ScoreRules.score(type: .run, direction: .middle, yardage: nil,
+                                      actual: PlayOutcome(playType: .run, direction: .middle, yards: 2))
         XCTAssertEqual(legacy.points, 20)
         XCTAssertFalse(legacy.exact)
     }
@@ -89,23 +122,120 @@ final class GameLogicTests: XCTestCase {
 
     func testLabelsByPoints() {
         XCTAssertEqual(ScoreRules.label(points: nil), "You didn't pick this play")
-        XCTAssertEqual(ScoreRules.label(points: 30), "Perfect call!")
+        XCTAssertEqual(ScoreRules.label(points: 40), "Perfect call!")
+        XCTAssertEqual(ScoreRules.label(points: 30), "Perfect call!", "a perfect call scored before the bonus existed")
         XCTAssertEqual(ScoreRules.label(points: 20), "Two of three")
         XCTAssertEqual(ScoreRules.label(points: 10), "One of three")
         XCTAssertEqual(ScoreRules.label(points: 0), "No points this time")
         XCTAssertEqual(ScoreRules.label(for: nil), "You didn't pick this play")
+        XCTAssertEqual(ScoreRules.label(pick: nil), "You didn't pick this play")
+    }
+
+    func testLabelsFollowTheFlagsNotThePoints() {
+        var pick = Prediction(userId: 1, playId: 1, playType: .run, direction: .middle, yardage: .short, pointsEarned: 40,
+                              typeCorrect: true, directionCorrect: true, yardageCorrect: true)
+        XCTAssertEqual(ScoreRules.label(pick: pick), "Perfect call!")
+        XCTAssertTrue(ScoreRules.isPerfect(pick))
+        // Resolved before the bonus: still 30 on the server, still a perfect call.
+        pick.pointsEarned = 30
+        XCTAssertEqual(ScoreRules.label(pick: pick), "Perfect call!")
+        XCTAssertTrue(ScoreRules.isPerfect(pick))
+        pick.yardageCorrect = false
+        pick.pointsEarned = 20
+        XCTAssertEqual(ScoreRules.label(pick: pick), "Two of three")
+        XCTAssertFalse(ScoreRules.isPerfect(pick))
+        pick.directionCorrect = false
+        pick.pointsEarned = 10
+        XCTAssertEqual(ScoreRules.label(pick: pick), "One of three")
+        pick.typeCorrect = false
+        pick.pointsEarned = 0
+        XCTAssertEqual(ScoreRules.label(pick: pick), "No points this time")
+        // No flags (an old server): fall back to the points.
+        let bare = Prediction(userId: 1, playId: 1, playType: .run, direction: .middle, yardage: .short, pointsEarned: 40,
+                              typeCorrect: nil, directionCorrect: nil, yardageCorrect: nil)
+        XCTAssertEqual(ScoreRules.label(pick: bare), "Perfect call!")
+        XCTAssertTrue(ScoreRules.isPerfect(bare))
+        var twenty = bare
+        twenty.pointsEarned = 20
+        XCTAssertEqual(ScoreRules.label(pick: twenty), "Two of three")
+        XCTAssertFalse(ScoreRules.isPerfect(twenty))
+        XCTAssertFalse(ScoreRules.isPerfect(nil))
     }
 
     func testScoringCopy() {
-        XCTAssertEqual(Scoring.standard, Scoring(type: 10, direction: 10, yardage: 10, exact: 30))
-        XCTAssertEqual(ScoreRules.summary(),
-                       "+10 play type, +10 direction, +10 distance. All three = 30. A loss of yards scores no distance points.")
+        XCTAssertEqual(Scoring.standard, Scoring(type: 10, direction: 10, yardage: 10, bonus: 10, exact: 40))
+        XCTAssertEqual(Scoring.standard.allParts + Scoring.standard.bonus, Scoring.standard.exact)
+        XCTAssertEqual(ScoreRules.summary(), "+10 play type, +10 direction, +10 distance, +10 bonus for all three = 40.")
+    }
+
+    func testScoringDecodesWithAndWithoutBonus() throws {
+        let current = try JSON.decoder.decode(Scoring.self, from: Data(#"{"type": 10, "direction": 10, "yardage": 10, "bonus": 10, "exact": 40}"#.utf8))
+        XCTAssertEqual(current, .standard)
+        // A server from before the bonus: all three = 30, so the bonus is 0.
+        let old = try JSON.decoder.decode(Scoring.self, from: Data(#"{"type": 10, "direction": 10, "yardage": 10, "exact": 30}"#.utf8))
+        XCTAssertEqual(old.bonus, 0)
+        // A bonus-era server that left the key out still adds up.
+        let implied = try JSON.decoder.decode(Scoring.self, from: Data(#"{"type": 10, "direction": 10, "yardage": 10, "exact": 40}"#.utf8))
+        XCTAssertEqual(implied.bonus, 10)
+        let wire = try XCTUnwrap(JSONSerialization.jsonObject(with: JSON.encoder.encode(Scoring.standard)) as? [String: Int])
+        XCTAssertEqual(wire, ["type": 10, "direction": 10, "yardage": 10, "bonus": 10, "exact": 40])
+    }
+
+    // MARK: - Left / Middle / Right
+
+    func testDirectionsAreLeftMiddleRight() throws {
+        XCTAssertEqual(Direction.allCases, [.left, .middle, .right])
+        XCTAssertEqual(Direction.allCases.map(\.rawValue), ["LEFT", "MIDDLE", "RIGHT"])
+        XCTAssertEqual(Direction.allCases.map(\.title), ["Left", "Middle", "Right"])
+        XCTAssertEqual(Direction.middle.symbol, "arrow.up", "the middle keeps the up arrow")
+        XCTAssertNil(Direction(rawValue: "CENTER"), "the app never produces CENTER itself")
+    }
+
+    func testCenterDecodesAsMiddleAndMiddleIsSent() throws {
+        func decode(_ raw: String) throws -> Direction {
+            try JSON.decoder.decode([Direction].self, from: Data("[\"\(raw)\"]".utf8))[0]
+        }
+        XCTAssertEqual(try decode("CENTER"), .middle)
+        XCTAssertEqual(try decode("MIDDLE"), .middle)
+        XCTAssertEqual(try decode("LEFT"), .left)
+        XCTAssertEqual(try decode("RIGHT"), .right)
+        XCTAssertThrowsError(try decode("UP"))
+        XCTAssertThrowsError(try decode("middle"))
+        XCTAssertEqual(String(decoding: try JSON.encoder.encode([Direction.middle]), as: UTF8.self), #"["MIDDLE"]"#)
+        let pick = PredictMessage(playId: 1, playType: .run, direction: .middle, yardage: .short)
+        XCTAssertEqual(pick.body["direction"] as? String, "MIDDLE")
+
+        let old = """
+        {"user_id": 1, "play_id": 3, "play_type": "RUN", "direction": "CENTER", "yardage": "SHORT"}
+        """
+        XCTAssertEqual(try JSON.decoder.decode(Prediction.self, from: Data(old.utf8)).direction, .middle)
+    }
+
+    func testCrowdReadsMiddleOrTheOldCenterKey() throws {
+        let current = """
+        {"total": 4, "RUN": 1, "PASS": 3, "LEFT": 1, "MIDDLE": 2, "RIGHT": 1, "SHORT": 1, "MEDIUM": 2, "LONG": 1,
+         "exact": 1, "scored": 3}
+        """
+        let crowd = try JSON.decoder.decode(Crowd.self, from: Data(current.utf8))
+        XCTAssertEqual(crowd.count(Direction.middle), 2)
+        XCTAssertEqual(crowd.count(Yardage.medium), 2)
+        let old = """
+        {"total": 4, "RUN": 1, "PASS": 3, "LEFT": 1, "CENTER": 2, "RIGHT": 1, "exact": 1, "scored": 3}
+        """
+        let legacy = try JSON.decoder.decode(Crowd.self, from: Data(old.utf8))
+        XCTAssertEqual(legacy.middle, 2)
+        XCTAssertFalse(legacy.hasYardage)
+        let neither = #"{"total": 1, "RUN": 1, "PASS": 0, "LEFT": 1, "RIGHT": 0, "exact": 0, "scored": 0}"#
+        XCTAssertThrowsError(try JSON.decoder.decode(Crowd.self, from: Data(neither.utf8)))
+        let wire = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(crowd)) as? [String: Int])
+        XCTAssertEqual(wire["MIDDLE"], 2)
+        XCTAssertNil(wire["CENTER"])
     }
 
     func testWhatHappenedSummary() {
         XCTAssertEqual(PlayOutcome(playType: .run, direction: .left, yards: 7).summary, "Run · Left · Medium (7 yds)")
         XCTAssertEqual(PlayOutcome(playType: .pass, direction: .right, yards: -4).summary, "Pass · Right · Loss (-4 yds)")
-        XCTAssertEqual(PlayOutcome(playType: .pass, direction: .center, yards: 1).summary, "Pass · Center · Short (1 yd)")
+        XCTAssertEqual(PlayOutcome(playType: .pass, direction: .middle, yards: 1).summary, "Pass · Middle · Short (1 yd)")
         XCTAssertEqual(PlayOutcome(playType: .run, direction: .right, yardage: .long).summary, "Run · Right · Long")
         XCTAssertEqual(PlayOutcome(playType: .run, direction: .right, yardage: nil).summary, "Run · Right")
         XCTAssertEqual(PlayOutcome(playType: .pass, direction: .left, yards: -4).spokenSummary, "Pass, Left, Loss, -4 yards")
@@ -170,13 +300,14 @@ final class GameLogicTests: XCTestCase {
         game.pickYardage = .medium
         XCTAssertTrue(game.hasFullPick)
         game.resolve()
-        XCTAssertEqual(game.score, 30)
+        XCTAssertEqual(game.score, 40, "10 + 10 + 10 + the 10 bonus")
         XCTAssertEqual(game.exactHits, 1)
         guard case .result(let outcome, let scored) = game.phase else { return XCTFail("expected a result") }
         XCTAssertEqual(outcome.yardage, .medium)
-        XCTAssertEqual(scored?.points, 30)
+        XCTAssertEqual(scored?.points, 40)
+        XCTAssertEqual(ScoreRules.label(for: scored), "Perfect call!")
         XCTAssertEqual(game.gradedPick?.yardageCorrect, true)
-        XCTAssertEqual(game.gradedPick?.pointsEarned, 30)
+        XCTAssertEqual(game.gradedPick?.pointsEarned, 40)
 
         // Run Left Short against Pass Left Medium: direction only.
         game.nextPlay()
@@ -184,7 +315,7 @@ final class GameLogicTests: XCTestCase {
         game.pickDirection = .left
         game.pickYardage = .short
         game.resolve()
-        XCTAssertEqual(game.score, 40)
+        XCTAssertEqual(game.score, 50)
         XCTAssertEqual(game.played, 2)
         XCTAssertEqual(game.exactHits, 1)
         XCTAssertEqual(game.gradedPick?.typeCorrect, false)
@@ -198,10 +329,11 @@ final class GameLogicTests: XCTestCase {
         game.pickDirection = .left
         game.pickYardage = .short
         game.resolve()
-        XCTAssertEqual(game.score, 60)
+        XCTAssertEqual(game.score, 70)
         guard case .result(let sack, let sackScore) = game.phase else { return XCTFail("expected a result") }
         XCTAssertEqual(sack.yardage, .loss)
-        XCTAssertEqual(sackScore?.points, 20)
+        XCTAssertEqual(sackScore?.points, 20, "no distance points on a loss, so no bonus")
+        XCTAssertEqual(game.exactHits, 1)
 
         // Only two parts picked: like the live game, nothing is sent, so no points and not played.
         game.nextPlay()
@@ -210,7 +342,7 @@ final class GameLogicTests: XCTestCase {
         XCTAssertFalse(game.hasFullPick)
         game.resolve()
         XCTAssertEqual(game.played, 3)
-        XCTAssertEqual(game.score, 60)
+        XCTAssertEqual(game.score, 70)
         XCTAssertNil(game.gradedPick)
 
         game.nextPlay()  // no pick at all
@@ -223,7 +355,7 @@ final class GameLogicTests: XCTestCase {
     func testPracticeDownsFollowTheGain() {
         let game = PracticeGame()
         var yards = 4
-        game.outcome = { PlayOutcome(playType: .run, direction: .center, yards: yards) }
+        game.outcome = { PlayOutcome(playType: .run, direction: .middle, yards: yards) }
         game.nextPlay()
         XCTAssertEqual(game.label, "Practice play 1 · 1st & 10")
         game.resolve()

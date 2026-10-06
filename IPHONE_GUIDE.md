@@ -168,13 +168,15 @@ username only after adding the icon.
 On the computer, open **http://127.0.0.1:8000/admin** in a web browser. The admin key is `admin`.
 Pick the two teams from the lists (city names with their team colors; Chicago at Detroit is filled in)
 and click **Create Game**. Then for each play: **Open Next Play**, **Lock Predictions**, choose what
-actually happened (run or pass; left, center or right as the quarterback looks downfield; and the
+actually happened (run or pass; left, middle or right as the quarterback looks downfield; and the
 distance: Short, Medium, Long or Loss, or just type the yards gained), and **Resolve & Score Play**.
 Every phone updates instantly.
 
-Players pick all three too, and score 10 points for each one they get right (30 for all three). A
-loss of yards scores no distance points. The [README](README.md#running-a-game-admin) has the details
-and keyboard shortcuts.
+Players pick all three too: +10 play type, +10 direction, +10 distance, +10 bonus for all three = 40.
+A loss of yards scores no distance points (and so no bonus). The **Rules** button (the
+**http://127.0.0.1:8000/rules** page) explains it all, including what counts as left, middle or
+right; all final calls are yours as the host. The [README](README.md#running-a-game-admin) has the
+details and keyboard shortcuts.
 
 Anyone on your Wi-Fi who knows the address could open the admin page. To use your own password,
 stop the server (click in its window and press `Ctrl + C`), then start it again like this. Replace

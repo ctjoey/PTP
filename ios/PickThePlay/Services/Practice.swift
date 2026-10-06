@@ -1,15 +1,16 @@
 import SwiftUI
 
 /// The same rules the server uses (models.score_prediction): +10 for each correct part (play type,
-/// direction, distance), so all three right = 30. There is no extra bonus. A loss of yards never matches
-/// a distance pick, and a pick without a distance (made before the distance pick existed) scores none.
+/// direction, distance) and a +10 bonus when all three are right, so a perfect call = 40. Possible totals
+/// are 0, 10, 20 and 40 (30 can't happen). A loss of yards never matches a distance pick (so a loss also
+/// means no bonus), and a pick without a distance (made before the distance pick existed) scores none.
 enum ScoreRules {
     struct Result: Equatable {
         var points: Int
         var typeCorrect: Bool
         var directionCorrect: Bool
         var yardageCorrect: Bool
-        /// All three right ("Perfect call"; `exact` on the wire).
+        /// All three right ("Perfect call"; `exact` on the wire), which also earns the bonus.
         var exact: Bool { typeCorrect && directionCorrect && yardageCorrect }
         var correctParts: Int { [typeCorrect, directionCorrect, yardageCorrect].filter { $0 }.count }
     }
@@ -20,7 +21,8 @@ enum ScoreRules {
         let typeOK = type == actualType
         let dirOK = direction == actualDirection
         let yardsOK = actualYardage?.matches(yardage) ?? false
-        let points = (typeOK ? scoring.type : 0) + (dirOK ? scoring.direction : 0) + (yardsOK ? scoring.yardage : 0)
+        var points = (typeOK ? scoring.type : 0) + (dirOK ? scoring.direction : 0) + (yardsOK ? scoring.yardage : 0)
+        if typeOK && dirOK && yardsOK { points += scoring.bonus }
         return Result(points: points, typeCorrect: typeOK, directionCorrect: dirOK, yardageCorrect: yardsOK)
     }
 
@@ -30,21 +32,53 @@ enum ScoreRules {
               actualDirection: actual.direction, actualYardage: actual.yardage, scoring: scoring)
     }
 
-    /// Result headline by points: 30 "Perfect call!", 20 "Two of three", 10 "One of three", 0 "No points this time".
-    static func label(points: Int?, scoring: Scoring = .standard) -> String {
-        guard let points else { return "You didn't pick this play" }
-        if points >= scoring.exact { return "Perfect call!" }
-        if points <= 0 { return "No points this time" }
-        return points > scoring.maxPart ? "Two of three" : "One of three"
+    /// Result headline by how many parts were right: 3 "Perfect call!", 2 "Two of three", 1 "One of three",
+    /// 0 "No points this time".
+    static func label(correctParts: Int) -> String {
+        switch correctParts {
+        case 3...: return "Perfect call!"
+        case 2: return "Two of three"
+        case 1: return "One of three"
+        default: return "No points this time"
+        }
     }
 
-    static func label(for result: Result?, scoring: Scoring = .standard) -> String {
-        label(points: result?.points, scoring: scoring)
+    /// Fallback headline by points, for a pick without per-part flags: 40 "Perfect call!", 20 "Two of
+    /// three", 10 "One of three", 0 "No points this time". A 30 from before the bonus was a perfect call too.
+    static func label(points: Int?, scoring: Scoring = .standard) -> String {
+        guard let points else { return "You didn't pick this play" }
+        if points >= scoring.allParts { return label(correctParts: 3) }
+        if points <= 0 { return label(correctParts: 0) }
+        return label(correctParts: points > scoring.maxPart ? 2 : 1)
+    }
+
+    static func label(for result: Result?) -> String {
+        guard let result else { return label(points: nil) }
+        return label(correctParts: result.correctParts)
+    }
+
+    /// The headline for a scored pick: by the right/wrong flags when all three are known, else by points.
+    static func label(pick: Prediction?, scoring: Scoring = .standard) -> String {
+        guard let pick else { return label(points: nil) }
+        if let parts = correctParts(pick) { return label(correctParts: parts) }
+        return label(points: pick.pointsEarned ?? 0, scoring: scoring)
+    }
+
+    /// All three right (gold styling, confetti): by the flags when known, else by points.
+    static func isPerfect(_ pick: Prediction?, scoring: Scoring = .standard) -> Bool {
+        guard let pick else { return false }
+        if let parts = correctParts(pick) { return parts == 3 }
+        return (pick.pointsEarned ?? 0) >= scoring.allParts
+    }
+
+    private static func correctParts(_ pick: Prediction) -> Int? {
+        guard let t = pick.typeCorrect, let d = pick.directionCorrect, let y = pick.yardageCorrect else { return nil }
+        return [t, d, y].filter { $0 }.count
     }
 
     /// One line for onboarding, settings and the pick screen.
     static func summary(_ s: Scoring = .standard) -> String {
-        "+\(s.type) play type, +\(s.direction) direction, +\(s.yardage) distance. All three = \(s.exact). A loss of yards scores no distance points."
+        "+\(s.type) play type, +\(s.direction) direction, +\(s.yardage) distance, +\(s.bonus) bonus for all three = \(s.exact)."
     }
 
     /// The server's per-part flags, filled in from the outcome where it left one out.
@@ -188,7 +222,7 @@ final class PracticeGame: ObservableObject {
     nonisolated static func randomOutcome() -> PlayOutcome {
         let type: PlayType = Double.random(in: 0..<1) < 0.56 ? .pass : .run
         let roll = Double.random(in: 0..<1)
-        let direction: Direction = roll < 0.36 ? .left : (roll < 0.64 ? .center : .right)
+        let direction: Direction = roll < 0.36 ? .left : (roll < 0.64 ? .middle : .right)
         return PlayOutcome(playType: type, direction: direction, yards: randomYards(for: type))
     }
 

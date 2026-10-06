@@ -5,6 +5,7 @@ FastAPI app serving three surfaces:
 * ``/``                  live player app
 * ``/lounge/{code}``     private head-to-head lounge (same app, lounge leaderboard)
 * ``/admin``             admin console that drives the play state machine
+* ``/rules``             Rules of the Game: how it works, points, what Left / Middle / Right mean
 * ``/privacy``, ``/support``  privacy policy and support pages (App Store listing URLs)
 
 Real-time sync uses two WebSocket endpoints (``/ws`` for players, ``/ws/admin``
@@ -41,6 +42,7 @@ from pydantic import BaseModel, Field, ValidationError, model_validator
 from starlette.websockets import WebSocketDisconnect, WebSocketState
 
 from models import (
+    BONUS_POINTS,
     DIRECTION_POINTS,
     EXACT_POINTS,
     LOUNGE_CODE_RE,
@@ -70,8 +72,10 @@ SEND_TIMEOUT = 5.0
 ADMIN_PUSH_THROTTLE = 0.3
 DEFAULT_ADMIN_KEY = "admin"
 
-# Point values sent with every snapshot (and shown on /support).
-SCORING = {"type": TYPE_POINTS, "direction": DIRECTION_POINTS, "yardage": YARDAGE_POINTS, "exact": EXACT_POINTS}
+# Point values sent with every snapshot (and shown on /rules and /support): 10 for each correct part,
+# 10 more for all three, so a perfect call ("exact") is 40.
+SCORING = {"type": TYPE_POINTS, "direction": DIRECTION_POINTS, "yardage": YARDAGE_POINTS,
+           "bonus": BONUS_POINTS, "exact": EXACT_POINTS}
 
 log = logging.getLogger("pick_the_play")
 
@@ -103,7 +107,7 @@ class LoungeIn(BaseModel):
 class PredictionIn(BaseModel):
     play_id: int
     play_type: PlayType
-    direction: Direction
+    direction: Direction  # LEFT / MIDDLE / RIGHT ("CENTER" from older apps is read as MIDDLE)
     yardage: Yardage  # SHORT 0-5 yds, MEDIUM 6-10, LONG 11+
 
 
@@ -131,7 +135,7 @@ class ResolveIn(BaseModel):
     from which the bucket is derived) or both (they must agree)."""
 
     play_type: PlayType
-    direction: Direction
+    direction: Direction  # LEFT / MIDDLE / RIGHT ("CENTER" is read as MIDDLE)
     yardage: YardageOutcome | None = None
     yards: int | None = Field(default=None, ge=MIN_YARDS, le=MAX_YARDS, strict=True)  # a JSON integer
 
@@ -541,6 +545,11 @@ async def admin_page(request: Request) -> HTMLResponse:
     defaults = {side: next(t for t in TEAM_PRESETS if t["label"] == label)
                 for side, label in (("away", DEFAULT_AWAY), ("home", DEFAULT_HOME))}
     return _page(request, "admin.html", teams=TEAM_PRESETS, defaults=defaults)
+
+
+@router.get("/rules", response_class=HTMLResponse)
+async def rules_page(request: Request) -> HTMLResponse:
+    return _page(request, "rules.html", scoring=SCORING)
 
 
 @router.get("/privacy", response_class=HTMLResponse)

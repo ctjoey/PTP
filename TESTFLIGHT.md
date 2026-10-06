@@ -7,7 +7,7 @@ upload it to TestFlight. You never open Xcode. The recipe is in `.github/workflo
 
 - **Native iPhone app** in `ios/PickThePlay` (iPhone only, iOS 17 or later), named **Pick the Play**.
   It includes a **Practice** mode that works without a live game, the **Live** game, leaderboards,
-  lounges, and **Delete account** in Settings (Apple requires that).
+  lounges, a **Rules** tab (works offline), and **Delete account** in Settings (Apple requires that).
 - **Build + test on every push** to `ios/`. Each run also takes the App Store screenshots.
 - **TestFlight upload on demand**, using the same cloud signing as GameDial. Apple creates the
   certificates and profiles for you. The build number goes up by itself each run.
@@ -128,10 +128,10 @@ TestFlight builds expire after 90 days. Run Step 4 again for a fresh one.
 - **Practice** works anytime, even when no live game is running.
 - **Live** needs someone running the game from the web admin console (*your server*`/admin`, using
   your `PTP_ADMIN_KEY`): pick the two teams and create the game, open each play, lock it, then resolve
-  it with the play type, direction (as the QB looks downfield) and distance or yards gained. See
-  README → "Running a game".
-- **Scoring:** +10 play type, +10 direction, +10 distance. All three = 30. A loss of yards scores no
-  distance points.
+  it with the play type, direction (Left, Middle or Right, as the QB looks downfield) and distance or
+  yards gained. See README → "Running a game" and the Rules page (*your server*`/rules`).
+- **Scoring:** +10 play type, +10 direction, +10 distance, +10 bonus for all three = 40. A loss of
+  yards scores no distance points (and so no bonus).
 
 ## If something goes wrong
 
@@ -154,9 +154,9 @@ TestFlight builds expire after 90 days. Run Step 4 again for a fresh one.
 - [ ] **Age rating** questionnaire: there's no chat, no gambling and no prizes (points only). The
       only thing players create is a username shown on leaderboards.
 - [ ] **Review notes**, for example: "Free-to-play football prediction game, no password: pick any
-      username. Before each play you call run or pass, left/center/right (as the quarterback looks
-      downfield) and short/medium/long; each correct call is worth 10 points. Teams are shown by
-      city name only. To try it without a live game, use **Practice**. To see a live game, open
+      username. Before each play you call run or pass, left/middle/right (as the quarterback looks
+      downfield) and short/medium/long: +10 play type, +10 direction, +10 distance, +10 bonus for all
+      three = 40. The Rules tab explains everything. Teams are shown by city name only. To try it without a live game, use **Practice**. To see a live game, open
       *your server*`/admin`, enter the key `<the key you give them>`, create a game and run a few
       plays while the app is open."
 - [ ] **Export compliance**: the app only uses standard HTTPS, so the answer is **No**. The build

@@ -63,7 +63,7 @@ def test_play_lifecycle_and_scoring(store):
     assert saved == {"play_id": play["id"], "play_type": "PASS", "direction": "LEFT", "yardage": "MEDIUM",
                      "points_earned": None}
     store.submit_prediction(bob["id"], play["id"], "PASS", "RIGHT", "SHORT")
-    store.submit_prediction(carol["id"], play["id"], "RUN", "CENTER", "LONG")
+    store.submit_prediction(carol["id"], play["id"], "RUN", "MIDDLE", "LONG")
     dave = store.create_user("dave")
     store.submit_prediction(dave["id"], play["id"], "RUN", "LEFT", "MEDIUM")
 
@@ -76,20 +76,20 @@ def test_play_lifecycle_and_scoring(store):
     assert (resolved["correct_yardage"], resolved["yards_gained"]) == ("MEDIUM", 7)
 
     preds = store.predictions_for_play(play["id"])
-    assert preds[alice["id"]]["points_earned"] == 30  # all three
+    assert preds[alice["id"]]["points_earned"] == 40  # all three + the bonus
     assert preds[alice["id"]]["yardage"] == "MEDIUM"
     assert preds[dave["id"]]["points_earned"] == 20   # direction + distance
     assert preds[bob["id"]]["points_earned"] == 10    # type only
     assert preds[carol["id"]]["points_earned"] == 0
-    assert store.get_user(alice["id"])["total_score"] == 30
+    assert store.get_user(alice["id"])["total_score"] == 40
 
     board = store.game_leaderboard(game["id"])
     assert [(r["username"], r["score"], r["rank"], r["exact_hits"]) for r in board] == [
-        ("alice", 30, 1, 1), ("dave", 20, 2, 0), ("bob", 10, 3, 0), ("carol", 0, 4, 0),
+        ("alice", 40, 1, 1), ("dave", 20, 2, 0), ("bob", 10, 3, 0), ("carol", 0, 4, 0),
     ]
 
     stats = store.pick_stats(play["id"])
-    assert stats == {"total": 4, "RUN": 2, "PASS": 2, "LEFT": 2, "CENTER": 1, "RIGHT": 1,
+    assert stats == {"total": 4, "RUN": 2, "PASS": 2, "LEFT": 2, "MIDDLE": 1, "RIGHT": 1,
                      "SHORT": 1, "MEDIUM": 2, "LONG": 1, "exact": 1, "scored": 3}
 
     history = store.play_history(game["id"])

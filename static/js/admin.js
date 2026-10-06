@@ -166,7 +166,7 @@
     $("#kpi-picks").textContent = String(stats.total || 0);
     $("#kpi-online").textContent = String(st.players_online);
     $("#kpi-ranked").textContent = String(st.ranked_players);
-    PTP.crowdBars($("#admin-crowd"), stats, ["RUN", "PASS", "LEFT", "CENTER", "RIGHT", "SHORT", "MEDIUM", "LONG"]);
+    PTP.crowdBars($("#admin-crowd"), stats, ["RUN", "PASS", "LEFT", "MIDDLE", "RIGHT", "SHORT", "MEDIUM", "LONG"]);
 
     renderBoard(st.leaderboard);
     renderHistory(st.history);
@@ -410,7 +410,7 @@
         r: () => click('[data-rtype="RUN"]'),
         p: () => click('[data-rtype="PASS"]'),
         arrowleft: () => click('[data-rdir="LEFT"]'),
-        arrowup: () => click('[data-rdir="CENTER"]'),
+        arrowup: () => click('[data-rdir="MIDDLE"]'),
         arrowright: () => click('[data-rdir="RIGHT"]'),
         s: () => click('[data-ryard="SHORT"]'),
         m: () => click('[data-ryard="MEDIUM"]'),

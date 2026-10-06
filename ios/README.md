@@ -25,28 +25,42 @@ chosen (changing any part re-sends it while the play is OPEN):
 | Part | Choices | Notes |
 | --- | --- | --- |
 | Play type | Run / Pass | |
-| Direction | Left / Center / Right | As the QB looks downfield (the offense's point of view) |
+| Direction | Left / Middle / Right | As the QB looks downfield (the offense's point of view) |
 | Distance (`yardage`) | Short 0–5 yds / Medium 6–10 / Long 11+ | Total yards gained; an incomplete pass is 0 yds = Short |
 
 Scoring (the server is the authority; `ScoreRules` mirrors it for Practice mode and the result view):
-+10 play type, +10 direction, +10 distance. All three = 30 (a "perfect call", `exact` on the wire).
-A loss of yards (`LOSS`) never matches a distance pick, so it scores no distance points. Result labels
-go by points: 30 "Perfect call!", 20 "Two of three", 10 "One of three", 0 "No points this time".
++10 play type, +10 direction, +10 distance, +10 bonus for all three = 40 (a "perfect call", `exact` on
+the wire). Possible totals are 0, 10, 20 and 40; 30 can't happen. A loss of yards (`LOSS`) never matches
+a distance pick, so it scores no distance points and so no bonus. Result labels follow the per-part
+right/wrong flags (falling back to points): all three "Perfect call!", two "Two of three", one "One of
+three", none "No points this time". Plays scored before the bonus keep their 30; they still read as a
+perfect call.
+
+Directions are `LEFT` / `MIDDLE` / `RIGHT` (the NFL's run and pass location words). The app always
+sends `MIDDLE`; it still decodes `CENTER` (and a crowd count under `"CENTER"`) from a server or game.db
+from before the rename, as `.middle`.
+
+The **Rules** tab (`RulesView`, also opened from onboarding as a sheet) is static: the same "Rules of
+the Game" text as the web's `/rules` page, the points table, the bonus math and two diagrams drawn
+from behind the quarterback: the offensive line (Middle = between the guards, through the A-gaps;
+Left / Right = guard, tackle, end) and the field split by the hash marks (Left | Middle | Right).
+It needs no server and no account.
 
 The distance pick is always `yardage` in code and JSON, never "distance", because `Play.distance` is
 already down-and-distance ("3rd & 7"). What the app sends and reads:
 
 ```
--> {"type":"predict","play_id":7,"play_type":"PASS","direction":"LEFT","yardage":"SHORT"}
+-> {"type":"predict","play_id":7,"play_type":"PASS","direction":"MIDDLE","yardage":"SHORT"}
 <- prediction:  {..., "yardage": "SHORT" | null, "yardage_correct": true | false (once resolved)}
 <- play:        {..., "correct_yardage": "SHORT" | "MEDIUM" | "LONG" | "LOSS" | null, "yards_gained": 7 | null}
-<- scoring:     {"type": 10, "direction": 10, "yardage": 10, "exact": 30}
-<- crowd:       {..., "SHORT": n, "MEDIUM": n, "LONG": n}
+<- scoring:     {"type": 10, "direction": 10, "yardage": 10, "bonus": 10, "exact": 40}
+<- crowd:       {..., "LEFT": n, "MIDDLE": n, "RIGHT": n, "SHORT": n, "MEDIUM": n, "LONG": n}
 ```
 
 `yardage` fields are optional in the models so a server or game.db from before the distance pick
 still decodes (a pick with no distance scores no distance points; a missing `scoring.yardage` reads
-as 10). Teams show whatever city name and colors the game carries; the store screenshots
+as 10, and a missing `scoring.bonus` is whatever `exact` pays beyond the three parts: 0 on an old
+server). Teams show whatever city name and colors the game carries; the store screenshots
 (`ScreenshotMode`) use Chicago at Detroit in their real colors.
 
 The pick screen measures its height and switches to a tighter layout below 620 pt of usable height,
@@ -63,13 +77,15 @@ PickThePlay/
   Models/    Codable wire models matching the server's JSON
   Services/  APIClient + ServerConfig (REST, server address), LiveConnection (WebSocket with
              hello/ping/backoff), Practice (scoring rules + offline practice game)
-  Views/     Live (scorebug + open/locked/result/final stages), Leaderboard, Lounges, Settings
-             (server, privacy, delete account), Onboarding, Practice, shared Components, Theme
+  Views/     Live (scorebug + open/locked/result/final stages), Leaderboard, Lounges, Rules (rules
+             of the game, points table, run/pass direction diagrams), Settings (server, points,
+             privacy, delete account), Onboarding, Practice, shared Components, Theme
 PickThePlayTests/
   Fixtures/  Real messages captured from the Python server; ContractTests decode every one
              (incl. state_play_resolved_loss: a sack that scores type + direction only)
   ContractTests.swift   fixtures decode; the server's points equal ScoreRules on the same pick
-  GameLogicTests.swift  every 3-part scoring combination, LOSS, labels, practice odds, pick restore
+  GameLogicTests.swift  every 3-part scoring combination incl. the bonus, LOSS, labels, MIDDLE and
+                        the CENTER alias, practice odds, pick restore
 ```
 
 ## Keeping the app and server in step

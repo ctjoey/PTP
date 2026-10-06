@@ -117,6 +117,7 @@ jobs:
           shoot locked  03-locked
           shoot board   04-leaderboard
           shoot lounges 05-lounges
+          shoot rules   06-rules
           xcrun simctl shutdown "$UDID" || true
           xcrun simctl delete "$UDID" || true
           ls -l screenshots/raw

@@ -1,9 +1,10 @@
 # Pick the Play: Live Pro Football Game
 
 A real-time, second-screen prediction game for live pro football. Before every snap, players have
-**15 seconds** to call the play — **Run or Pass**, **Left, Center or Right** (as the QB looks
+**15 seconds** to call the play — **Run or Pass**, **Left, Middle or Right** (as the QB looks
 downfield) and **how far: Short, Medium or Long** — then watch points and leaderboards update the
-instant the admin scores the play. For example: *Run, Left, Short*.
+instant the admin scores the play. For example: *Run, Left, Short*. Each right call is worth 10
+points, and getting all three right adds a 10-point bonus: a perfect call is 40.
 
 The MVP is a single Python FastAPI server with three web surfaces, synchronised over WebSockets:
 
@@ -12,6 +13,7 @@ The MVP is a single Python FastAPI server with three web surfaces, synchronised 
 | **Live Player App** | `/` | Fans. Mobile-first, dark mode, installable to the iPhone home screen. |
 | **Head-to-Head Lounges** | `/lounge/<4-digit code>` | Friends playing each other with a private leaderboard. |
 | **Admin Console** | `/admin` | The operator watching the game and driving each play. |
+| **Rules of the Game** | `/rules` | Everyone: how it works, the points, and what Left / Middle / Right mean. |
 
 > Pick the Play is an independent fan game. It is not affiliated with, endorsed by, or sponsored by
 > any professional football league or club, and it uses no official names, marks or logos.
@@ -79,7 +81,8 @@ in the [iPhone guide](IPHONE_GUIDE.md).
 3. **Lock Predictions.** Lock early, or let the timer lock it automatically. Late picks are rejected
    by the server.
 4. **Resolve & Score Play.** Select what actually happened: the play type, the direction **as the QB
-   looks downfield** (the offense's left and right, not the TV picture's), and the distance:
+   looks downfield** (the offense's left and right, not the TV picture's; see
+   [Left, Middle and Right](#left-middle-and-right)), and the distance:
    **Short** (0-5 yards), **Medium** (6-10), **Long** (11+) or **Loss** (negative yards). Or type the
    **yards gained** (e.g. `7`, or `-4` for a sack) and the distance is picked for you; an incomplete
    pass or no gain is 0 yards = Short. Points are calculated, totals and leaderboards update, and every
@@ -92,7 +95,7 @@ Keyboard shortcuts in the console:
 | --- | --- |
 | `O` / `L` | Open the next play / lock predictions |
 | `R` / `P` | Run / pass |
-| `←` `↑` `→` | Left / center / right (as the QB looks downfield) |
+| `←` `↑` `→` | Left / middle / right (as the QB looks downfield) |
 | `S` / `M` / `G` / `X` | Short / medium / long / loss |
 | `Y` | Type the yards gained (then `Enter` resolves) |
 | `Enter` | Resolve & score the play |
@@ -110,22 +113,40 @@ Only one play per game can be OPEN or LOCKED at a time (enforced by a partial un
 
 ## Scoring
 
-Each play has three picks, and each one you get right is worth **10 points**:
+Each play has three picks. Each one you get right is worth **10 points**, and getting all three right
+adds a **10-point bonus**: +10 play type, +10 direction, +10 distance, +10 bonus for all three = 40.
 
 | Pick | Choices | Points if right |
 | --- | --- | --- |
 | Play type | Run · Pass | +10 |
-| Direction (as the QB looks downfield) | Left · Center · Right | +10 |
+| Direction (as the QB looks downfield) | Left · Middle · Right | +10 |
 | Distance (total yards gained) | Short 0-5 yds · Medium 6-10 · Long 11+ | +10 |
-| **All three right** (a "perfect call") | | **30** |
+| Bonus: all three right | | +10 |
+| **Perfect call** | | **40** |
 
-There is no extra bonus: the most a play can earn is 30. A **loss of yards** (a sack, a run stopped
-behind the line) scores no distance points, so a loss earns at most 20. An incomplete pass or no gain
-is 0 yards, which is Short. Example: you pick *Run, Left, Short* and it's a run to the left for 7 yards
-(Medium): **20 points**.
+So a play scores 0, 10, 20 or 40 (30 can't happen). A **loss of yards** (a sack, a run stopped behind
+the line) scores no distance points, and so no bonus: a loss earns at most 20. An incomplete pass or
+no gain is 0 yards, which is Short. Example: you pick *Run, Left, Short* and it's a run to the left for
+7 yards (Medium): **20 points**. Pick *Run, Left, Medium*: **40**. Points already scored before the
+bonus existed stay as they were (an old 30 stays 30).
 
 Ties share a rank (1, 2, 2, 4). Within a tie, more perfect calls (all three right) sort first.
 The live leaderboard ranks points in the current game; *Season pts* is the user's all-time total.
+
+### Left, Middle and Right
+
+Directions follow the official NFL play-by-play (the full text, with diagrams, is on the
+**Rules of the Game** page at `/rules`, linked from the player app, the welcome screen, the admin
+console and the support page). Always from the offense's point of view, as the QB looks downfield:
+
+- **Runs** go by run location and run gap. **Middle** is any run between the left and right guards
+  (the A-gaps on either side of the center); **Left** / **Right** is at or outside a guard: guard,
+  tackle or end on that side.
+- **Passes** go by pass location, using the hash marks. **Middle** is between the hashes (18 ft 6 in
+  apart); **Left** / **Right** is outside a hash, out to that sideline.
+- A sack is a pass with a loss; a quarterback scramble is a run. When no direction is charted, the host
+  makes the call. All official calls are derived from the official NFL statistics, and all final calls
+  are at the host's discretion.
 
 ## Head-to-Head Lounges
 
@@ -202,7 +223,7 @@ Inside a lounge you play the same live game, with a private leaderboard tab of e
 | Field | Values |
 | --- | --- |
 | `play_type` | `RUN` · `PASS` |
-| `direction` | `LEFT` · `CENTER` · `RIGHT`, as the QB looks downfield |
+| `direction` | `LEFT` · `MIDDLE` · `RIGHT`, as the QB looks downfield. `CENTER` (what older apps send) is accepted as an alias for `MIDDLE` on picks and resolves; the server only ever sends `MIDDLE` |
 | `yardage` (a pick) | `SHORT` (0-5 yds) · `MEDIUM` (6-10) · `LONG` (11+). Required on every new pick. Never called "distance" in code or JSON: `distance` is the down-and-distance ("3rd & **7**") |
 | `correct_yardage` (a result) | `SHORT` · `MEDIUM` · `LONG` · `LOSS` (negative yards), `null` until resolved |
 | `yards_gained` (a result) | Whole number -99..99 when the admin or a data feed entered it, otherwise `null` |
@@ -218,10 +239,11 @@ Inside a lounge you play the same live game, with a private leaderboard tab of e
 - **Every prediction object** (`my_prediction`, `prediction_saved`) carries `play_type`, `direction`,
   `yardage` (`null` for picks made before distance picks existed) and `points_earned`. Once the play is
   resolved, `my_prediction` adds `type_correct`, `direction_correct` and `yardage_correct`.
-- **Snapshots** carry `"scoring": {"type": 10, "direction": 10, "yardage": 10, "exact": 30}` (`exact` =
-  all three right), and `crowd` (hidden while OPEN) counts `RUN`, `PASS`, `LEFT`, `CENTER`, `RIGHT`,
-  `SHORT`, `MEDIUM`, `LONG`, `total`, `exact` (picks worth 30) and `scored` (picks worth more than 0).
-  Leaderboard `exact_hits` counts plays with all three right.
+- **Snapshots** carry `"scoring": {"type": 10, "direction": 10, "yardage": 10, "bonus": 10, "exact": 40}`
+  (`bonus` = extra for all three right, `exact` = a perfect call), and `crowd` (hidden while OPEN)
+  counts `RUN`, `PASS`, `LEFT`, `MIDDLE`, `RIGHT`, `SHORT`, `MEDIUM`, `LONG`, `total`, `exact` (picks
+  with all three right) and `scored` (picks worth more than 0). Leaderboard `exact_hits` counts plays
+  with all three right.
 
 ### REST API
 
@@ -243,6 +265,7 @@ handy for scripting.
 | `POST /api/admin/game/status` `{status}` | `LIVE` / `FINAL` |
 | `POST /api/admin/play/open` `{down, distance, window_seconds}` | Open the next play |
 | `POST /api/admin/play/lock` · `/resolve` `{play_type, direction, yardage?, yards?}` · `/void` | Drive the play (resolve needs `yardage`, `yards` or both) |
+| `GET /rules` | Rules of the Game (HTML) |
 | `GET /privacy` · `GET /support` | Privacy policy and support pages (HTML; use as the App Store privacy policy and support URLs) |
 
 Interactive docs: <http://127.0.0.1:8000/docs>.
@@ -250,7 +273,9 @@ Interactive docs: <http://127.0.0.1:8000/docs>.
 **Data feeds.** A play-by-play feed can drive the game through the admin API: open a play before the
 snap, lock it, then resolve it with the feed's play type, direction and `yards` (the server picks the
 distance bucket). Feeds report direction in different ways (some by field side, some by the offense's
-left/right), so convert to the QB's view looking downfield before sending.
+left/right), so convert to the QB's view looking downfield before sending. NFL play-by-play
+`run_location` / `pass_location` values `left` / `middle` / `right` map straight to `LEFT` / `MIDDLE` /
+`RIGHT`.
 
 **App Store.** App Review needs a privacy policy URL, a support URL, in-app account deletion and
 filtering of user-visible names. Point App Store Connect at `https://<your server>/privacy` and
@@ -270,7 +295,10 @@ offensive usernames and lounge names are rejected with "Please choose a differen
 
 Upgrading keeps your data: on start-up `Store` adds any columns an older `game.db` is missing
 (`models.MIGRATIONS`), for example the distance columns on a database kept on a host's disk. Picks made
-before the upgrade have no distance and score it as wrong; scores already earned are unchanged.
+before the upgrade have no distance and score it as wrong; scores already earned are unchanged. A
+database from before Left/Middle/Right has `CENTER` in the `plays` and `predictions` CHECK constraints;
+SQLite can't change those in place, so `Store` rebuilds the two tables once (in one transaction, keeping
+every row, id and index) and turns stored `CENTER` values into `MIDDLE`.
 
 ## Configuration
 
@@ -290,9 +318,9 @@ venv/bin/python -m pip install -r requirements-dev.txt   # Windows: .\venv\Scrip
 venv/bin/python -m pytest -q                             # Windows: .\venv\Scripts\python.exe -m pytest -q
 ```
 
-The suite covers every scoring combination over all three picks (including losses and picks with no
-distance), yards-to-distance boundaries, resolve validation, migrating a database from the previous
-version, the team presets, the play state machine, late-pick rejection, voids, ties, lounges, the
+The suite covers every scoring combination over all three picks and the all-three bonus (including
+losses and picks with no distance), yards-to-distance boundaries, resolve validation, the `CENTER`
+alias, migrating databases from both earlier versions, the Rules page and its links, the team presets, the play state machine, late-pick rejection, voids, ties, lounges, the
 trademark filter, and full end-to-end flows over the real HTTP and WebSocket endpoints (including the
 auto-lock timer).
 

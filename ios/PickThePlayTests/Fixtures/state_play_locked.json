@@ -1,9 +1,9 @@
 {
   "crowd": {
-    "CENTER": 0,
-    "LEFT": 2,
+    "LEFT": 0,
     "LONG": 0,
     "MEDIUM": 2,
+    "MIDDLE": 2,
     "PASS": 1,
     "RIGHT": 0,
     "RUN": 1,
@@ -17,7 +17,7 @@
     "away_name": "Chicago",
     "away_primary": "#0B162A",
     "away_secondary": "#C83803",
-    "created_at": 1791306495.9513185,
+    "created_at": 1791317421.1346152,
     "home_name": "Detroit",
     "home_primary": "#0076B6",
     "home_secondary": "#B0B7BC",
@@ -45,7 +45,7 @@
   "lounge": {
     "host_user_id": 1,
     "host_username": "JoeyC",
-    "id": "6797",
+    "id": "1755",
     "leaderboard": [
       {
         "exact_hits": 0,
@@ -80,7 +80,7 @@
     "username": "JoeyC"
   },
   "my_prediction": {
-    "direction": "LEFT",
+    "direction": "MIDDLE",
     "play_id": 1,
     "play_type": "PASS",
     "points_earned": null,
@@ -95,8 +95,8 @@
     "down": 3,
     "game_id": 1,
     "id": 1,
-    "locks_at": 1791306510.9540691,
-    "opened_at": 1791306495.9540691,
+    "locks_at": 1791317436.1378176,
+    "opened_at": 1791317421.1378176,
     "play_number": 1,
     "state": "LOCKED",
     "voided": false,
@@ -104,11 +104,12 @@
   },
   "ranked_players": 2,
   "scoring": {
+    "bonus": 10,
     "direction": 10,
-    "exact": 30,
+    "exact": 40,
     "type": 10,
     "yardage": 10
   },
-  "server_time": 1791306495.9634876,
+  "server_time": 1791317421.1508265,
   "type": "state"
 }

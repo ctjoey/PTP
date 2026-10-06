@@ -1,9 +1,9 @@
 {
   "crowd": {
-    "CENTER": 0,
-    "LEFT": 2,
+    "LEFT": 0,
     "LONG": 0,
     "MEDIUM": 2,
+    "MIDDLE": 2,
     "PASS": 1,
     "RIGHT": 0,
     "RUN": 1,
@@ -17,7 +17,7 @@
     "away_name": "Chicago",
     "away_primary": "#0B162A",
     "away_secondary": "#C83803",
-    "created_at": 1791306495.9513185,
+    "created_at": 1791317421.1346152,
     "home_name": "Detroit",
     "home_primary": "#0076B6",
     "home_secondary": "#B0B7BC",
@@ -29,7 +29,7 @@
       "exact_hits": 1,
       "picks": 1,
       "rank": 1,
-      "score": 30,
+      "score": 40,
       "user_id": 1,
       "username": "JoeyC"
     },
@@ -45,15 +45,15 @@
   "lounge": {
     "host_user_id": 1,
     "host_username": "JoeyC",
-    "id": "6797",
+    "id": "1755",
     "leaderboard": [
       {
         "exact_hits": 1,
         "is_host": true,
         "picks": 1,
         "rank": 1,
-        "score": 30,
-        "total_score": 30,
+        "score": 40,
+        "total_score": 40,
         "user_id": 1,
         "username": "JoeyC"
       },
@@ -73,33 +73,33 @@
   },
   "me": {
     "exact_hits": 1,
-    "game_score": 30,
+    "game_score": 40,
     "id": 1,
     "rank": 1,
-    "total_score": 30,
+    "total_score": 40,
     "username": "JoeyC"
   },
   "my_prediction": {
-    "direction": "LEFT",
+    "direction": "MIDDLE",
     "direction_correct": true,
     "play_id": 1,
     "play_type": "PASS",
-    "points_earned": 30,
+    "points_earned": 40,
     "type_correct": true,
     "user_id": 1,
     "yardage": "MEDIUM",
     "yardage_correct": true
   },
   "play": {
-    "correct_direction": "LEFT",
+    "correct_direction": "MIDDLE",
     "correct_play_type": "PASS",
     "correct_yardage": "MEDIUM",
     "distance": "7",
     "down": 3,
     "game_id": 1,
     "id": 1,
-    "locks_at": 1791306510.9540691,
-    "opened_at": 1791306495.9540691,
+    "locks_at": 1791317436.1378176,
+    "opened_at": 1791317421.1378176,
     "play_number": 1,
     "state": "RESOLVED",
     "voided": false,
@@ -107,11 +107,12 @@
   },
   "ranked_players": 2,
   "scoring": {
+    "bonus": 10,
     "direction": 10,
-    "exact": 30,
+    "exact": 40,
     "type": 10,
     "yardage": 10
   },
-  "server_time": 1791306495.9659495,
+  "server_time": 1791317421.1539085,
   "type": "state"
 }

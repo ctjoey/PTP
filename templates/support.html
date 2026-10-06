@@ -2,20 +2,6 @@
 {% block title %}Support · Pick the Play{% endblock %}
 {% block body_class %}doc-page{% endblock %}
 {% block body %}
-<style>
-  .doc-page .card h2 { margin: 0 0 8px; font-size: 18px; font-weight: 800; line-height: 1.25; }
-  .doc-page .card p, .doc-page .card li { color: var(--text); font-size: 15px; line-height: 1.55; }
-  .doc-page .card p { margin: 0 0 10px; }
-  .doc-page .card p:last-child, .doc-page .card ul:last-child, .doc-page .card table:last-child { margin-bottom: 0; }
-  .doc-page .card ul, .doc-page .card ol { margin: 0 0 10px; padding-left: 20px; }
-  .doc-page .card li + li { margin-top: 6px; }
-  .doc-page .card .scoring-table { width: 100%; border-collapse: collapse; margin: 0 0 10px; font-size: 15px; }
-  .doc-page .card .scoring-table td { padding: 8px 0; border-top: 1px solid var(--border); }
-  .doc-page .card .scoring-table td:last-child { text-align: right; font-weight: 900; color: var(--accent); }
-  .doc-page .doc-head h1 { margin: 0; font-size: 26px; font-weight: 900; line-height: 1.15; }
-  .doc-page .doc-links { text-align: center; font-size: 13px; }
-  .doc-page a { overflow-wrap: anywhere; }
-</style>
 <main class="app">
   <header class="topbar">
     <a class="brand" href="/" style="color:inherit;text-decoration:none">
@@ -35,7 +21,7 @@
       <b>{{ window_seconds }} seconds</b> to call it:</p>
     <ol>
       <li><b>Run or pass?</b></li>
-      <li><b>Left, center or right?</b> Left and right are as the quarterback looks downfield (the
+      <li><b>Left, middle or right?</b> Left and right are as the quarterback looks downfield (the
         offense's left and right), not the TV picture's.</li>
       <li><b>How far?</b> Total yards gained on the play: <b>Short</b> (5 yards or less),
         <b>Medium</b> (6-10 yards) or <b>Long</b> (11 or more). An incomplete pass or no gain counts as
@@ -47,13 +33,17 @@
       <tr><td>Correct play type</td><td>+{{ scoring.type }}</td></tr>
       <tr><td>Correct direction</td><td>+{{ scoring.direction }}</td></tr>
       <tr><td>Correct distance</td><td>+{{ scoring.yardage }}</td></tr>
-      <tr><td>All three right (a perfect call)</td><td>{{ scoring.exact }}</td></tr>
+      <tr><td>Bonus: all three right</td><td>+{{ scoring.bonus }}</td></tr>
+      <tr class="perfect"><td>Perfect call</td><td>{{ scoring.exact }}</td></tr>
     </table>
     <p>For example, you pick Run, Left, Short and it's a run to the left for 7 yards (Medium): that's
-      {{ scoring.type + scoring.direction }} points. A loss of yards scores no distance points, so a sack
+      {{ scoring.type + scoring.direction }} points. Pick Run, Left, Medium and you get all three plus the
+      bonus: {{ scoring.exact }}. A loss of yards scores no distance points (and so no bonus), so a sack
       or a run stopped behind the line can earn at most {{ scoring.type + scoring.direction }}.</p>
     <p>The live leaderboard ranks points in the current game. Your season points add up across every
       game. Plays cancelled by a penalty or no-play score nothing for anyone.</p>
+    <p>What counts as left, middle or right, which plays are called, and how official calls are made:
+      see the <a href="/rules">Rules of the Game</a>.</p>
   </section>
 
   <section class="card">
@@ -106,7 +96,7 @@
     {% endif %}
   </section>
 
-  <p class="doc-links"><a href="/privacy">Privacy Policy</a> · <a href="/">Back to the game</a></p>
+  <p class="doc-links"><a href="/privacy">Privacy Policy</a> · <a href="/rules">Rules</a> · <a href="/">Back to the game</a></p>
 
   <p class="footer-note">
     Pick the Play is an independent fan prediction game for entertainment only. It is not affiliated with,

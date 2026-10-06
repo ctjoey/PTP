@@ -7,8 +7,9 @@ scripted game as JoeyC and Sam (Chicago at Detroit, lounge "Sunday Crew"), and w
 JoeyC's app receives as pretty JSON. ContractTests.swift decodes these files, so regenerate them
 whenever the protocol changes, then update the Swift tests to match.
 
-  Play 1, 3rd & 7:  JoeyC Pass/Left/Medium, Sam Run/Left/Medium -> Pass left for 7 yards (Medium):
-                    JoeyC 30 (all three), Sam 20 (direction + distance)
+  Play 1, 3rd & 7:  JoeyC Pass/Middle/Medium, Sam Run/Middle/Medium (sent as the old "CENTER", saved as
+                    MIDDLE) -> Pass over the middle for 7 yards (Medium):
+                    JoeyC 40 (all three + the bonus), Sam 20 (direction + distance)
   Play 2, 2nd & 10: JoeyC Pass/Right/Short, Sam Run/Right/Short -> sacked for -4 (Loss):
                     JoeyC 20 (no distance points for a loss), Sam 10
   Play 3, 1st & 10: voided; then the game goes FINAL.
@@ -116,23 +117,27 @@ try:
             home_name="Detroit", home_primary="#0076B6", home_secondary="#B0B7BC")
         save("state_game_created", recv(j, state("game_created")))
 
-        # Play 1, 3rd & 7: JoeyC Pass/Left/Medium, Sam Run/Left/Medium. Pass left for 7 yards.
+        # Play 1, 3rd & 7: JoeyC Pass/Middle/Medium, Sam Run/Middle/Medium (an older app's "CENTER").
+        # Pass over the middle for 7 yards: JoeyC's perfect call is 40.
         play = act("open_play", down=3, distance="7")
         save("state_play_opened", recv(j, state("play_opened")))
-        j.send(json.dumps({"type": "predict", "play_id": play["id"], "play_type": "PASS", "direction": "LEFT",
+        j.send(json.dumps({"type": "predict", "play_id": play["id"], "play_type": "PASS", "direction": "MIDDLE",
                            "yardage": "MEDIUM"}))
         save("msg_prediction_saved", recv(j, lambda m: m["type"] == "prediction_saved"))
-        http("POST", "/api/predictions", {"play_id": play["id"], "play_type": "RUN", "direction": "LEFT",
-                                          "yardage": "MEDIUM"}, token=sam["token"], expect=200)
-        j.send(json.dumps({"type": "predict", "play_id": play["id"], "play_type": "BOMB", "direction": "LEFT",
+        sam_pick = http("POST", "/api/predictions", {"play_id": play["id"], "play_type": "RUN", "direction": "CENTER",
+                                                     "yardage": "MEDIUM"}, token=sam["token"], expect=200)
+        assert sam_pick["direction"] == "MIDDLE", sam_pick
+        j.send(json.dumps({"type": "predict", "play_id": play["id"], "play_type": "BOMB", "direction": "MIDDLE",
                            "yardage": "MEDIUM"}))
         save("msg_error", recv(j, lambda m: m["type"] == "error"))
         j.send(json.dumps({"type": "ping"}))
         save("msg_pong", recv(j, lambda m: m["type"] == "pong"))
         act("lock_play")
         save("state_play_locked", recv(j, state("play_locked")))
-        act("resolve_play", play_type="PASS", direction="LEFT", yardage="MEDIUM", yards=7)
-        save("state_play_resolved", recv(j, state("play_resolved")))
+        act("resolve_play", play_type="PASS", direction="MIDDLE", yardage="MEDIUM", yards=7)
+        resolved = recv(j, state("play_resolved"))
+        assert resolved["my_prediction"]["points_earned"] == 40, resolved["my_prediction"]
+        save("state_play_resolved", resolved)
 
         # Play 2, 2nd & 10: JoeyC Pass/Right/Short, Sam Run/Right/Short. Sacked for a loss of 4.
         play = act("open_play", down=2, distance="10")

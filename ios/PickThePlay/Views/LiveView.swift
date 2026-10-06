@@ -199,9 +199,7 @@ struct OpenStage: View {
                           enabled: remaining > 0 && state.isSignedIn, scoring: scoring,
                           onType: { state.choose($0) }, onDirection: { state.choose($0) }, onYardage: { state.choose($0) })
                 status(remaining: remaining)
-                Chip(text: "All three right = \(scoring.exact)", style: .gold)
-                    .frame(maxWidth: .infinity)
-                    .accessibilityLabel("All three right scores \(scoring.exact) points")
+                BonusChip(scoring: scoring)
             }
         }
     }
@@ -271,14 +269,14 @@ struct ResultStage: View {
         let outcome = play.outcome
         let pick = snapshot.myPrediction.map { ScoreRules.graded($0, outcome: outcome) }
         let points: Int? = pick.map { $0.pointsEarned ?? 0 }
-        let exact = points.map { $0 >= snapshot.scoring.exact } ?? false
+        let exact = ScoreRules.isPerfect(pick, scoring: snapshot.scoring)
         VStack(spacing: 14) {
             Text("\(play.label) — \(play.voided ? "No play" : "Result")").kicker()
             if play.voided {
                 Text("VOID").font(.system(size: 60, weight: .black)).foregroundStyle(Theme.dim)
                 Text("Play voided (penalty / no play). No points.").foregroundStyle(Theme.muted)
             } else if let outcome {
-                ResultReveal(outcome: outcome, points: points, label: ScoreRules.label(points: points, scoring: snapshot.scoring),
+                ResultReveal(outcome: outcome, points: points, label: ScoreRules.label(pick: pick, scoring: snapshot.scoring),
                              exact: exact, animationKey: play.id)
                 PickChips(pick: pick, graded: true)
                 if let crowd = snapshot.crowd, crowd.total > 0 {

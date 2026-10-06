@@ -43,6 +43,9 @@ struct RootView: View {
                     LoungesView()
                         .tabItem { Label("Lounges", systemImage: "person.3.fill") }
                         .tag(AppState.Tab.lounges)
+                    RulesView()
+                        .tabItem { Label("Rules", systemImage: "book.fill") }
+                        .tag(AppState.Tab.rules)
                     SettingsView()
                         .tabItem { Label("Settings", systemImage: "gearshape.fill") }
                         .tag(AppState.Tab.settings)

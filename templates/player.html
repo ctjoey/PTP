@@ -9,6 +9,7 @@
       <span class="brand-sub">LIVE PRO FOOTBALL</span>
     </a>
     <div class="topbar-actions">
+      <a class="btn btn-sm" id="rules-btn" href="/rules">Rules</a>
       <button class="btn btn-sm" id="lounge-btn" type="button">H2H Lounges</button>
       <span class="conn connecting" id="conn" role="img" aria-label="Connecting"></span>
     </div>
@@ -75,7 +76,7 @@
         <div class="pick-label pick-label-row"><span id="lbl-dir">Which direction?</span> <span class="qb-hint">As the QB looks downfield</span></div>
         <div class="pick-grid three">
           <button class="pick-btn" type="button" data-dir="LEFT" aria-pressed="false">LEFT<small>◀</small></button>
-          <button class="pick-btn" type="button" data-dir="CENTER" aria-pressed="false">CENTER<small>▲</small></button>
+          <button class="pick-btn" type="button" data-dir="MIDDLE" aria-pressed="false">MIDDLE<small>▲</small></button>
           <button class="pick-btn" type="button" data-dir="RIGHT" aria-pressed="false">RIGHT<small>▶</small></button>
         </div>
       </div>
@@ -89,7 +90,7 @@
       </div>
       <div class="pick-status" id="pick-status">Make your call: type, direction, distance</div>
       <div class="points-hint">
-        <span class="chip">Type +10</span><span class="chip">Direction +10</span><span class="chip">Distance +10</span><span class="chip gold">All three 30</span>
+        <span class="chip">Type +10</span><span class="chip">Direction +10</span><span class="chip">Distance +10</span><span class="chip gold" title="10 more for all three right: a perfect call is 40">Bonus +10</span>
       </div>
     </div>
 
@@ -150,7 +151,7 @@
     Pick the Play is an independent fan prediction game for entertainment only. It is not affiliated with,
     endorsed by, or sponsored by any professional football league or club. Teams are shown by city or region
     name only.
-    <br><a href="/privacy" style="color:var(--muted)">Privacy</a> · <a href="/support" style="color:var(--muted)">Support</a>
+    <br><a href="/privacy" style="color:var(--muted)">Privacy</a> · <a href="/support" style="color:var(--muted)">Support</a> · <a href="/rules" style="color:var(--muted)">Rules</a>
   </p>
 </main>
 
@@ -159,15 +160,17 @@
   <form class="modal" id="signin-form" novalidate role="dialog" aria-modal="true" aria-labelledby="signin-title">
     <h2 id="signin-title">Welcome to Pick the Play</h2>
     <p class="muted">Call every snap before it happens. When a play opens you have 15 seconds to pick
-      <b>Run or Pass</b>, <b>Left, Center or Right</b> (as the QB looks downfield) and <b>how far</b>:
+      <b>Run or Pass</b>, <b>Left, Middle or Right</b> (as the QB looks downfield) and <b>how far</b>:
       Short (0-5 yds), Medium (6-10) or Long (11+).</p>
     <table class="scoring-table">
       <tr><td>Correct play type</td><td>+10</td></tr>
       <tr><td>Correct direction</td><td>+10</td></tr>
       <tr><td>Correct distance</td><td>+10</td></tr>
-      <tr><td>All three right</td><td>30</td></tr>
+      <tr><td>Bonus: all three right</td><td>+10</td></tr>
+      <tr class="perfect"><td>Perfect call</td><td>40</td></tr>
     </table>
-    <p class="muted small" style="margin:8px 0 0">A loss of yards scores no distance points.</p>
+    <p class="muted small" style="margin:8px 0 0">A loss of yards scores no distance points, and so no bonus.
+      <a href="/rules">Read the full rules</a></p>
     <div class="field" style="margin-top:16px">
       <label for="username">Choose a username</label>
       <input class="input" id="username" maxlength="20" autocomplete="nickname" autocapitalize="off" spellcheck="false" required>

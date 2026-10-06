@@ -177,7 +177,8 @@ def test_privacy_page(client):
 def test_support_page(client):
     res = client.get("/support")
     assert res.status_code == 200
-    for phrase in ("How to play", "15 seconds", "+10", "Correct distance", "All three right", "<td>30</td>",
+    for phrase in ("How to play", "15 seconds", "+10", "Correct distance", "Bonus: all three right",
+                   "Perfect call</td><td>40</td>", "Left, middle or right?", 'href="/rules"',
                    "as the quarterback looks downfield", "Short</b> (5 yards or less)", "A loss of yards scores no",
                    "4-digit code", "Delete account", 'href="/privacy"', "App Store", "not affiliated with"):
         assert phrase in res.text, phrase

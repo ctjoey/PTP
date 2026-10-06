@@ -6,7 +6,7 @@
   "lounge": {
     "host_user_id": 1,
     "host_username": "JoeyC",
-    "id": "6797",
+    "id": "1755",
     "leaderboard": [
       {
         "exact_hits": 0,
@@ -44,11 +44,12 @@
   "play": null,
   "ranked_players": 0,
   "scoring": {
+    "bonus": 10,
     "direction": 10,
-    "exact": 30,
+    "exact": 40,
     "type": 10,
     "yardage": 10
   },
-  "server_time": 1791306495.9490275,
+  "server_time": 1791317421.1320522,
   "type": "state"
 }

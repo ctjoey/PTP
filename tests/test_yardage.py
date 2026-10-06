@@ -85,7 +85,7 @@ def test_resolve_over_rest(client, admin_headers, payload, bucket, yards):
                       json={"play_type": "PASS", "direction": "LEFT", **payload})
     assert res.status_code == 200, res.text
     assert (res.json()["correct_yardage"], res.json()["yards_gained"]) == (bucket, yards)
-    expected = 30 if bucket == "MEDIUM" else 20
+    expected = 40 if bucket == "MEDIUM" else 20  # all three + bonus
     assert client.get("/api/me", headers=auth(joey)).json()["user"]["total_score"] == expected
 
 
@@ -163,7 +163,7 @@ def test_resolved_snapshot_marks_each_part(client, admin_headers):
     joey, sam, kim = register(client, "JoeyC"), register(client, "Sam"), register(client, "Kim")
     client.post("/api/admin/game", json=GAME, headers=admin_headers)
     cm, sock, first = player_socket(client, joey["token"])
-    assert first["scoring"] == {"type": 10, "direction": 10, "yardage": 10, "exact": 30}
+    assert first["scoring"] == {"type": 10, "direction": 10, "yardage": 10, "bonus": 10, "exact": 40}
     play = client.post("/api/admin/play/open", json={}, headers=admin_headers).json()
     for user, pick in ((joey, ("PASS", "RIGHT", "SHORT")), (sam, ("PASS", "RIGHT", "LONG")), (kim, ("RUN", "LEFT", "LONG"))):
         client.post("/api/predictions", headers=auth(user),
@@ -194,11 +194,11 @@ def test_crowd_exact_counts_perfect_calls(store):
     game = store.create_game(**GAME)
     users = [store.create_user(n) for n in ("u1", "u2", "u3", "u4")]
     _, play = store.open_next_play(2, "4", 15)
-    picks = [("RUN", "CENTER", "SHORT"), ("RUN", "CENTER", "SHORT"), ("RUN", "CENTER", "MEDIUM"), ("PASS", "LEFT", "LONG")]
+    picks = [("RUN", "MIDDLE", "SHORT"), ("RUN", "MIDDLE", "SHORT"), ("RUN", "MIDDLE", "MEDIUM"), ("PASS", "LEFT", "LONG")]
     for user, pick in zip(users, picks):
         store.submit_prediction(user["id"], play["id"], *pick)
     store.lock_play()
-    store.resolve_play("RUN", "CENTER", yards=3)
+    store.resolve_play("RUN", "MIDDLE", yards=3)
     stats = store.pick_stats(play["id"])
     assert (stats["exact"], stats["scored"], stats["total"]) == (2, 3, 4)
     board = store.game_leaderboard(game["id"])
@@ -317,13 +317,13 @@ def test_old_database_is_migrated_and_keeps_working(old_db):
 
     # New plays take distance picks, and the new CHECK constraints hold.
     _, play = store.open_next_play(1, "10", 15)
-    store.submit_prediction(1, play["id"], "RUN", "CENTER", "SHORT")
+    store.submit_prediction(1, play["id"], "RUN", "MIDDLE", "SHORT")
     with pytest.raises(sqlite3.IntegrityError):
         store._conn.execute("UPDATE predictions SET yardage = 'LOSS' WHERE play_id = ?", (play["id"],))
     with pytest.raises(sqlite3.IntegrityError):
         store._conn.execute("UPDATE plays SET correct_yardage = 'HUGE' WHERE id = 1")
     store.lock_play()
-    store.resolve_play("RUN", "CENTER", "SHORT", 2)
+    store.resolve_play("RUN", "MIDDLE", "SHORT", 2)
     assert store.game_leaderboard(1)[0] == {**store.game_leaderboard(1)[0], "username": "alice", "exact_hits": 1}
     store.close()
 
@@ -424,7 +424,7 @@ def test_player_page_has_three_pick_groups(client):
     html = client.get("/").text
     for marker in ('data-type="RUN"', 'data-dir="LEFT"', 'data-yard="SHORT"', 'data-yard="MEDIUM"',
                    'data-yard="LONG"', "How far?", "As the QB looks downfield", "0-5 yds", "6-10 yds",
-                   "11+ yds", "Distance +10", "All three 30", "A loss of yards scores no distance points",
+                   "11+ yds", "Distance +10", "Bonus +10", "A loss of yards scores no distance points",
                    'id="reveal-yard"'):
         assert marker in html, marker
 
@@ -432,4 +432,4 @@ def test_player_page_has_three_pick_groups(client):
 def test_web_app_manifest_describes_all_three_picks(client):
     # Shown when the web app is installed to a home screen.
     manifest = client.get("/static/manifest.webmanifest").json()
-    assert manifest["description"] == "Call every play live: Run or Pass, Left, Center or Right, and how far."
+    assert manifest["description"] == "Call every play live: Run or Pass, Left, Middle or Right, and how far."

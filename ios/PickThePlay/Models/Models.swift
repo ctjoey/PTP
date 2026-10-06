@@ -24,24 +24,41 @@ enum PlayType: String, Codable, CaseIterable, Identifiable {
     var caption: String { self == .run ? "On the ground" : "Through the air" }
 }
 
-/// Left / center / right as the quarterback sees it, looking downfield (the offense's point of view).
+/// Left / middle / right as the quarterback sees it, looking downfield (the offense's point of view).
+/// "MIDDLE" is the NFL's word for it (run location / pass location); servers from before the rename sent
+/// "CENTER", which still decodes as `.middle`. The app always sends "MIDDLE".
 enum Direction: String, Codable, CaseIterable, Identifiable {
     case left = "LEFT"
-    case center = "CENTER"
+    case middle = "MIDDLE"
     case right = "RIGHT"
     var id: String { rawValue }
     var title: String {
         switch self {
         case .left: return "Left"
-        case .center: return "Center"
+        case .middle: return "Middle"
         case .right: return "Right"
         }
     }
     var symbol: String {
         switch self {
         case .left: return "arrow.left"
-        case .center: return "arrow.up"
+        case .middle: return "arrow.up"
         case .right: return "arrow.right"
+        }
+    }
+
+    /// The old name for the middle, still accepted from the wire.
+    static let legacyMiddle = "CENTER"
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let raw = try container.decode(String.self)
+        if raw == Direction.legacyMiddle {
+            self = .middle
+        } else if let value = Direction(rawValue: raw) {
+            self = value
+        } else {
+            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Unknown direction \(raw)")
         }
     }
 }
@@ -230,7 +247,7 @@ struct Crowd: Codable, Equatable {
     var run: Int
     var pass: Int
     var left: Int
-    var center: Int
+    var middle: Int
     var right: Int
     /// Distance split; absent from servers that predate the distance pick.
     var short: Int?
@@ -241,7 +258,7 @@ struct Crowd: Codable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case total, exact, scored
-        case run = "RUN", pass = "PASS", left = "LEFT", center = "CENTER", right = "RIGHT"
+        case run = "RUN", pass = "PASS", left = "LEFT", middle = "MIDDLE", right = "RIGHT"
         case short = "SHORT", medium = "MEDIUM", long = "LONG"
     }
 
@@ -249,7 +266,7 @@ struct Crowd: Codable, Equatable {
     func count(_ direction: Direction) -> Int {
         switch direction {
         case .left: return left
-        case .center: return center
+        case .middle: return middle
         case .right: return right
         }
     }
@@ -263,22 +280,50 @@ struct Crowd: Codable, Equatable {
     var hasYardage: Bool { short != nil || medium != nil || long != nil }
 }
 
-/// Points per correct part. `exact` is all three right (the name stays for wire compatibility).
+extension Crowd {
+    /// Servers from before the rename counted the middle under "CENTER".
+    private enum LegacyKeys: String, CodingKey { case middle = "CENTER" }
+
+    // In an extension so the memberwise initializer stays available.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        total = try c.decode(Int.self, forKey: .total)
+        run = try c.decode(Int.self, forKey: .run)
+        pass = try c.decode(Int.self, forKey: .pass)
+        left = try c.decode(Int.self, forKey: .left)
+        if let value = try c.decodeIfPresent(Int.self, forKey: .middle) {
+            middle = value
+        } else {
+            middle = try decoder.container(keyedBy: LegacyKeys.self).decode(Int.self, forKey: .middle)
+        }
+        right = try c.decode(Int.self, forKey: .right)
+        short = try c.decodeIfPresent(Int.self, forKey: .short)
+        medium = try c.decodeIfPresent(Int.self, forKey: .medium)
+        long = try c.decodeIfPresent(Int.self, forKey: .long)
+        exact = try c.decode(Int.self, forKey: .exact)
+        scored = try c.decode(Int.self, forKey: .scored)
+    }
+}
+
+/// Points per correct part, plus the bonus for getting all three. `exact` is the total for all three
+/// right ("perfect call"; the name stays for wire compatibility): 10 + 10 + 10 + 10 bonus = 40.
 struct Scoring: Codable, Equatable {
     var type: Int
     var direction: Int
     var yardage: Int
+    var bonus: Int
     var exact: Int
-    static let standard = Scoring(type: 10, direction: 10, yardage: 10, exact: 30)
+    static let standard = Scoring(type: 10, direction: 10, yardage: 10, bonus: 10, exact: 40)
 
-    init(type: Int, direction: Int, yardage: Int, exact: Int) {
+    init(type: Int, direction: Int, yardage: Int, bonus: Int, exact: Int) {
         self.type = type
         self.direction = direction
         self.yardage = yardage
+        self.bonus = bonus
         self.exact = exact
     }
 
-    private enum CodingKeys: String, CodingKey { case type, direction, yardage, exact }
+    private enum CodingKeys: String, CodingKey { case type, direction, yardage, bonus, exact }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -287,10 +332,16 @@ struct Scoring: Codable, Equatable {
         // Older servers didn't send it; the distance pick is worth the same as the others.
         yardage = try c.decodeIfPresent(Int.self, forKey: .yardage) ?? Scoring.standard.yardage
         exact = try c.decode(Int.self, forKey: .exact)
+        // Servers from before the bonus didn't send it: whatever "all three" pays beyond the three parts
+        // is the bonus (10 on a current server, 0 on one where all three = 30).
+        bonus = try c.decodeIfPresent(Int.self, forKey: .bonus) ?? max(0, exact - type - direction - yardage)
     }
 
     /// The most a single correct part is worth (for "one of three" vs "two of three").
     var maxPart: Int { max(type, direction, yardage) }
+
+    /// The three parts without the bonus (30).
+    var allParts: Int { type + direction + yardage }
 }
 
 /// A lounge as returned by the REST API (no leaderboard) or inside a state snapshot (with one).

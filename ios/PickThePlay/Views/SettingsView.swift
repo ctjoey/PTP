@@ -41,15 +41,17 @@ struct SettingsView: View {
 
                 Section {
                     let scoring = state.snapshot?.scoring ?? .standard
-                    LabeledContent("Correct play type", value: "+\(scoring.type)")
-                    LabeledContent("Correct direction", value: "+\(scoring.direction)")
-                    LabeledContent("Correct distance", value: "+\(scoring.yardage)")
-                    LabeledContent("All three (perfect call)", value: "\(scoring.exact)")
+                    LabeledContent("Play type right (Run / Pass)", value: "+\(scoring.type)")
+                    LabeledContent("Direction right (Left / Middle / Right)", value: "+\(scoring.direction)")
+                    LabeledContent("Distance right (Short / Medium / Long)", value: "+\(scoring.yardage)")
+                    LabeledContent("Bonus: all three right", value: "+\(scoring.bonus)")
+                    LabeledContent("Perfect call", value: "\(scoring.exact)")
+                    Button("Rules of the Game") { state.tab = .rules }
                     Button("Practice mode") { state.showPractice = true }
                 } header: {
                     Text("How scoring works")
                 } footer: {
-                    Text("Directions are as the QB looks downfield. Distance is total yards gained on the play: Short 0–5 yds (an incomplete pass is 0), Medium 6–10, Long 11+. A loss of yards scores no distance points.")
+                    Text("Directions are as the QB looks downfield. Distance is total yards gained on the play: Short 0–5 yds (an incomplete pass is 0), Medium 6–10, Long 11+. A loss of yards scores no distance points, and so no bonus.")
                 }
 
                 if let server = state.server {

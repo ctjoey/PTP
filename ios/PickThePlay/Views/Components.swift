@@ -118,7 +118,7 @@ struct PressStyle: ButtonStyle {
     }
 }
 
-/// The three-part call shared by the live game and practice: Run/Pass, Left/Center/Right as the QB
+/// The three-part call shared by the live game and practice: Run/Pass, Left/Middle/Right as the QB
 /// looks downfield, and Short/Medium/Long by total yards gained. Each group header shows its points.
 struct PickPanel: View {
     var type: PlayType?
@@ -222,6 +222,30 @@ struct CountdownRing: View {
 }
 
 // MARK: - Chips, bars, stats
+
+/// "All three right: +10 bonus = 40" under the pick panel (live and practice). A server from before the
+/// bonus (bonus 0) gets the plain "All three right = 30".
+struct BonusChip: View {
+    var scoring: Scoring = .standard
+
+    var body: some View {
+        Chip(text: text, style: .gold)
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+            .frame(maxWidth: .infinity)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(spoken)
+    }
+
+    private var text: String {
+        scoring.bonus > 0 ? "All three right: +\(scoring.bonus) bonus = \(scoring.exact)" : "All three right = \(scoring.exact)"
+    }
+
+    private var spoken: String {
+        scoring.bonus > 0 ? "Bonus: all three right adds \(scoring.bonus) points, \(scoring.exact) in all"
+            : "All three right scores \(scoring.exact) points"
+    }
+}
 
 struct Chip: View {
     enum Style { case plain, good, bad, gold }

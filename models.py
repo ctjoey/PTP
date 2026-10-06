@@ -39,12 +39,25 @@ class PlayType(StrEnum):
     PASS = "PASS"
 
 
+# What earlier versions called the middle direction; accepted on input and converted to MIDDLE.
+LEGACY_MIDDLE = "CENTER"
+
+
 class Direction(StrEnum):
-    """Where the play goes, as the quarterback looks downfield (the offense's left/right)."""
+    """Where the play goes, as the quarterback looks downfield (the offense's left/right).
+
+    The NFL charts runs and passes as left, middle or right. ``"CENTER"`` (what earlier versions
+    sent and stored) is still accepted as an input alias for ``MIDDLE``; the server only ever
+    outputs ``"MIDDLE"``.
+    """
 
     LEFT = "LEFT"
-    CENTER = "CENTER"
+    MIDDLE = "MIDDLE"
     RIGHT = "RIGHT"
+
+    @classmethod
+    def _missing_(cls, value: object) -> "Direction | None":
+        return cls.MIDDLE if value == LEGACY_MIDDLE else None
 
 
 class Yardage(StrEnum):
@@ -84,7 +97,8 @@ MIN_YARDS, MAX_YARDS = -99, 99
 TYPE_POINTS = 10
 DIRECTION_POINTS = 10
 YARDAGE_POINTS = 10
-EXACT_POINTS = TYPE_POINTS + DIRECTION_POINTS + YARDAGE_POINTS  # all three right (no extra bonus)
+BONUS_POINTS = 10  # extra for getting all three right
+EXACT_POINTS = TYPE_POINTS + DIRECTION_POINTS + YARDAGE_POINTS + BONUS_POINTS  # a perfect call: 40
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,13 +124,14 @@ def score_prediction(
     """Score one prediction against the actual play outcome: 10 points per correct part.
 
     * Correct play type (RUN / PASS):             +10
-    * Correct direction (LEFT / CENTER / RIGHT):  +10
+    * Correct direction (LEFT / MIDDLE / RIGHT):  +10
     * Correct distance (SHORT / MEDIUM / LONG):   +10
-    * All three right: 30 (``exact``). No extra bonus.
+    * Bonus for all three right (``exact``):      +10, so a perfect call is 40
 
-    A LOSS never matches a pick, so a loss of yards scores no distance points. A pick with no
-    distance (``None``: made before distance picks existed) scores its distance as wrong, and so
-    does a play with no recorded distance.
+    Possible totals are 0, 10, 20 and 40 (30 can't happen). A LOSS never matches a pick, so a loss
+    of yards scores no distance points and no bonus. A pick with no distance (``None``: made before
+    distance picks existed) scores its distance as wrong, and so does a play with no recorded
+    distance.
     """
     type_ok = PlayType(predicted_type) == PlayType(actual_type)
     dir_ok = Direction(predicted_direction) == Direction(actual_direction)
@@ -124,6 +139,8 @@ def score_prediction(
     actual = YardageOutcome(actual_yardage) if actual_yardage is not None else None
     yardage_ok = picked is not None and actual is not None and picked.value == actual.value
     points = TYPE_POINTS * type_ok + DIRECTION_POINTS * dir_ok + YARDAGE_POINTS * yardage_ok
+    if type_ok and dir_ok and yardage_ok:
+        points += BONUS_POINTS
     return ScoreResult(points=points, type_correct=type_ok, direction_correct=dir_ok,
                        yardage_correct=yardage_ok)
 
@@ -327,7 +344,40 @@ def validate_lounge_name(name: str) -> str:
 # Schema
 # --------------------------------------------------------------------------- #
 
-SCHEMA = """
+# The two tables whose CHECK constraints name a direction. Defined once so the CENTER -> MIDDLE
+# migration (``Store._rebuild_direction_tables``) recreates them exactly as a new database has them.
+_PLAYS = """(
+    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+    game_id            INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+    play_number        INTEGER NOT NULL,
+    down               INTEGER CHECK (down BETWEEN 1 AND 4),
+    distance           TEXT,
+    state              TEXT NOT NULL CHECK (state IN ('OPEN', 'LOCKED', 'RESOLVED')),
+    correct_play_type  TEXT CHECK (correct_play_type IN ('RUN', 'PASS')),
+    correct_direction  TEXT CHECK (correct_direction IN ('LEFT', 'MIDDLE', 'RIGHT')),
+    correct_yardage    TEXT CHECK (correct_yardage IN ('SHORT', 'MEDIUM', 'LONG', 'LOSS')),
+    yards_gained       INTEGER,  -- optional; when given, correct_yardage is derived from it
+    voided             INTEGER NOT NULL DEFAULT 0,
+    opened_at          REAL NOT NULL,
+    locks_at           REAL NOT NULL,
+    locked_at          REAL,
+    resolved_at        REAL,
+    UNIQUE (game_id, play_number)
+)"""
+
+_PREDICTIONS = """(
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    play_id        INTEGER NOT NULL REFERENCES plays(id) ON DELETE CASCADE,
+    play_type      TEXT NOT NULL CHECK (play_type IN ('RUN', 'PASS')),
+    direction      TEXT NOT NULL CHECK (direction IN ('LEFT', 'MIDDLE', 'RIGHT')),
+    yardage        TEXT CHECK (yardage IN ('SHORT', 'MEDIUM', 'LONG')),  -- NULL: picked before distance picks
+    points_earned  INTEGER,  -- NULL until the play is resolved
+    submitted_at   REAL NOT NULL,
+    UNIQUE (user_id, play_id)
+)"""
+
+SCHEMA = f"""
 CREATE TABLE IF NOT EXISTS games (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     home_name       TEXT NOT NULL,
@@ -341,24 +391,7 @@ CREATE TABLE IF NOT EXISTS games (
     created_at      REAL NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS plays (
-    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
-    game_id            INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
-    play_number        INTEGER NOT NULL,
-    down               INTEGER CHECK (down BETWEEN 1 AND 4),
-    distance           TEXT,
-    state              TEXT NOT NULL CHECK (state IN ('OPEN', 'LOCKED', 'RESOLVED')),
-    correct_play_type  TEXT CHECK (correct_play_type IN ('RUN', 'PASS')),
-    correct_direction  TEXT CHECK (correct_direction IN ('LEFT', 'CENTER', 'RIGHT')),
-    correct_yardage    TEXT CHECK (correct_yardage IN ('SHORT', 'MEDIUM', 'LONG', 'LOSS')),
-    yards_gained       INTEGER,  -- optional; when given, correct_yardage is derived from it
-    voided             INTEGER NOT NULL DEFAULT 0,
-    opened_at          REAL NOT NULL,
-    locks_at           REAL NOT NULL,
-    locked_at          REAL,
-    resolved_at        REAL,
-    UNIQUE (game_id, play_number)
-);
+CREATE TABLE IF NOT EXISTS plays {_PLAYS};
 -- At most one OPEN/LOCKED play per game.
 CREATE UNIQUE INDEX IF NOT EXISTS ux_plays_one_active
     ON plays(game_id) WHERE state != 'RESOLVED';
@@ -371,17 +404,7 @@ CREATE TABLE IF NOT EXISTS users (
     created_at   REAL NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS predictions (
-    id             INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    play_id        INTEGER NOT NULL REFERENCES plays(id) ON DELETE CASCADE,
-    play_type      TEXT NOT NULL CHECK (play_type IN ('RUN', 'PASS')),
-    direction      TEXT NOT NULL CHECK (direction IN ('LEFT', 'CENTER', 'RIGHT')),
-    yardage        TEXT CHECK (yardage IN ('SHORT', 'MEDIUM', 'LONG')),  -- NULL: picked before distance picks
-    points_earned  INTEGER,  -- NULL until the play is resolved
-    submitted_at   REAL NOT NULL,
-    UNIQUE (user_id, play_id)
-);
+CREATE TABLE IF NOT EXISTS predictions {_PREDICTIONS};
 CREATE INDEX IF NOT EXISTS ix_predictions_play ON predictions(play_id);
 
 CREATE TABLE IF NOT EXISTS lounges (
@@ -411,6 +434,13 @@ MIGRATIONS: dict[str, dict[str, str]] = {
         "yardage": "TEXT CHECK (yardage IN ('SHORT', 'MEDIUM', 'LONG'))",
     },
 }
+
+# Tables whose CHECK constraints name a direction, parents first: (table, definition, direction column).
+# Databases written before LEFT/MIDDLE/RIGHT allow 'CENTER' there; ``Store`` rebuilds them once.
+DIRECTION_TABLES: tuple[tuple[str, str, str], ...] = (
+    ("plays", _PLAYS, "correct_direction"),
+    ("predictions", _PREDICTIONS, "direction"),
+)
 
 MAX_LOUNGE_MEMBERS = 50
 
@@ -459,13 +489,75 @@ class Store:
         self._migrate()
 
     def _migrate(self) -> None:
-        """Add columns that a database created by an older version is missing (idempotent)."""
+        """Bring a database created by an older version up to date (idempotent).
+
+        First add the columns it is missing (the distance columns), then rename the direction
+        CENTER to MIDDLE. In that order a database from the very first release ends up exactly
+        like a new one.
+        """
         with self._tx() as c:
             for table, columns in MIGRATIONS.items():
                 have = {row["name"] for row in c.execute(f"PRAGMA table_info({table})")}
                 for name, decl in columns.items():
                     if name not in have:
                         c.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
+        self._rebuild_direction_tables()
+
+    def _rebuild_direction_tables(self) -> None:
+        """CENTER -> MIDDLE: rebuild each table whose CHECK constraint still says 'CENTER' (runs once).
+
+        SQLite can't alter a CHECK constraint, so this follows https://sqlite.org/lang_altertable.html
+        ("other kinds of table schema changes"): with foreign keys off, in one transaction, create
+        the new table, copy every row and id (turning 'CENTER' into 'MIDDLE'), drop the old table,
+        rename the new one, recreate its indexes and AUTOINCREMENT counter, then check foreign keys.
+        Any failure rolls the whole thing back and leaves the database as it was.
+        """
+        def table_sql(name: str) -> str:
+            row = self._conn.execute(
+                "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?", (name,)
+            ).fetchone()
+            return row["sql"] if row else ""
+
+        stale = [t for t in DIRECTION_TABLES if LEGACY_MIDDLE in table_sql(t[0])]
+        if not stale:
+            return
+        with self._lock:
+            self._conn.execute("PRAGMA foreign_keys = OFF")  # has no effect inside a transaction
+            try:
+                with self._tx() as c:
+                    for table, definition, column in stale:
+                        self._rebuild_table(c, table, definition, column)
+                    for table, _, _ in DIRECTION_TABLES:
+                        if broken := c.execute(f"PRAGMA foreign_key_check({table})").fetchall():
+                            raise RuntimeError(f"Migration aborted: {len(broken)} broken references in {table}.")
+            finally:
+                self._conn.execute("PRAGMA foreign_keys = ON")
+
+    @staticmethod
+    def _rebuild_table(c: sqlite3.Connection, table: str, definition: str, column: str) -> None:
+        indexes = [r["sql"] for r in c.execute(
+            "SELECT sql FROM sqlite_master WHERE type = 'index' AND tbl_name = ? AND sql IS NOT NULL", (table,)
+        )]
+        seq = c.execute("SELECT seq FROM sqlite_sequence WHERE name = ?", (table,)).fetchone()
+        old_cols = [r["name"] for r in c.execute(f"PRAGMA table_info({table})")]
+        c.execute(f"CREATE TABLE {table}__new {definition}")
+        new_cols = [r["name"] for r in c.execute(f"PRAGMA table_info({table}__new)")]
+        if lost := [n for n in old_cols if n not in new_cols]:
+            raise RuntimeError(f"Migration aborted: {table} has unexpected columns {lost}.")
+        cols = [n for n in new_cols if n in old_cols]  # copied by name: older tables order them differently
+        select = ", ".join(
+            f"CASE {n} WHEN '{LEGACY_MIDDLE}' THEN '{Direction.MIDDLE}' ELSE {n} END" if n == column else n
+            for n in cols
+        )
+        c.execute(f"INSERT INTO {table}__new ({', '.join(cols)}) SELECT {select} FROM {table}")
+        c.execute(f"DROP TABLE {table}")
+        c.execute(f"ALTER TABLE {table}__new RENAME TO {table}")
+        for sql in indexes:
+            c.execute(sql)
+        if seq is not None:  # AUTOINCREMENT never reuses an id, even one deleted before the upgrade
+            if not c.execute("UPDATE sqlite_sequence SET seq = MAX(seq, ?) WHERE name = ?",
+                             (seq["seq"], table)).rowcount:
+                c.execute("INSERT INTO sqlite_sequence (name, seq) VALUES (?, ?)", (table, seq["seq"]))
 
     def close(self) -> None:
         with self._lock:
@@ -790,20 +882,22 @@ class Store:
         return {r["user_id"]: r for r in rows}
 
     def pick_stats(self, play_id: int) -> dict[str, int]:
+        """How everyone picked a play, plus ``exact`` (all three right) and ``scored`` (any points)."""
         row = self._one(
-            """SELECT COUNT(*) AS total,
-                      COALESCE(SUM(play_type = 'RUN'), 0)     AS "RUN",
-                      COALESCE(SUM(play_type = 'PASS'), 0)    AS "PASS",
-                      COALESCE(SUM(direction = 'LEFT'), 0)    AS "LEFT",
-                      COALESCE(SUM(direction = 'CENTER'), 0)  AS "CENTER",
-                      COALESCE(SUM(direction = 'RIGHT'), 0)   AS "RIGHT",
-                      COALESCE(SUM(yardage = 'SHORT'), 0)     AS "SHORT",
-                      COALESCE(SUM(yardage = 'MEDIUM'), 0)    AS "MEDIUM",
-                      COALESCE(SUM(yardage = 'LONG'), 0)      AS "LONG",
-                      COALESCE(SUM(points_earned = ?), 0)     AS exact,
-                      COALESCE(SUM(points_earned > 0), 0)     AS scored
-               FROM predictions WHERE play_id = ?""",
-            (EXACT_POINTS, play_id),
+            f"""SELECT COUNT(pr.id) AS total,
+                       COALESCE(SUM(pr.play_type = 'RUN'), 0)     AS "RUN",
+                       COALESCE(SUM(pr.play_type = 'PASS'), 0)    AS "PASS",
+                       COALESCE(SUM(pr.direction = 'LEFT'), 0)    AS "LEFT",
+                       COALESCE(SUM(pr.direction = 'MIDDLE'), 0)  AS "MIDDLE",
+                       COALESCE(SUM(pr.direction = 'RIGHT'), 0)   AS "RIGHT",
+                       COALESCE(SUM(pr.yardage = 'SHORT'), 0)     AS "SHORT",
+                       COALESCE(SUM(pr.yardage = 'MEDIUM'), 0)    AS "MEDIUM",
+                       COALESCE(SUM(pr.yardage = 'LONG'), 0)      AS "LONG",
+                       COALESCE(SUM({_EXACT_SQL}), 0)             AS exact,
+                       COALESCE(SUM(pr.points_earned > 0), 0)     AS scored
+                FROM predictions pr JOIN plays pl ON pl.id = pr.play_id
+                WHERE pr.play_id = ?""",
+            (play_id,),
         )
         return row or {}
 

@@ -3,7 +3,8 @@ import SwiftUI
 /// Single source of truth for the app: account, server, live snapshot, the player's pick and lounges.
 @MainActor
 final class AppState: ObservableObject {
-    enum Tab: Hashable { case live, board, lounges, settings }
+    /// The tab bar, in order: Live, Leaderboard, Lounges, Rules, Settings.
+    enum Tab: Hashable { case live, board, lounges, rules, settings }
 
     struct Notice: Identifiable, Equatable {
         let id = UUID()

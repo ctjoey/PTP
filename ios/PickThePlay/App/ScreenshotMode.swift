@@ -6,7 +6,7 @@ import Foundation
 /// can't reach this path: the variable only exists when a simulator launch sets it.
 enum ScreenshotMode {
     enum Screen: String {
-        case open, locked, result, board, lounges
+        case open, locked, result, board, lounges, rules
     }
 
     static var screen: Screen? {
@@ -32,9 +32,10 @@ enum ScreenshotMode {
                         openedAt: now - 4, locksAt: now + 11, correctPlayType: nil, correctDirection: nil,
                         correctYardage: nil, yardsGained: nil)
 
-        let before = board([("Mia", 140, 4), ("JoeyC", 120, 3), ("Dre", 120, 2), ("Sam", 110, 3), ("Kat", 90, 1),
+        // (name, points, perfect calls); a perfect call is worth 40, so nobody has more than points / 40.
+        let before = board([("Mia", 140, 3), ("JoeyC", 120, 3), ("Dre", 120, 2), ("Sam", 110, 2), ("Kat", 90, 1),
                             ("Big Lou", 80, 1), ("Tasha", 60, 1), ("Rico", 40, 0)])
-        let after = board([("JoeyC", 150, 4), ("Mia", 140, 4), ("Dre", 130, 2), ("Sam", 110, 3), ("Kat", 100, 1),
+        let after = board([("JoeyC", 160, 4), ("Mia", 140, 3), ("Dre", 130, 2), ("Sam", 110, 2), ("Kat", 100, 1),
                            ("Big Lou", 80, 1), ("Tasha", 70, 1), ("Rico", 40, 0)])
         var myPick: Prediction? = Prediction(userId: 2, playId: 42, playType: .pass, direction: .left, yardage: .medium,
                                               pointsEarned: nil, typeCorrect: nil, directionCorrect: nil,
@@ -49,24 +50,25 @@ enum ScreenshotMode {
             break
         case .locked:
             play.state = .locked
-            crowd = Crowd(total: 48, run: 19, pass: 29, left: 22, center: 9, right: 17, short: 20, medium: 18, long: 10,
+            crowd = Crowd(total: 48, run: 19, pass: 29, left: 22, middle: 9, right: 17, short: 20, medium: 18, long: 10,
                           exact: 0, scored: 0)
             event = "play_locked"
-        case .result, .board, .lounges:
-            // An 8-yard completion to the left: PASS · LEFT · MEDIUM, a perfect call for JoeyC.
+        case .result, .board, .lounges, .rules:
+            // An 8-yard completion to the left: PASS · LEFT · MEDIUM, a perfect call for JoeyC
+            // (10 + 10 + 10 + the 10 bonus = 40).
             play.state = .resolved
             play.correctPlayType = .pass
             play.correctDirection = .left
             play.correctYardage = .medium
             play.yardsGained = 8
-            myPick?.pointsEarned = 30
+            myPick?.pointsEarned = 40
             myPick?.typeCorrect = true
             myPick?.directionCorrect = true
             myPick?.yardageCorrect = true
-            crowd = Crowd(total: 48, run: 19, pass: 29, left: 22, center: 9, right: 17, short: 20, medium: 18, long: 10,
+            crowd = Crowd(total: 48, run: 19, pass: 29, left: 22, middle: 9, right: 17, short: 20, medium: 18, long: 10,
                           exact: 6, scored: 41)
             rows = after
-            me = Me(id: 2, username: "JoeyC", gameScore: 150, rank: 1, exactHits: 4, totalScore: 890)
+            me = Me(id: 2, username: "JoeyC", gameScore: 160, rank: 1, exactHits: 4, totalScore: 900)
             event = "play_resolved"
         }
 
@@ -94,7 +96,14 @@ enum ScreenshotMode {
                 return r
             }
 
-        let tab: AppState.Tab = screen == .board ? .board : (screen == .lounges ? .lounges : .live)
+        let tab: AppState.Tab = {
+            switch screen {
+            case .board: return .board
+            case .lounges: return .lounges
+            case .rules: return .rules
+            case .open, .locked, .result: return .live
+            }
+        }()
         return Sample(snapshot: snapshot, previous: previous, lounges: lounges, tab: tab)
     }
 

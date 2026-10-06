@@ -86,6 +86,17 @@ a { color: var(--blue); }
 .brand-sub { font-size: 10px; letter-spacing: .22em; color: var(--muted); margin-top: 4px; font-weight: 700; }
 
 .topbar-actions { display: flex; align-items: center; gap: 8px; }
+.topbar .btn { white-space: nowrap; }
+/* Rules + H2H Lounges + the live dot next to the brand on a 375-pt-wide phone. */
+@media (max-width: 400px) {
+  .topbar { gap: 10px; }
+  .topbar .brand-name { font-size: 20px; }
+  .topbar-actions { gap: 6px; }
+  .topbar .btn-sm { padding: 0 9px; font-size: 13px; }
+}
+/* The admin console's header has more buttons: let them wrap under the brand on a phone. */
+.admin-body .topbar { flex-wrap: wrap; }
+.admin-body .topbar-actions { flex-wrap: wrap; justify-content: flex-end; }
 
 .conn {
   width: 10px; height: 10px; border-radius: 50%;
@@ -485,6 +496,79 @@ a { color: var(--blue); }
 .toast.error { border-color: color-mix(in srgb, var(--danger) 60%, var(--border)); color: #ffd6da; }
 .toast.success { border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); }
 .toast.out { animation: fadeOut .3s ease forwards; }
+
+/* --------------------------------------------------------------- doc pages (rules, support, privacy) */
+
+.doc-page .card h2 { margin: 0 0 8px; font-size: 18px; font-weight: 800; line-height: 1.25; }
+
+.doc-page .card p, .doc-page .card li { color: var(--text); font-size: 15px; line-height: 1.55; }
+.doc-page .card p { margin: 0 0 10px; }
+.doc-page .card p:last-child, .doc-page .card ul:last-child, .doc-page .card ol:last-child,
+.doc-page .card table:last-child, .doc-page .card figure:last-child { margin-bottom: 0; }
+.doc-page .card ul, .doc-page .card ol { margin: 0 0 10px; padding-left: 20px; }
+.doc-page .card li + li { margin-top: 6px; }
+.doc-page .card .scoring-table { width: 100%; border-collapse: collapse; margin: 0 0 10px; font-size: 15px; }
+.doc-page .card .scoring-table th { padding: 0 0 6px; font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); text-align: left; }
+.doc-page .card .scoring-table th:last-child { text-align: right; }
+.doc-page .card .scoring-table td { padding: 8px 0; border-top: 1px solid var(--border); }
+.doc-page .card .scoring-table td:last-child { text-align: right; font-weight: 900; color: var(--accent); padding-left: 10px; white-space: nowrap; }
+.doc-page .doc-head h1 { margin: 0; font-size: 26px; font-weight: 900; line-height: 1.15; }
+.doc-page .doc-links { text-align: center; font-size: 13px; }
+.doc-page a { overflow-wrap: anywhere; }
+
+/* Rules of the Game */
+.scoring-table tr.perfect td,
+.doc-page .card .scoring-table tr.perfect td:last-child { color: var(--gold); font-weight: 900; }
+.scoring-table tr.perfect td:last-child { color: var(--gold); }
+/* 10 + 10 + 10 + 10 = 40 on one line at 375 pt; if it ever wraps, a line starts with its operator. */
+.bonus-math {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px;
+  margin: 0 0 14px; padding: 12px 6px; border-radius: 14px; background: var(--surface-2);
+}
+.bonus-math .step { display: inline-flex; align-items: center; gap: 4px; }
+.bonus-math .step i { font-style: normal; font-weight: 900; color: var(--dim); }
+.bonus-math .term {
+  display: flex; flex-direction: column; align-items: center; min-width: 34px;
+  padding: 5px 6px; border-radius: 10px; background: var(--surface-3);
+}
+.bonus-math .term b { font-size: 18px; font-weight: 900; color: var(--accent); line-height: 1.1; }
+.bonus-math .term span { font-size: 10px; font-weight: 700; color: var(--muted); }
+.bonus-math .term.bonus b, .bonus-math .term.bonus span { color: var(--gold); }
+.bonus-math .term.bonus { background: color-mix(in srgb, var(--gold) 16%, var(--surface-3)); }
+.bonus-math .total { font-size: 26px; font-weight: 900; color: var(--gold); padding: 0 2px; }
+.example { padding: 10px 12px; border-left: 3px solid var(--blue); border-radius: 0 10px 10px 0; background: var(--surface-2); }
+.diagram { margin: 4px 0 12px; }
+.diagram svg { display: block; width: 100%; height: auto; }
+.diagram figcaption { margin-top: 6px; font-size: 12px; color: var(--muted); text-align: center; line-height: 1.4; }
+/* Labels are in viewBox units (340 wide): 12 renders about 11 px on a 375-pt phone. */
+.diagram text { font-family: var(--font); font-weight: 800; }
+.diagram .zone-left { fill: var(--blue); }
+.diagram .zone-middle { fill: var(--accent); }
+.diagram .zone-right { fill: var(--gold); }
+.diagram .zone { opacity: .16; }
+.diagram .zone-label { font-size: 13px; letter-spacing: .08em; text-anchor: middle; }
+.diagram .lbl-left { fill: var(--blue); }
+.diagram .lbl-middle { fill: var(--accent); }
+.diagram .lbl-right { fill: var(--gold); }
+.diagram .ink { fill: var(--text); }
+.diagram .faint { fill: var(--muted); }
+.diagram .player { fill: var(--surface-3); stroke: var(--muted); stroke-width: 1.5; }
+.diagram .player.end { fill: none; stroke-dasharray: 3 3; }
+.diagram .player.qb { fill: var(--text); stroke: none; }
+.diagram .player-label { font-size: 12px; text-anchor: middle; fill: var(--text); }
+.diagram .qb-label { font-size: 12px; text-anchor: middle; fill: var(--bg); }
+.diagram .boundary { stroke: var(--muted); stroke-width: 1.2; stroke-dasharray: 4 4; fill: none; }
+.diagram .los { stroke: var(--blue); stroke-width: 2; }
+.diagram .path { fill: none; stroke-width: 2.5; stroke-linecap: round; }
+.diagram .path-left { stroke: var(--blue); }
+.diagram .path-middle { stroke: var(--accent); }
+.diagram .path-right { stroke: var(--gold); }
+.diagram .field { fill: #0c2418; stroke: var(--text); stroke-width: 2; }
+.diagram .yardline { stroke: var(--text); stroke-opacity: .18; stroke-width: 1; }
+.diagram .hash { stroke: var(--text); stroke-width: 2; }
+.diagram .small-label { font-size: 12px; text-anchor: middle; }
+.diagram .small-label.ta-start { text-anchor: start; }
+.diagram .small-label.ta-end { text-anchor: end; }
 
 /* --------------------------------------------------------------- admin */
 
