@@ -294,7 +294,7 @@ You can do all of this in Safari on your iPhone. This is also the server the nat
 | Windows: `py` is not recognized | Close the terminal and open a new one. If that doesn't help, run the Python installer again and choose **Repair**. |
 | "running scripts is disabled on this system" | You ran an `activate` script. You don't need it: use the `.\venv\Scripts\python.exe` commands above. |
 | Install fails with "Failed building wheel" or "Microsoft Visual C++ ... is required" | The venv was made with the wrong Python (usually 3.15 or a preview version). Delete the `venv` folder, install Python 3.14, and redo step A4. |
-| "Pick the Play needs Python 3.11 or newer" | The command used an old Python. If your command started with `venv`, the venv was made with an old Python: delete the `venv` folder and redo step A4 exactly as written (`python3.14` / `py -3.14`). |
+| "Pick the Play needs Python 3.11 or newer" | The `venv` folder was made with an old Python. Delete the `venv` folder, redo step A4 exactly as written (`python3.14` on Mac, `py -3.14` on Windows), then start again with the A5 command. |
 | "Port 8000 is already in use" | The game is already running in another window. Use that window, or click in it, press `Ctrl + C`, and start again. |
 | The admin console says "Invalid admin key." | The server was started with a different password, or without one (then the key is `admin`). Stop it with `Ctrl + C` and start it again with the `PTP_ADMIN_KEY` command from A8. |
-| "No such file or directory" or "can't open file 'app.py'" | The terminal is in the wrong folder. Redo step A3 and check you can see `app.py`. |
+| "No such file or directory", "can't open file 'app.py'", or (Windows) "'.\venv\Scripts\python.exe' is not recognized" | The terminal is in the wrong folder, or step A4 wasn't done in this folder. Redo step A3 and check you can see `app.py`, then run A4 if there is no `venv` folder. |

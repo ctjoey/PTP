@@ -217,7 +217,7 @@ offensive usernames and lounge names are rejected with "Please choose a differen
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `PTP_ADMIN_KEY` | `admin` | Admin console key. **Change it** before inviting real players. |
-| `PTP_DB_PATH` | `./game.db` | SQLite file location |
+| `PTP_DB_PATH` | `game.db` next to `app.py` | SQLite file location |
 | `PTP_PREDICTION_WINDOW` | `15` | Default seconds a play stays open |
 | `PTP_CONTACT_EMAIL` | unset | Contact address shown on `/privacy` and `/support` (unset: they point to the App Store listing) |
 | `HOST` / `PORT` | `127.0.0.1` / `8000` | Bind address when using `python app.py` (`--phone` binds `0.0.0.0`; `--port` overrides `PORT`) |
@@ -226,8 +226,8 @@ offensive usernames and lounge names are rejected with "Please choose a differen
 ## Tests
 
 ```bash
-pip install -r requirements-dev.txt
-pytest -q
+venv/bin/python -m pip install -r requirements-dev.txt   # Windows: .\venv\Scripts\python.exe -m pip ...
+venv/bin/python -m pytest -q                             # Windows: .\venv\Scripts\python.exe -m pytest -q
 ```
 
 The suite covers every scoring combination, the play state machine, late-pick rejection, voids,
