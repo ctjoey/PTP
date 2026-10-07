@@ -49,7 +49,7 @@
   --surface-2: #eef2f8;
   --surface-3: #e0e7f1;
   --border: #c5cfde;
-  --control-border: #8190a7;
+  --control-border: #76859c;
   --text: #0f1a2b;
   --muted: #475569;
   --dim: #5b697e;
@@ -136,8 +136,9 @@ a { color: var(--blue); }
 
 .topbar-actions { display: flex; align-items: center; gap: 8px; }
 .topbar .btn { white-space: nowrap; }
-/* Rules + H2H Lounges + the live dot next to the brand on a 375-pt-wide phone. */
-@media (max-width: 400px) {
+/* Rules + Lounges + the theme toggle + the live dot next to the brand: compact up to 460 px so the dot never
+   pokes out of the viewport (an iPhone Pro Max is 430 wide). */
+@media (max-width: 460px) {
   .topbar { gap: 8px; }
   .topbar .brand { flex: none; }
   .topbar .brand-name { font-size: 19px; }
@@ -337,7 +338,7 @@ a { color: var(--blue); }
 .pick-grid { display: grid; gap: 10px; }
 .pick-grid.two { grid-template-columns: 1fr 1fr; }
 .pick-grid.three { grid-template-columns: repeat(3, 1fr); }
-.pick-grid.four { grid-template-columns: repeat(4, 1fr); }
+.pick-grid.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .pick-btn {
   min-height: 64px;
   border-radius: 14px;
@@ -695,7 +696,7 @@ a { color: var(--blue); }
 .state-badge { font-weight: 900; letter-spacing: .12em; font-size: 14px; padding: 6px 12px; border-radius: 999px; background: var(--surface-3); color: var(--muted); }
 .state-badge.OPEN { background: color-mix(in srgb, var(--accent) 20%, transparent); color: var(--accent); }
 .state-badge.LOCKED { background: color-mix(in srgb, var(--warn) 20%, transparent); color: var(--warn); }
-.state-badge.RESOLVED { background: color-mix(in srgb, var(--blue) 20%, transparent); color: var(--blue); }
+.state-badge.RESOLVED { background: color-mix(in srgb, var(--blue) 14%, transparent); color: var(--blue); }
 .ctrl-timer { font-size: 34px; font-weight: 900; font-variant-numeric: tabular-nums; }
 .ctrl-section { display: flex; flex-direction: column; gap: 10px; padding-top: 14px; margin-top: 14px; border-top: 1px solid var(--border); }
 .ctrl-section:first-child { border-top: 0; margin-top: 0; padding-top: 0; }
@@ -723,7 +724,12 @@ a { color: var(--blue); }
 .yards-box input::placeholder { color: var(--dim); font-weight: 800; }
 .yards-box input:disabled { opacity: .45; }
 .yards-box small { font-size: 11px; font-weight: 700; color: var(--muted); letter-spacing: .06em; }
-@media (max-width: 520px) { .yardage-row { grid-template-columns: 1fr; } }
+@media (max-width: 520px) { .yardage-row { grid-template-columns: minmax(0, 1fr); } }
+/* iPhone SE-class width: four distance buttons in a row must shrink instead of pushing the card wider. */
+@media (max-width: 340px) {
+  .pick-grid.four.result-grid { gap: 6px; }
+  .pick-grid.four.result-grid .pick-btn { font-size: 12.5px; padding-left: 2px; padding-right: 2px; letter-spacing: 0; }
+}
 .text-btn { background: none; border: 0; color: var(--danger); font-weight: 700; padding: 6px; font-size: 14px; }
 .text-btn:disabled { opacity: .35; }
 .shortcuts { font-size: 12px; color: var(--dim); line-height: 1.7; }

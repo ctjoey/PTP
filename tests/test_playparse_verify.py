@@ -249,3 +249,61 @@ def test_next_down_none_for_a_touchdown_and_for_reviews():
     assert nd("1st & Goal at WSH 4", 4, AID, td=True) is None
     e = entry("A.Dalton sacked at CAR 12 for -4 yards (F.Luvu).", "2nd & 8 at CAR 16", teamID=AID)
     assert next_down_and_distance(e, classify(e), HOME, AWAY, HID, AID) is None
+
+
+# A second round of invented strings (a different verifier, different phrasing): (text, (kind, type, direction, yards)).
+INVENTED_2 = [
+    ("J.Allen pass short left to S.Diggs to BUF 40 for 12 yards (T.Edmunds). FUMBLES (T.Edmunds), touched at BUF 38, RECOVERED by BUF-S.Diggs.",
+     ("review", "PASS", "LEFT", 12)),
+    ("A.Rodgers pass incomplete short right to A.Lazard. Batted at the line by T.Watt.", ("play", "PASS", "RIGHT", 0)),
+    ("A.Rodgers pass deep left to G.Wilson, tipped by M.Peters, INTERCEPTED by M.Peters at NYJ 20. M.Peters to NYJ 30 for 10 yards.",
+     ("review", "PASS", "LEFT", 0)),
+    ("P.Mahomes pass short middle to T.Kelce to KC 45 for 6 yards (L.David). Penalty on TB-L.David, Defensive Holding, declined.",
+     ("play", "PASS", "MIDDLE", 6)),
+    ("P.Mahomes pass short middle to T.Kelce to KC 45 for 6 yards (L.David). Penalty on TB-L.David, Defensive Holding, 5 yards, "
+     "enforced at KC 39, accepted, 1st down.", ("review", "PASS", "MIDDLE", 6)),
+    ("I.Pacheco left tackle to KC 30 for 2 yards (V.Vea). Penalty on KC-C.Humphrey, Holding, 10 yards, enforced at KC 28.",
+     ("review", "RUN", "LEFT", 2)),
+    ("I.Pacheco left tackle to KC 30 for 2 yards (V.Vea). Penalty on KC-C.Humphrey, Holding, 10 yards, enforced at KC 28 - No Play.",
+     ("void", None, None, None)),
+    ("Jet sweep: R.Rice left end to KC 35 for 7 yards (V.Vea).", ("play", "RUN", "LEFT", 7)),
+    ("P.Mahomes scrambles up the middle to KC 40 for 9 yards (V.Vea). Pass was thrown away earlier.", ("review", None, None, 9)),
+    ("P.Mahomes pass to the sideline thrown away.", ("review", "PASS", None, None)),
+    ("P.Mahomes sack: no direction charted. -8 yards.", ("review", "PASS", None, None)),
+    ("P.Mahomes pass incomplete deep middle to M.Hardman. Intended for X, INTERCEPTION overturned by replay.",
+     ("review", "PASS", "MIDDLE", 0)),
+    ("Hail Mary: A.Rodgers pass deep middle to A.Lazard to END ZONE, incomplete.", ("play", "PASS", "MIDDLE", 0)),
+    ("D.Henry up the middle to TEN 20 for 1 yard (J.Allen). TOUCHDOWN nullified by penalty, no play.", ("void", None, None, None)),
+    ("D.Henry right end for 12 yards, TOUCHDOWN. The Replay Official reviewed the runner was down by contact. The ruling on the field "
+     "was reversed.", ("review", "RUN", "RIGHT", 12)),
+    ("D.Henry right end to TEN 1 for 12 yards (J.Allen). Titans challenged the spot, ruling upheld.", ("review", "RUN", "RIGHT", 12)),
+    ("J.Fields pass short left to D.Moore for 8 yards, TOUCHDOWN. Two-Point Conversion Attempt: J.Fields pass to C.Kmet is complete. "
+     "ATTEMPT SUCCEEDS.", ("play", "PASS", "LEFT", 8)),
+    ("J.Fields right end for 1 yard, TOUCHDOWN. PAT: B.Santos kick is good.", ("play", "RUN", "RIGHT", 1)),
+    ("J.Fields up the middle to GB 1 for 2 yards (Q.Walker). TOUCHDOWN. Challenge: down by contact.", ("review", "RUN", "MIDDLE", 2)),
+    ("J.Fields pass short right to D.Moore to GB 20 for 15 yards (J.Alexander). Lateral to K.Herbert to GB 5 for 15 yards.",
+     ("review", "PASS", "RIGHT", 15)),
+    ("Fake punt: T.Gill pass short right to X.Doe for 11 yards.", ("play", "PASS", "RIGHT", 11)),
+    ("J.Fields pass short right to D.Moore for 7 yards. Pass Interference on GB.", ("review", "PASS", "RIGHT", 7)),   # named outside "PENALTY on"
+    ("J.Fields pass incomplete short right to D.Moore. Penalty on GB-J.Alexander, Defensive Pass Interference, 12 yards, "
+     "enforced at CHI 20, accepted.", ("review", "PASS", "RIGHT", 0)),
+    ("J.Fields pass incomplete short right to D.Moore. Penalty on GB-J.Alexander, Defensive Pass Interference, declined.",
+     ("play", "PASS", "RIGHT", 0)),
+    ("J.Fields pass incomplete short right to D.Moore. Penalty on GB-J.Alexander, Defensive Pass Interference, declined. "
+     "Penalty on CHI-L.Wallace, Illegal Use of Hands, offsetting.", ("review", "PASS", "RIGHT", 0)),
+    ("J.Fields pass short left to D.Moore to CHI 30 for 5 yards (J.Alexander). Penalty on CHI-L.Wallace, Illegal Formation, 5 yards, "
+     "enforced at CHI 25 - No Play.", ("void", None, None, None)),
+    ("(Run Pass Option) J.Fields up the middle to CHI 33 for 3 yards (J.Alexander).", ("play", "RUN", "MIDDLE", 3)),
+    ("Z.Wilson right guard to NYJ 20 for 4 yards, 1st down. Z.Wilson fumbles snap exchange, recovered by Z.Wilson.",
+     ("review", "RUN", "RIGHT", 4)),
+    ("Z.Wilson scrambles, pass incomplete short left to G.Wilson.", ("review", None, None, None)),
+]
+
+
+@pytest.mark.parametrize("text, expected", INVENTED_2, ids=[t[:60] for t, _ in INVENTED_2])
+def test_invented_strings_round_two(text, expected):
+    kind, ptype, direction, yards = read(text)
+    assert kind == expected[0]
+    for got, want in zip((ptype, direction, yards), expected[1:]):
+        if want is not None:
+            assert got == want

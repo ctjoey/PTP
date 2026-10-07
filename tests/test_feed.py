@@ -389,12 +389,12 @@ def test_lag_is_measured_and_sets_the_next_first_check(tmp_path):
         await rig.step(8)
         await lock_entry(rig, RUN_LEFT_END)
         s = rig.state()
-        assert s["waiting"]["next_check_at"] - s["waiting"]["since"] == pytest.approx(min(25.0, max(6.0, 0.8 * lag)))
+        assert s["waiting"]["next_check_at"] - s["waiting"]["since"] == pytest.approx(min(45.0, max(6.0, 0.8 * lag)))
 
     run_rig(tmp_path, scenario)
 
 
-def test_first_check_delay_is_clamped_between_6_and_25_seconds(tmp_path):
+def test_first_check_delay_is_clamped_between_6_and_45_seconds(tmp_path):
     async def scenario(rig: Rig):
         await rig.new_game()
         rig.feed.lags = [1.0, 2.0, 1.5]
@@ -405,7 +405,14 @@ def test_first_check_delay_is_clamped_between_6_and_25_seconds(tmp_path):
         await rig.step(8)
         rig.feed.lags = [80.0, 90.0, 70.0]
         await lock_entry(rig, RUN_LEFT_END)
-        assert rig.state()["waiting"]["next_check_at"] - rig.state()["waiting"]["since"] == 25.0
+        assert rig.state()["waiting"]["next_check_at"] - rig.state()["waiting"]["since"] == 45.0
         assert rig.state()["lag"]["median"] == 80.0
+        await rig.step(8)
+        rig.feed.lags = [50.0, 52.0, 48.0, 50.0, 51.0]            # a slow feed: 0.8 x 50 = 40 s, not the old 25 s ceiling
+        rig.server.reveal(upto=RUN_LEFT_END)
+        await rig.until(lambda: rig.state()["suggestion"] is not None)
+        await rig.step(8)
+        await lock_entry(rig, 3)
+        assert rig.state()["waiting"]["next_check_at"] - rig.state()["waiting"]["since"] == pytest.approx(0.8 * 50.0)
 
     run_rig(tmp_path, scenario)

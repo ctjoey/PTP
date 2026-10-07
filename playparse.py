@@ -73,6 +73,8 @@ _TOUCHDOWN = re.compile(r"\btouchdown\b", _I)
 _NO_PLAY = re.compile(r"\bno play\b", _I)
 _PENALTY = re.compile(r"\bpenalt(?:y|ies)\b", _I)
 _PENALTY_START = re.compile(r"(?=\bpenalt(?:y|ies)\b)", _I)   # splits a sentence in front of each penalty it names
+_PENALTY_TALK = re.compile(r"\bflag(?:ged)?\b|\binterference\b|\broughing\b|\boffsides?\b|\bencroachment\b|\bfalse start\b"
+                           r"|\bface ?mask\b|\bholding\b|\bunsportsmanlike\b|\bdelay of game\b", _I)  # a penalty named outside "PENALTY on ..."
 _PENALTY_DECLINED = re.compile(r"\bdeclined\b", _I)
 _PENALTY_OFFSETTING = re.compile(r"\boffsetting\b|\boffset\b", _I)
 
@@ -302,6 +304,9 @@ def _scrimmage(out: Parsed, core: str, has_dd: bool) -> Parsed:
     if accepted_penalty:
         flags.append("Penalty accepted: the yardage may be different")
         reason = reason or "penalty_accepted"
+    elif _PENALTY_TALK.search(body):
+        flags.append("A penalty is mentioned: the yardage may be different")
+        reason = reason or "penalty_mentioned"
     if offsetting:
         flags.append("Offsetting penalties: the down is probably replayed (no play)")
         reason = reason or "penalty_offsetting"

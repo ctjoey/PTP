@@ -447,3 +447,114 @@ def test_the_background_loop_sleeps_when_nothing_is_due_and_never_spins(tmp_path
         assert len(rig.server.hits) == 0                        # the clock is manual: nothing is due yet
 
     run_rig(tmp_path, scenario)
+
+
+# --------------------------------------------------------------------------- #
+# "Check now" must never throw away the result of the play the host has open
+# --------------------------------------------------------------------------- #
+
+
+def test_check_now_after_the_whistle_keeps_the_open_plays_entry(tmp_path):
+    """The play has happened but the host has not locked it yet: tapping Check now reads its entry. Treating that entry
+    as an orphan would leave the play waiting for the NEXT entry, and every later play one entry behind."""
+    async def scenario(rig: Rig):
+        await rig.new_game()
+        await rig.open(*dd(FIRST_PASS))                         # open, not locked
+        rig.server.reveal(upto=FIRST_PASS)
+        await rig.ctrl.feed_check_now()
+        assert len(rig.server.hits) == 1 and rig.feed.cursor == FIRST_PASS and "orphan" not in kinds(rig)
+        await rig.lock()                                        # now it locks: the entry is already known, no request
+        sug = rig.state()["suggestion"]
+        assert len(rig.server.hits) == 1 and sug["yards"] == 7 and sug["status"] == "ready" and sug["warning"] is None
+        await rig.step(8)
+        assert rig.play()["state"] == "RESOLVED" and rig.play()["resolved_by"] == "feed"
+        await rig.open_lock(*dd(2))                             # the next play lines up with the next entry
+        rig.server.reveal(upto=2)
+        await rig.until(lambda: rig.state()["suggestion"] is not None)
+        assert rig.state()["suggestion"]["yards"] == 4 and rig.state()["suggestion"]["warning"] is None
+
+    run_rig(tmp_path, scenario)
+
+
+def test_check_now_with_a_play_open_discards_only_the_older_unopened_entries(tmp_path):
+    async def scenario(rig: Rig):
+        await new_game_midway(rig, 1)
+        await rig.open(*dd(4))                                  # the host joins at play 4 (entries 1-3 went by)
+        rig.server.reveal(upto=4)
+        await rig.ctrl.feed_check_now()
+        assert kinds(rig).count("orphan") == 3 and rig.feed.cursor == 4
+        await rig.lock()
+        sug = rig.state()["suggestion"]
+        assert sug["text"].startswith("C.Hubbard left tackle to WAS 43") and sug["warning"] is None
+
+    run_rig(tmp_path, scenario)
+
+
+# --------------------------------------------------------------------------- #
+# A restart forgets what only lived in memory, so its first suggestion goes to the host
+# --------------------------------------------------------------------------- #
+
+
+def test_the_first_suggestion_after_a_restart_waits_for_the_host(tmp_path):
+    """The host scored play 1 before its entry arrived, the server restarted (the "wait for play 1's entry" note was lost),
+    and play 2 has the same down and distance: play 1's entry would be scored as play 2's by the timer."""
+    import asyncio
+
+    from app import GameController, Hub
+    from models import Store
+
+    async def scenario(rig: Rig):
+        await rig.new_game()
+        await rig.open_lock(1, "10")
+        await rig.ctrl.resolve_play(ResolveIn(play_type="PASS", direction="RIGHT", yards=7))
+        await rig.open_lock(1, "10")                            # play 2: also "1st & 10"
+        store2 = Store(rig.settings.db_path)
+        ctrl2 = GameController(store2, Hub(), rig.settings)
+        ctrl2.feed.clock, ctrl2.feed.autorun = rig.clock, False
+        await ctrl2.recover()
+        rig.server.reveal(upto=FIRST_PASS)                      # play 1's entry arrives
+        for _ in range(40):
+            rig.clock.advance(1)
+            await ctrl2.feed.tick()
+            if ctrl2.feed.suggestion:
+                break
+        s = ctrl2.feed.state()["suggestion"]
+        assert s["status"] == "review" and s["auto_at"] is None and "restarted" in s["warning"]
+        await ctrl2.shutdown()
+        store2.close()
+
+    run_rig(tmp_path, scenario)
+
+
+def test_a_brand_new_game_is_not_distrusted(tmp_path):
+    async def scenario(rig: Rig):
+        await rig.new_game()
+        await lock_entry(rig, FIRST_PASS)
+        await show_and_wait(rig, FIRST_PASS)
+        sug = rig.state()["suggestion"]
+        assert sug["status"] == "ready" and sug["auto_at"] is not None and sug["warning"] is None
+
+    run_rig(tmp_path, scenario)
+
+
+# --------------------------------------------------------------------------- #
+# The wire
+# --------------------------------------------------------------------------- #
+
+
+def test_a_gzip_answer_is_read_and_plain_text_is_asked_for(tmp_path):
+    import gzip
+    import json as _json
+
+    async def scenario(rig: Rig):
+        rig.server.reveal(upto=2)
+        body = _json.dumps({"statusCode": 200, "body": rig.server.box()}).encode()
+        rig.server.queue(200, raw=gzip.compress(body), headers={"content-encoding": "gzip"})
+        result = await rig.feed.tank01.box_score("20241020_CAR@WSH")
+        assert result.ok and len(result.body["allPlayByPlay"]) == 3
+        assert rig.server.hits[0]["headers"]["accept-encoding"] == "identity"
+        rig.server.queue(200, raw=b"\x1f\x8b not really gzip", headers={"content-encoding": "gzip"})
+        broken = await rig.feed.tank01.box_score("20241020_CAR@WSH")
+        assert not broken.ok and broken.error_kind == "bad_json"
+
+    run_rig(tmp_path, scenario)

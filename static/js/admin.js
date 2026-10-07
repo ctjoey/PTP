@@ -422,9 +422,12 @@
     $("#distance").addEventListener("input", () => feed.ddEdited());
     for (const b of $$("[data-down]")) {
       b.addEventListener("click", () => {
-        feed.ddEdited();
         const d = Number(b.dataset.down);
-        A.down = A.down === d ? null : d;
+        // Tapping the down the live feed just filled in confirms it; it must not clear it (a tap on a
+        // selected down otherwise un-selects it).
+        const confirming = A.down === d && !$("#dd-hint").hidden;
+        feed.ddEdited();
+        A.down = A.down === d && !confirming ? null : d;
         render();
       });
     }

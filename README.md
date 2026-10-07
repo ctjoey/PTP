@@ -153,10 +153,18 @@ working, and nothing waits for the feed.
 When in doubt the parser says "review", never a guess. An interception's return yards, a penalty's yards and
 a field goal's distance are never mistaken for the play's yards.
 
+**If you miss a play** (never open it), its feed entry is still waiting when you open the next one. The down-and-distance
+check catches it ("Feed shows 2nd & 3 but this play is 1st & 10": tap **Skip this feed play**), but it cannot when both
+plays have the same down and distance, so glance at the shown play text during the 8 s countdown; **Hold** stops it.
+
 **If you score first** (you are faster than the feed) your play stays in line as "verification only": when its
 entry arrives it is checked, and if the feed disagrees you get a **Disagreement** banner with **Fix result** or
 **Dismiss**. **Fix result** (also on any row of the Play log) re-scores every pick and moves each player's
 total by the difference.
+
+**After a restart** (or when live data is connected in the middle of a game) the server has forgotten which hand-scored
+plays still wait for their entries, so the **first** suggestion is shown as a review ("Score now") instead of counting
+down by itself; after that it is automatic again.
 
 ### The live-data panel
 
@@ -164,7 +172,8 @@ total by the difference.
   *Capped*, *Error*, *Waiting for kickoff*, *The game is over*, or *Feed is quiet: long delay (injury or review?)*.
 - **Pause / Resume / Check now.** Pause stops every request and the auto-score countdown (use it for an injury,
   a long replay review, or any time you want hands-off); Resume checks right away if a play is waiting;
-  **Check now** makes one request on demand, even while paused.
+  **Check now** makes one request on demand, even while paused. With nothing locked, it throws away feed entries for plays
+  nobody opened (a way to catch up after missing a few), but keeps the newest one for a play you have open and not yet locked.
 - Toggles: **Auto-score clean plays** (on by default) and **Open next play automatically** (**off** by default).
 - **Typical delay: N s**, the median of how long Tank01 took to show the last plays. Auto-open is only safe once
   you have seen it: lag + the 8 s grace + the 12 s open delay should be well under about 25 s.
@@ -181,7 +190,8 @@ and any host action (open, void, pause, end game) cancels it.
 
 Tank01's **Basic** plan allows **1,000 requests per month** (the responses say how many are left). The smart
 method spends roughly **2 to 4 requests per play** when the feed's delay is steady: about 250 to 450 for a whole
-game. A later **Pro** plan is 1,000 per day, then $0.01 per extra request.
+game. (Measured on the recorded game with a steady delay: 1.5 per play at 12 s, 2 at 20 s, 3 at 45 s, 5 at 60 s,
+8 at 90 s; the first check learns from the typical delay, up to 45 s.) A later **Pro** plan is 1,000 per day, then $0.01 per extra request.
 
 Every real request goes through one gate that counts it (for the game and for the UTC day, saved in the database,
 so a restart cannot reset a count) and enforces the caps. Live data stops polling, shows **Capped** with a plain
@@ -194,7 +204,7 @@ message, and manual scoring carries on, when:
 - Tank01 itself says the quota is used up.
 
 Schedule:
-the first check comes `0.8 x typical delay` after the lock (kept between 6 and 25 s; `TANK01_FIRST_DELAY`, 10 s,
+the first check comes `0.8 x typical delay` after the lock (kept between 6 and 45 s, so a slow feed is not polled from second 25 on; `TANK01_FIRST_DELAY`, 10 s,
 until it has samples), then every `TANK01_FAST_INTERVAL` (5 s) for the first minute, every 10 s until 3 minutes,
 every 20 s until 10 minutes, then every 30 s. A game that has not started is checked every 2 minutes. Errors back
 off (10, 20, then 30 s); after 5 failures in a row the panel shows **Error** (it keeps trying slowly), after 10 it

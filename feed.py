@@ -28,6 +28,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import zlib
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -52,7 +53,7 @@ INTERVALS = ((60.0, None), (180.0, 10.0), (600.0, 20.0))  # None: the fast inter
 SLOW_INTERVAL = 30.0
 QUIET_AFTER = 600.0
 NOT_STARTED_RETRY = 120.0
-FIRST_DELAY_MIN, FIRST_DELAY_MAX = 6.0, 25.0
+FIRST_DELAY_MIN, FIRST_DELAY_MAX = 6.0, 45.0   # a slow feed (lag 45 s+) must not be polled from second 25 on
 BACKOFF_MAX = 30.0
 ERROR_AFTER, AUTOPAUSE_AFTER = 5, 10
 VERIFY_TTL = 150.0   # a play the host scored first waits this long for its feed entry
@@ -61,6 +62,8 @@ SCHEDULE_CACHE_TTL = 300.0
 MAX_AUTO_OPEN_DOWN = 3
 LAG_SAMPLES = 5
 BASELINE_GAP = 2     # the feed this many plays ahead of the app game on first read means a late start
+DISTRUST_FEED_CHANGED = "The feed's list of plays changed earlier: check that this is the right play"
+DISTRUST_RESTARTED = "Live data was connected or restarted mid-game: check that this is the right play"
 
 ORDINAL = {1: "1st", 2: "2nd", 3: "3rd", 4: "4th"}
 
@@ -161,7 +164,7 @@ class Tank01Client:
         started = time.monotonic()
         url = f"{self.base_url}/{path}?{urllib.parse.urlencode(params)}"
         headers = {"x-rapidapi-host": urllib.parse.urlsplit(self.base_url).netloc, "x-rapidapi-key": self._key,
-                   "accept": "application/json", "user-agent": "PickThePlay/1.0"}
+                   "accept": "application/json", "accept-encoding": "identity", "user-agent": "PickThePlay/1.0"}
         status: int | None = None
         resp_headers: Any = {}
         raw = b""
@@ -185,6 +188,11 @@ class Tank01Client:
         result = FeedResult(http_status=status, elapsed_ms=_ms(started),
                             remaining=_int_header(resp_headers, "x-ratelimit-requests-remaining"),
                             limit=_int_header(resp_headers, "x-ratelimit-requests-limit"))
+        if "gzip" in str(getattr(resp_headers, "get", lambda *_: "")("content-encoding") or "").lower():
+            try:   # asked for plain text, but a proxy in front of the service may compress anyway
+                raw = zlib.decompressobj(16 + zlib.MAX_WBITS).decompress(raw, MAX_RESPONSE_BYTES)
+            except zlib.error:
+                raw = b""
         self._interpret(result, status, raw)
         return result
 
@@ -330,7 +338,7 @@ def ordinal_dd(down: int | None, to_go: str | None) -> str:
         parts.append(ORDINAL.get(down, f"{down}th"))
     if to_go:
         parts.append(("Goal" if to_go.lower() == "goal" else to_go))
-        return " & ".join(parts) if len(parts) == 2 else f"& {parts[0]}"
+        return " & ".join(parts) if len(parts) == 2 else f"{parts[0]} to go"
     return f"{parts[0]} down" if parts else "unknown"
 
 
@@ -432,7 +440,7 @@ class LiveFeed:
         self._seen_at: dict[int, float] = {}
         self._texts: list[str] = []
         self._scored: dict[int, tuple[int, tuple[str | None, str | None, str | None]]] = {}  # entry -> (play, result)
-        self._distrust = False
+        self._distrust: str | None = None   # why the next suggestion must go to the host instead of the timer
         self._twins: list[tuple[float, int | None, str | None]] = []
         self._fail_streak = self._read_failures = 0
         self._auth_error = False
@@ -473,6 +481,11 @@ class LiveFeed:
                                         next_check=now + first, lag_valid=False))
             if self._demo:
                 self._demo.on_play_locked()
+        if self.store.played_count(game["id"]):
+            # A restart (or a link made mid-game) has lost what only lived in memory: plays the host scored before their
+            # entries arrived, and voided plays whose "No Play" entry is still to come. Either could shift the next
+            # entry onto the wrong play, so the first suggestion goes to the host instead of the timer.
+            self._distrust = DISTRUST_RESTARTED
         self._log("attach", {"feed_game_id": self.feed_id, "source": self.source, "cursor": self.cursor,
                              "pending": [p.play_id for p in self.pending]})
         if self.autorun:
@@ -775,7 +788,7 @@ class LiveFeed:
                 self._log("stale", {"was": len(self._texts), "now": len(entries)})
                 return
             self._log("revised", {"reason": "feed got shorter", "was": len(self._texts), "now": len(entries)})
-            self._distrust = True   # entries moved: the next suggestion goes to the host, never to the timer
+            self._distrust = DISTRUST_FEED_CHANGED   # entries moved: the next suggestion goes to the host, never to the timer
             del self._texts[len(entries):]
             self.cursor = min(self.cursor, len(entries))
         for i in range(min(len(self._texts), len(entries))):
@@ -862,6 +875,8 @@ class LiveFeed:
                 continue
             self._drop_stale_verifications(now)
             if not self.pending:
+                if self._belongs_to_open_play(idx):
+                    break   # the host's open play has just happened: its entry waits for the lock, it is not an orphan
                 self._log("orphan", {"text": parsed.text[:200], "kind": parsed.kind}, feed_index=idx)
                 self.cursor += 1
                 continue
@@ -883,6 +898,15 @@ class LiveFeed:
             self.cursor += 1
             break
         self._persist_cursor()
+
+    def _belongs_to_open_play(self, idx: int) -> bool:
+        """With nothing locked, the newest scrimmage entry may be the result of the play the host has open but has not
+        locked yet (a "Check now" tapped after the whistle). Throwing it away would shift every later play onto the
+        wrong entry; older entries can only be plays nobody opened, so they are still orphans."""
+        play = self.store.latest_play(self.game_id) if self.game_id else None
+        if not play or play["state"] != PlayState.OPEN:
+            return False
+        return all(classify(e).kind == "skip" for e in self.entries[idx + 1:])
 
     def _drop_stale_verifications(self, now: float) -> None:
         stale = [p for p in self.pending if p.resolved and now - p.resolved_at > VERIFY_TTL]
@@ -956,9 +980,8 @@ class LiveFeed:
             status = "review"
             flags.append("Check the down and distance before voiding this play")
         if self._distrust:
-            self._distrust = False
-            status = "review"
-            warning = warning or "The feed's list of plays changed earlier: check that this is the right play"
+            status, warning = "review", warning or self._distrust
+            self._distrust = None
         sug = Suggestion(p.play_id, idx, entry, parsed, status, warning, None, flags)
         self.suggestion = sug
         self._notice = None
