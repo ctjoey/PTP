@@ -1,21 +1,63 @@
 import SwiftUI
 
-/// The web app's dark palette (static/css/style.css), so both clients look like one product.
+import UIKit
+
+/// The player's choice of look, kept in UserDefaults (and settable at launch with `-ptp-appearance light`).
+/// Dark is the default; "Match iPhone" follows the system setting.
+enum Appearance: String, CaseIterable, Identifiable {
+    case dark, light, system
+
+    static let storageKey = "ptp-appearance"
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .dark: return "Dark"
+        case .light: return "Light"
+        case .system: return "Match iPhone"
+        }
+    }
+
+    /// nil lets the system decide.
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .dark: return .dark
+        case .light: return .light
+        case .system: return nil
+        }
+    }
+}
+
+/// The web app's palette (static/css/style.css), dark and light, so both clients look like one product.
+/// Every colour adapts to the current appearance, so no view needs to know which one is showing.
 enum Theme {
-    static let bg = Color(hex: "#070B12")
-    static let surface = Color(hex: "#101826")
-    static let surface2 = Color(hex: "#162133")
-    static let surface3 = Color(hex: "#1D2A40")
-    static let border = Color(hex: "#24334C")
-    static let text = Color(hex: "#EEF3FB")
-    static let muted = Color(hex: "#8D9BB4")
-    static let dim = Color(hex: "#5F6D86")
-    static let accent = Color(hex: "#2FD98B")
-    static let accentInk = Color(hex: "#03140B")
-    static let warn = Color(hex: "#FFB547")
-    static let danger = Color(hex: "#FF5D6C")
-    static let gold = Color(hex: "#FFD25E")
-    static let blue = Color(hex: "#4EA4FF")
+    static let bg = adaptive(dark: "#070B12", light: "#F2F5FA")
+    static let surface = adaptive(dark: "#101826", light: "#FFFFFF")
+    static let surface2 = adaptive(dark: "#162133", light: "#EEF2F8")
+    static let surface3 = adaptive(dark: "#1D2A40", light: "#E0E7F1")
+    static let border = adaptive(dark: "#24334C", light: "#C5CFDE")
+    static let text = adaptive(dark: "#EEF3FB", light: "#0F1A2B")
+    static let muted = adaptive(dark: "#8D9BB4", light: "#475569")
+    static let dim = adaptive(dark: "#5F6D86", light: "#5B697E")
+    static let accent = adaptive(dark: "#2FD98B", light: "#0A6E41")
+    static let accentInk = adaptive(dark: "#03140B", light: "#FFFFFF")
+    static let warn = adaptive(dark: "#FFB547", light: "#A85800")
+    static let danger = adaptive(dark: "#FF5D6C", light: "#C0142E")
+    static let gold = adaptive(dark: "#FFD25E", light: "#8A6200")
+    static let blue = adaptive(dark: "#4EA4FF", light: "#1B5BC9")
+    /// Error text in the top banner.
+    static let noticeError = adaptive(dark: "#FFD6DA", light: "#8F1021")
+    /// The grass in the pass diagram.
+    static let field = adaptive(dark: "#0E2A1E", light: "#E3F2E8")
+
+    /// A colour that switches with the appearance (anything that isn't explicitly light is treated as dark).
+    private static func adaptive(dark: String, light: String) -> Color {
+        Color(uiColor: UIColor { traits in
+            let rgb = Color.rgb(traits.userInterfaceStyle == .light ? light : dark)
+            return UIColor(red: rgb.r, green: rgb.g, blue: rgb.b, alpha: 1)
+        })
+    }
 
     /// Usable height (inside the safe area, between the bars) below which the pick and result screens
     /// go compact. iPhone SE (667 pt tall) has about 554 pt under the tab bar; every other iPhone has more.

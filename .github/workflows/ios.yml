@@ -106,9 +106,9 @@ jobs:
           done || echo "status bar override refused; continuing with the default bar"
           xcrun simctl install "$UDID" "$APP"
           mkdir -p screenshots/raw
-          shoot () {   # <screen> <output name>
+          shoot () {   # <screen> <output name> [extra launch arguments]
             xcrun simctl terminate "$UDID" "$BID" || true
-            SIMCTL_CHILD_SCREENSHOT="$1" xcrun simctl launch "$UDID" "$BID"
+            SIMCTL_CHILD_SCREENSHOT="$1" xcrun simctl launch "$UDID" "$BID" "${@:3}"
             sleep 10
             xcrun simctl io "$UDID" screenshot "screenshots/raw/$2.png"
           }
@@ -118,6 +118,10 @@ jobs:
           shoot board   04-leaderboard
           shoot lounges 05-lounges
           shoot rules   06-rules
+          # Light mode (the same -key value launch argument the Settings picker's storage key answers to).
+          shoot open    07-light-call-the-play -ptp-appearance light
+          shoot result  08-light-result -ptp-appearance light
+          shoot rules   09-light-rules -ptp-appearance light
           xcrun simctl shutdown "$UDID" || true
           xcrun simctl delete "$UDID" || true
           ls -l screenshots/raw

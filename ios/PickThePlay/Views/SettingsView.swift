@@ -6,6 +6,7 @@ struct SettingsView: View {
     @State private var serverError: String?
     @State private var confirmDelete = false
     @State private var deleting = false
+    @AppStorage(Appearance.storageKey) private var appearance = Appearance.dark
 
     var body: some View {
         NavigationStack {
@@ -15,6 +16,17 @@ struct SettingsView: View {
                     if let me = state.snapshot?.me {
                         LabeledContent("Season points", value: "\(me.totalScore)")
                     }
+                }
+
+                Section {
+                    Picker("Look", selection: $appearance) {
+                        ForEach(Appearance.allCases) { option in Text(option.title).tag(option) }
+                    }
+                    .pickerStyle(.segmented)
+                } header: {
+                    Text("Appearance")
+                } footer: {
+                    Text("Dark is easiest on the eyes in the evening; Light is easier to read in bright sun. \"Match iPhone\" follows your phone's setting.")
                 }
 
                 Section {

@@ -313,7 +313,6 @@ private struct RunGapDiagram: View {
 /// Passes: the field from behind the quarterback; the two hash marks split it into Left | Middle | Right
 /// where the ball crosses the line of scrimmage. Not to scale: the middle is drawn wider so it reads.
 private struct PassZoneDiagram: View {
-    private static let field = Color(hex: "#0E2A1E")
     private static let fieldHeight: CGFloat = 176
     private static let scrimmage: CGFloat = 126
     /// Where the hash marks sit, as a fraction of the width.
@@ -327,20 +326,20 @@ private struct PassZoneDiagram: View {
                 let leftHash = width * Self.leftHash
                 let rightHash = width * Self.rightHash
                 ZStack {
-                    Self.field
+                    Theme.field
                     // Zones beyond the line of scrimmage.
                     zone(.left, x: 0, width: leftHash)
                     zone(.middle, x: leftHash, width: rightHash - leftHash)
                     zone(.right, x: rightHash, width: width - rightHash)
                     // Yard lines every 5 yards.
                     ForEach([1, 2, 3, 4], id: \.self) { line in
-                        Rectangle().fill(Color.white.opacity(0.14)).frame(width: width, height: 1)
+                        Rectangle().fill(Theme.text.opacity(0.14)).frame(width: width, height: 1)
                             .position(x: width / 2, y: Self.scrimmage - CGFloat(line) * 30)
                     }
                     // Hash marks, one a yard.
                     ForEach([Self.leftHash, Self.rightHash], id: \.self) { fraction in
                         ForEach(0..<29, id: \.self) { yard in
-                            Rectangle().fill(Color.white.opacity(0.55)).frame(width: 8, height: 1.5)
+                            Rectangle().fill(Theme.text.opacity(0.55)).frame(width: 8, height: 1.5)
                                 .position(x: width * fraction, y: 3 + CGFloat(yard) * 6)
                         }
                     }

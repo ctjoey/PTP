@@ -4,12 +4,13 @@ import SwiftUI
 struct PickThePlayApp: App {
     @StateObject private var state = AppState()
     @Environment(\.scenePhase) private var phase
+    @AppStorage(Appearance.storageKey) private var appearance = Appearance.dark
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environmentObject(state)
-                .preferredColorScheme(.dark)
+                .preferredColorScheme(appearance.colorScheme)
                 .tint(Theme.accent)
         }
         // iOS closes sockets in the background; reconnect (and get a fresh snapshot) on return.
@@ -68,7 +69,7 @@ struct NoticeBanner: View {
         if let notice = state.notice {
             Text(notice.text)
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(notice.isError ? Color(hex: "#FFD6DA") : Theme.text)
+                .foregroundStyle(notice.isError ? Theme.noticeError : Theme.text)
                 .padding(.horizontal, 14).padding(.vertical, 12)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Theme.surface3, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
