@@ -10,9 +10,9 @@ The MVP is a single Python FastAPI server with three web surfaces, synchronised 
 
 | Surface | URL | Who |
 | --- | --- | --- |
-| **Live Player App** | `/` | Fans. Mobile-first, dark mode, installable to the iPhone home screen. |
+| **Live Player App** | `/` | Fans. Mobile-first, dark by default with a light/dark toggle (the sun/moon button in every page header), installable to the iPhone home screen. |
 | **Head-to-Head Lounges** | `/lounge/<4-digit code>` | Friends playing each other with a private leaderboard. |
-| **Admin Console** | `/admin` | The operator watching the game and driving each play. |
+| **Admin Console** | `/admin` | The operator watching the game and driving each play, by hand or with [live data](#live-data-tank01). |
 | **Rules of the Game** | `/rules` | Everyone: how it works, the points, and what Left / Middle / Right mean. |
 
 > Pick the Play is an independent fan game. It is not affiliated with, endorsed by, or sponsored by
@@ -76,6 +76,8 @@ in the [iPhone guide](IPHONE_GUIDE.md).
    colors. Teams are city names only: official league marks and club nicknames are rejected. Two
    clubs share New York and two share Los Angeles; their presets fill the plain city name, so for a
    game between them add a word to each (e.g. *New York Blue* at *New York Green*).
+   With [live data](#live-data-tank01) you can instead tap **Pick today's game** (or **Practice with a
+   recorded game**) and **Create Game** creates *and* connects it in one tap.
 2. **Open Next Play.** Set the down and the yards to go (e.g. 3rd & 7), then open. Every player gets the pick
    grid and a synchronised 15-second countdown. (The game goes LIVE automatically on the first play.)
 3. **Lock Predictions.** Lock early, or let the timer lock it automatically. Late picks are rejected
@@ -88,6 +90,11 @@ in the [iPhone guide](IPHONE_GUIDE.md).
    pass or no gain is 0 yards = Short. Points are calculated, totals and leaderboards update, and every
    player sees their result animation.
 5. Repeat. Use **Void play** for penalties or no-plays (nobody scores). **End Game** marks it FINAL.
+6. Scored it wrongly? **Fix result** on the Play log row re-scores every pick and moves each player's
+   total by the difference (players see the change at once).
+
+With live data on, steps 4 and 5 mostly do themselves: see [Live data (Tank01)](#live-data-tank01). Scoring by
+hand always works exactly as above, whatever the feed is doing.
 
 Keyboard shortcuts in the console:
 
@@ -98,7 +105,9 @@ Keyboard shortcuts in the console:
 | `←` `↑` `→` | Left / middle / right (as the QB looks downfield) |
 | `S` / `M` / `G` / `X` | Short / medium / long / loss |
 | `Y` | Type the yards gained (then `Enter` resolves) |
-| `Enter` | Resolve & score the play |
+| `Enter` | Resolve & score the play (with a live-data suggestion ready: score the suggestion now) |
+| `H` | Hold the live-data suggestion (stop its countdown) |
+| `Shift` + `P` | Pause / resume live data |
 
 ### Play state machine
 
@@ -110,6 +119,194 @@ Keyboard shortcuts in the console:
 ```
 
 Only one play per game can be OPEN or LOCKED at a time (enforced by a partial unique index).
+
+## Live data (Tank01)
+
+Optional. Connect a game to [Tank01's](https://rapidapi.com/tank01/api/tank01-nfl-live-in-game-real-time-statistics-nfl)
+NFL play-by-play and the server reads each play's result for you. **The less the host has to do, the
+better**: clean plays score themselves, the next play's down and distance is filled in, and you only step in
+for odd plays. Players notice nothing: they get the same snapshots as always.
+
+If the feed is wrong, slow, capped or down, you score by hand exactly as before. Manual scoring never stops
+working, and nothing waits for the feed.
+
+### How it works (the "smart method")
+
+1. You open a play and it locks (you, or the 15 s timer), as always.
+2. **Only while a locked play is waiting for its result** the server asks Tank01 for the box score: first
+   after a short delay, then every few seconds. Between plays it makes **zero requests**.
+3. The first scrimmage entry that shows up is that play. It is read (`playparse.py`) and becomes a
+   **suggestion** in the console: what the feed says, as the same chips you already know (Run/Pass,
+   Left/Middle/Right, Short/Medium/Long and the yards).
+4. A clean suggestion is **scored automatically after 8 seconds** (a visible countdown), unless you
+   **Hold** it, **Change** it, **Score now**, or **Skip** the feed play. Odd plays wait for you.
+5. When it is scored, the **next play's down and distance is prefilled** in the Open Next Play form.
+
+| What the feed says | What happens |
+| --- | --- |
+| A clean run or pass: type, direction **and** yards all unambiguous (touchdowns too) | Ready: scored automatically after the grace period. Incomplete pass or no gain = 0 yards = Short; a loss of yards = Loss |
+| "No Play" (a penalty nullified the play) | Void: voided automatically after the grace period |
+| A sack, interception, fumble or aborted snap, lateral or reverse, an accepted penalty, no charted direction or yards, anything unrecognised | **Review**: an amber card with a prefill and the reasons. Never automatic: you finish it (e.g. pick the direction for a sack) and press Score |
+| The feed's down and distance differs from the play you opened ("Feed shows 2nd & 3 but this play is 2nd & 8") | Review with that warning, and a **Skip this feed play** button that throws the entry away and keeps waiting |
+| Kickoffs, punts, field goals, extra points, two-point tries, kneel-downs, spikes, timeouts, quarter markers | Not plays: skipped silently |
+
+When in doubt the parser says "review", never a guess. An interception's return yards, a penalty's yards and
+a field goal's distance are never mistaken for the play's yards.
+
+**If you score first** (you are faster than the feed) your play stays in line as "verification only": when its
+entry arrives it is checked, and if the feed disagrees you get a **Disagreement** banner with **Fix result** or
+**Dismiss**. **Fix result** (also on any row of the Play log) re-scores every pick and moves each player's
+total by the difference.
+
+### The live-data panel
+
+- A status line with a coloured dot and one plain sentence: *Waiting for the result of play #7*, *Paused*,
+  *Capped*, *Error*, *Waiting for kickoff*, *The game is over*, or *Feed is quiet: long delay (injury or review?)*.
+- **Pause / Resume / Check now.** Pause stops every request and the auto-score countdown (use it for an injury,
+  a long replay review, or any time you want hands-off); Resume checks right away if a play is waiting;
+  **Check now** makes one request on demand, even while paused.
+- Toggles: **Auto-score clean plays** (on by default) and **Open next play automatically** (**off** by default).
+- **Typical delay: N s**, the median of how long Tank01 took to show the last plays. Auto-open is only safe once
+  you have seen it: lag + the 8 s grace + the 12 s open delay should be well under about 25 s.
+- A usage meter ("Requests this game 214 / 900, plan has 786 left") with an amber warning at 80%, and
+  **Allow 100 more** when the per-game cap stops it.
+- **Download feed log**: everything the recorder noted (see below).
+
+**Auto-open** opens the next play by itself, `TANK01_OPEN_DELAY` seconds after a clean score, with the usual
+15 s window and the computed down and distance. It only does so for a 1st to 3rd down after a clean play (never
+into a likely punt or field goal, a touchdown or a turnover), only while the game is LIVE with nothing waiting,
+and any host action (open, void, pause, end game) cancels it.
+
+### Plan limits and the budget
+
+Tank01's **Basic** plan allows **1,000 requests per month** (the responses say how many are left). The smart
+method spends roughly **2 to 4 requests per play** when the feed's delay is steady: about 250 to 450 for a whole
+game. A later **Pro** plan is 1,000 per day, then $0.01 per extra request.
+
+Every real request goes through one gate that counts it (for the game and for the UTC day, saved in the database,
+so a restart cannot reset a count) and enforces the caps. Live data stops polling, shows **Capped** with a plain
+message, and manual scoring carries on, when:
+
+- the game has used its `TANK01_MAX_REQUESTS_PER_GAME` (900; **Allow 100 more** raises it by 100),
+- the day has used `TANK01_MAX_REQUESTS_PER_DAY` (1,000),
+- the plan's own `x-ratelimit-requests-remaining` is at or below `TANK01_RESERVE` (15), unless `TANK01_ALLOW_OVERAGE=1`
+  (then also raise the daily cap), or
+- Tank01 itself says the quota is used up.
+
+Schedule:
+the first check comes `0.8 x typical delay` after the lock (kept between 6 and 25 s; `TANK01_FIRST_DELAY`, 10 s,
+until it has samples), then every `TANK01_FAST_INTERVAL` (5 s) for the first minute, every 10 s until 3 minutes,
+every 20 s until 10 minutes, then every 30 s. A game that has not started is checked every 2 minutes. Errors back
+off (10, 20, then 30 s); after 5 failures in a row the panel shows **Error** (it keeps trying slowly), after 10 it
+**pauses** itself. A rejected key (HTTP 401/403) stops at once and says so. A play scored from entries the server
+already holds costs nothing.
+
+### Settings
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `TANK01_API_KEY` | unset | Your RapidAPI key. Without it live data is off (the practice game still works). A secret: never shown, logged or sent anywhere but Tank01 |
+| `TANK01_BASE_URL` | Tank01's RapidAPI host | Only changed in tests |
+| `TANK01_MAX_REQUESTS_PER_GAME` | `900` | Requests one game may use |
+| `TANK01_MAX_REQUESTS_PER_DAY` | `1000` | Requests per UTC day, over all games |
+| `TANK01_RESERVE` | `15` | Stop when the plan has this many left |
+| `TANK01_ALLOW_OVERAGE` | `0` | `1` ignores the reserve (paid overage on a Pro plan) |
+| `TANK01_FIRST_DELAY` | `10` | Seconds to the first check, until there are lag samples |
+| `TANK01_FAST_INTERVAL` | `5` | Seconds between checks in the first minute |
+| `TANK01_AUTO_SCORE_GRACE` | `8` | Seconds a clean suggestion shows before it is scored |
+| `TANK01_OPEN_DELAY` | `12` | Seconds after a clean score until auto-open opens the next play |
+| `TANK01_TIMEOUT` | `15` | Seconds before a request to Tank01 is given up on |
+| `TANK01_DEMO_LAG` | `12` | Seconds the practice game takes to "show" a locked play |
+
+#### Setting the key on Render
+
+Dashboard, your service, **Environment**, **Add Environment Variable**: name `TANK01_API_KEY`, value your
+RapidAPI key, then **Save** and let it redeploy. Never put the key in the code, a file in the repository, or a
+URL. The console only ever learns whether a key exists (`available: true`).
+
+### The practice game (no requests)
+
+**Practice with a recorded game** replays a real finished game (Carolina at Washington, from `demo/`). When you lock
+a play, its recorded entry "appears" after `TANK01_DEMO_LAG` seconds, so you can rehearse the whole flow: auto-score,
+Hold, Change, Skip, Pause, review plays (it has sacks, an interception and an aborted snap), voids, Fix result.
+It costs zero requests, needs no key and is never capped. The host's team presets are filled in for you.
+
+### The feed log
+
+Every poll (status, milliseconds, entries, the game's status fields, what the plan has left), every new entry with how
+it was read and how long after the lock it appeared, every match, suggestion, score, skip, orphan, pause and error
+are recorded in the `feed_log` table (the last 5,000 rows per game). **Download feed log** (or
+`GET /api/admin/feed/log?game_id=`) returns it as JSON. After the first live game it shows the real status and clock
+values Tank01 sends at halftime and in overtime, how late entries appear, and whether earlier entries are ever
+revised: what to tune next. One line per poll also goes to the normal log.
+
+### First live game checklist
+
+1. Set `TANK01_API_KEY` (and a strong `PTP_ADMIN_KEY`) on the server; redeploy. On the Basic plan (1,000 requests a
+   month) consider `TANK01_MAX_REQUESTS_PER_GAME=500` too: a game normally needs 250 to 450, and the cap keeps a
+   stuck play from eating the rest of the month.
+2. Rehearse once with **Practice with a recorded game**: let a few plays auto-score, try Hold, Change, Skip, Pause and Fix result.
+3. On game day tap **Pick today's game** (one request), pick it and **Create Game**. Leave **Open next play automatically** off.
+4. Open the first play shortly before the snap. Before kickoff the feed answers "not started" and live data waits.
+5. Watch **Typical delay** and the requests meter for the first few plays. Keep **Check now** for a stuck play.
+6. Any play that surprises you: score it by hand (**Resolve & Score**, **Void play**); nothing else is needed.
+7. Afterwards download the feed log and keep it for tuning.
+
+### Live data protocol
+
+`admin_state` (the admin socket message, also `GET /api/admin/state`) has a `feed` object. Timestamps are server
+epoch seconds, like `locks_at` (use `server_time` for the clock offset).
+
+```json
+"feed": {
+  "available": true,                  // TANK01_API_KEY is set (the practice game is always possible)
+  "linked": true, "source": "tank01",  // "tank01" | "demo" | null
+  "game_id": "20261008_TB@DAL",
+  "state": "waiting",                 // off | idle | waiting | paused | capped | error | not_started | done
+  "message": "Waiting for the result of play #7 (check 2).",
+  "paused": false, "auto_score": true, "auto_open": false,
+  "requests": {"game": 214, "today": 214, "game_cap": 900, "day_cap": 1000, "plan_remaining": 786, "plan_limit": 1000},
+  "lag": {"median": 18.0, "last": 17.0, "samples": 6},
+  "waiting": {"play_id": 7, "checks": 1, "since": 1791504900.1, "next_check_at": 1791504910.1},
+  "suggestion": {"play_id": 7, "status": "ready", "text": "A.Dalton pass short right ...", "clock": "Q1 14:55",
+                 "down_and_distance": "1st & 10 at CAR 14", "play_type": "PASS", "direction": "RIGHT",
+                 "yards": 7, "yardage": "MEDIUM", "flags": [], "warning": null, "auto_at": 1791504921.4, "kind": "play"},
+  "disagreement": {"play_id": 6, "feed": "PASS - RIGHT - MEDIUM", "scored": "RUN - LEFT - MEDIUM", "text": "...",
+                   "feed_result": {"play_type": "PASS", "direction": "RIGHT", "yards": 7, "yardage": "MEDIUM"}},
+  "next_down": {"down": 2, "distance": "3"},
+  "auto_open_at": null,
+  "last_scored": {"play_id": 6, "by": "feed", "auto": true, "summary": "PASS - RIGHT - MEDIUM (7 yds)", "at": 1791504912.0, "voided": false}
+}
+```
+
+`suggestion.status` is `ready` (clean, counting down while `auto_at` is set), `review`, `void` or `held`. Each play
+object in `history` also has `resolved_by` (`host` · `feed` · `void` · `host-fix`, `null` on old rows) and `feed_text`;
+players never see either, nor any live-data field. A correction broadcasts a normal snapshot with `event`
+`"play_corrected"`.
+
+**Admin actions** (socket: `{"action": ..., "request_id": ..., ...fields}` answered by `admin_ack`; REST: `POST
+/api/admin/feed/<name>` with the same fields, `<name>` without or with the `feed_` prefix). Every feed action
+answers with `{"feed": <the feed object>}`.
+
+| Action | Fields | Does |
+| --- | --- | --- |
+| `feed_link` | `feed_game_id` (`"20261008_TB@DAL"`, `"demo"` or `null`) | Connect (or disconnect) the current game. `create_game` / `POST /api/admin/game` also take `feed_game_id` |
+| `feed_pause` · `feed_resume` | | Pause (no requests, no countdown) · resume (checks at once if a play waits) |
+| `feed_check_now` | | One request now |
+| `feed_set` | `auto_score?`, `auto_open?` | The two switches |
+| `feed_hold` | | Stop the suggestion's countdown until you act |
+| `feed_accept` | `play_id`, `play_type?`, `direction?`, `yardage?` or `yards?`, `void?` | Apply the suggestion now; any field given overrides it; `void: true` voids. Also answers with `play` |
+| `feed_skip` | `play_id` | Throw away the matched feed entry and keep waiting |
+| `feed_dismiss` | | Clear the disagreement banner |
+| `feed_allow_more` | `n` (100) | Raise this game's request cap |
+| `correct_play` | `play_id`, `play_type`, `direction`, `yardage?` or `yards?` | Fix a scored play (REST: `POST /api/admin/play/correct` or `/api/admin/feed/correct_play`) |
+
+`GET /api/admin/feed/games?date=YYYYMMDD` lists the day's games for "Pick today's game": `{"date", "games":
+[{"feed_game_id", "away": {"abbr", "name", "label", "primary", "secondary"}, "home": {...}, "time", "status",
+"status_code"}], "demo": {...}, "available", "error", "cached"}`. One real request, then cached for five minutes.
+Teams map to the presets by `feed_abbr`; two clubs from one city become *New York Blue* / *New York Green* and
+*Los Angeles Blue* / *Los Angeles Powder*; an unknown abbreviation gets the abbreviation as its name and neutral
+colors. `GET /api/admin/feed/log` returns the recorder.
 
 ## Scoring
 
@@ -165,16 +362,21 @@ Inside a lounge you play the same live game, with a private leaderboard tab of e
 ```
 ├── app.py              # FastAPI server: routes, WebSocket hub, game controller, auto-lock timer
 ├── models.py           # SQLite schema + migrations, Store (data access), validation, scoring engine
-├── teams.py            # Team presets for the admin: 32 city names with team colors
+├── teams.py            # Team presets for the admin: 32 city names with team colors and Tank01 abbreviations
+├── playparse.py        # Live data: reads one play-by-play entry (skip / void / play / review) and the next down
+├── feed.py             # Live data: Tank01 client, recorded demo feed, the poller/matcher, budget caps, recorder
+├── demo/               # The recorded game the practice mode replays (a real, finished game)
 ├── static/
-│   ├── css/style.css   # Dark, mobile-first styles shared by all pages
-│   ├── js/common.js    # DOM helpers, reconnecting WebSocket, server-clock sync
+│   ├── css/style.css   # Dark (default) and light, mobile-first styles shared by all pages
+│   ├── js/common.js    # DOM helpers, reconnecting WebSocket, server-clock sync, light/dark toggle
 │   ├── js/player.js    # Player app + lounges
 │   ├── js/admin.js     # Admin console
+│   ├── js/admin-feed.js # Admin console: the live-data panel, suggestion card, schedule picker, Fix result
 │   ├── img/            # app icons (generated by ios/scripts/make_icons.py)
 │   └── manifest.webmanifest
 ├── templates/          # Jinja2: base.html, player.html, admin.html
-├── tests/              # pytest: scoring, data layer, HTTP + WebSocket end-to-end; iOS fixture capture
+├── tests/              # pytest: scoring, data layer, HTTP + WebSocket end-to-end, live data (fake Tank01 in
+│                       # tests/fakefeed.py, recorded fixtures in tests/fixtures/); iOS fixture capture
 ├── requirements.txt
 ├── requirements-dev.txt
 ├── .python-version    # Python version for cloud hosts (3.14)
@@ -205,7 +407,7 @@ Inside a lounge you play the same live game, with a private leaderboard tab of e
 | → | `{"type":"hello","token":"…","lounge":"1234"}` first (token optional = spectator) |
 | → | `{"type":"predict","play_id":7,"play_type":"PASS","direction":"LEFT","yardage":"SHORT"}` (all four fields required; repeat to change the pick while OPEN) |
 | → | `{"type":"sync"}` · `{"type":"ping"}` |
-| ← | `{"type":"state","event":"play_opened"\|"play_locked"\|"play_resolved"\|"play_voided"\|"game_created"\|"game_status"\|"lounge_updated"\|"sync", …snapshot}` |
+| ← | `{"type":"state","event":"play_opened"\|"play_locked"\|"play_resolved"\|"play_voided"\|"play_corrected"\|"game_created"\|"game_status"\|"lounge_updated"\|"sync", …snapshot}` |
 | ← | `{"type":"prediction_saved","prediction":{"play_id":7,"play_type":"PASS","direction":"LEFT","yardage":"SHORT","points_earned":null}}` · `{"type":"error","message":"…"}` |
 
 **Admin — `/ws/admin`**
@@ -213,9 +415,9 @@ Inside a lounge you play the same live game, with a private leaderboard tab of e
 | Direction | Message |
 | --- | --- |
 | → | `{"type":"auth","key":"…"}` first |
-| → | `{"action":"create_game"\|"set_status"\|"open_play"\|"lock_play"\|"resolve_play"\|"void_play","request_id":1, …payload}` |
+| → | `{"action":"create_game"\|"set_status"\|"open_play"\|"lock_play"\|"resolve_play"\|"void_play"\|"correct_play","request_id":1, …payload}` and the `feed_*` live-data actions ([protocol](#live-data-protocol)) |
 | → | e.g. `{"action":"resolve_play","request_id":2,"play_type":"RUN","direction":"LEFT","yardage":"MEDIUM","yards":7}` |
-| ← | `{"type":"admin_state", …}` with live pick stats, players online, leaderboard and play log |
+| ← | `{"type":"admin_state", …}` with live pick stats, players online, leaderboard, play log and the `feed` object |
 | ← | `{"type":"admin_ack","request_id":1,"ok":true\|false,"error":"…"}` |
 
 **Picks, results and the fields that carry them**
@@ -265,17 +467,19 @@ handy for scripting.
 | `POST /api/admin/game/status` `{status}` | `LIVE` / `FINAL` |
 | `POST /api/admin/play/open` `{down, distance, window_seconds}` | Open the next play |
 | `POST /api/admin/play/lock` · `/resolve` `{play_type, direction, yardage?, yards?}` · `/void` | Drive the play (resolve needs `yardage`, `yards` or both) |
+| `POST /api/admin/play/correct` `{play_id, play_type, direction, yardage?, yards?}` | Fix a scored play: re-scores every pick, moves each total by the difference, broadcasts `play_corrected` |
+| `POST /api/admin/feed/<action>` · `GET /api/admin/feed/games?date=` · `GET /api/admin/feed/log` | Live data (see [Live data protocol](#live-data-protocol)) |
 | `GET /rules` | Rules of the Game (HTML) |
 | `GET /privacy` · `GET /support` | Privacy policy and support pages (HTML; use as the App Store privacy policy and support URLs) |
 
 Interactive docs: <http://127.0.0.1:8000/docs>.
 
-**Data feeds.** A play-by-play feed can drive the game through the admin API: open a play before the
-snap, lock it, then resolve it with the feed's play type, direction and `yards` (the server picks the
-distance bucket). Feeds report direction in different ways (some by field side, some by the offense's
-left/right), so convert to the QB's view looking downfield before sending. NFL play-by-play
-`run_location` / `pass_location` values `left` / `middle` / `right` map straight to `LEFT` / `MIDDLE` /
-`RIGHT`.
+**Data feeds.** The built-in [live data](#live-data-tank01) does exactly this for Tank01. A different feed can
+still drive the game through the admin API: open a play before the snap, lock it, then resolve it with the
+feed's play type, direction and `yards` (the server picks the distance bucket). Feeds report direction in
+different ways (some by field side, some by the offense's left/right), so convert to the QB's view looking
+downfield before sending. NFL play-by-play `run_location` / `pass_location` values `left` / `middle` / `right`
+map straight to `LEFT` / `MIDDLE` / `RIGHT`.
 
 **App Store.** App Review needs a privacy policy URL, a support URL, in-app account deletion and
 filtering of user-visible names. Point App Store Connect at `https://<your server>/privacy` and
@@ -287,18 +491,22 @@ offensive usernames and lounge names are rejected with "Please choose a differen
 
 | Table | Key columns |
 | --- | --- |
-| `games` | id, home/away name, home/away primary + secondary hex colors, status (`SCHEDULED`/`LIVE`/`FINAL`) |
-| `plays` | id, game_id, play_number, down, distance (down-and-distance, e.g. `7`), state (`OPEN`/`LOCKED`/`RESOLVED`), correct_play_type, correct_direction, correct_yardage (`SHORT`/`MEDIUM`/`LONG`/`LOSS`), yards_gained, voided, locks_at |
+| `games` | id, home/away name, home/away primary + secondary hex colors, status (`SCHEDULED`/`LIVE`/`FINAL`); live data: `feed_game_id`, `feed_auto_score`, `feed_auto_open`, `feed_paused`, `feed_cursor`, `feed_requests`, `feed_cap_extra` |
+| `plays` | id, game_id, play_number, down, distance (down-and-distance, e.g. `7`), state (`OPEN`/`LOCKED`/`RESOLVED`), correct_play_type, correct_direction, correct_yardage (`SHORT`/`MEDIUM`/`LONG`/`LOSS`), yards_gained, voided, locks_at, `resolved_by` (`host`/`feed`/`void`/`host-fix`; NULL on old rows), `feed_text` |
 | `users` | id, username (unique, case-insensitive), token, total_score |
 | `predictions` | user_id, play_id (unique together), play_type, direction, yardage (`SHORT`/`MEDIUM`/`LONG`; NULL for older picks), points_earned |
 | `lounges` / `lounge_members` | id (= 4-digit code), name, host_user_id; membership join table |
+| `feed_log` | Live-data recorder: id, game_id, ts, kind, play_id, feed_index, data (JSON); the last 5,000 rows per game |
+| `feed_usage` | Live-data requests per UTC day and the plan's last-seen allowance, so caps survive restarts |
 
 Upgrading keeps your data: on start-up `Store` adds any columns an older `game.db` is missing
 (`models.MIGRATIONS`), for example the distance columns on a database kept on a host's disk. Picks made
 before the upgrade have no distance and score it as wrong; scores already earned are unchanged. A
 database from before Left/Middle/Right has `CENTER` in the `plays` and `predictions` CHECK constraints;
 SQLite can't change those in place, so `Store` rebuilds the two tables once (in one transaction, keeping
-every row, id and index) and turns stored `CENTER` values into `MIDDLE`.
+every row, id and index) and turns stored `CENTER` values into `MIDDLE`. The live-data release adds its
+columns and tables the same way (`games` and `plays` gain columns, `feed_log` and `feed_usage` are new); old
+rows keep working and read `NULL` / the defaults (auto-score on, auto-open off).
 
 ## Configuration
 
@@ -310,6 +518,7 @@ every row, id and index) and turns stored `CENTER` values into `MIDDLE`.
 | `PTP_CONTACT_EMAIL` | unset | Contact address shown on `/privacy` and `/support` (unset: they point to the App Store listing) |
 | `HOST` / `PORT` | `127.0.0.1` / `8000` | Bind address when using `python app.py` (`--phone` binds `0.0.0.0`; `--port` overrides `PORT`) |
 | `PTP_RELOAD` | unset | Set to `1` for auto-reload during development |
+| `TANK01_API_KEY` and friends | unset / see [Settings](#settings) | Live data: the key, the request caps, the delays. The key is a secret |
 
 ## Tests
 
@@ -320,9 +529,17 @@ venv/bin/python -m pytest -q                             # Windows: .\venv\Scrip
 
 The suite covers every scoring combination over all three picks and the all-three bonus (including
 losses and picks with no distance), yards-to-distance boundaries, resolve validation, the `CENTER`
-alias, migrating databases from both earlier versions, the Rules page and its links, the team presets, the play state machine, late-pick rejection, voids, ties, lounges, the
+alias, migrating databases from every earlier version, the Rules page and its links, the team presets, the play state machine, late-pick rejection, voids, ties, lounges, the
 trademark filter, and full end-to-end flows over the real HTTP and WebSocket endpoints (including the
 auto-lock timer).
+
+Live data is tested without ever touching Tank01: a fake Tank01 (a local HTTP server, `tests/fakefeed.py`) serves a
+real recorded game and real response fixtures, and a manual clock makes the polling schedule run in
+milliseconds. The suite covers the play-by-play parser (on the whole recorded game, many other phrasings, and fuzzed input
+that must never raise), the poller (zero requests while idle, the schedule, matching in order, orphans, voids, restarts,
+caps, errors and backoff, pause/resume/check now, auto-score, hold, auto-open), a full-game replay through the real
+controller with picks scored against `score_prediction`, the admin socket and REST protocol, migrations, Fix result, and the
+API key never appearing in any output.
 
 The iOS app's contract tests decode real server messages saved in `ios/PickThePlayTests/Fixtures/`.
 After changing what the server sends, regenerate them from a real running server (temporary database,

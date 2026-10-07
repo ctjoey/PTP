@@ -314,8 +314,12 @@ def test_old_database_is_migrated_to_middle(tmp_path, schema):
     def now(table):
         return store._all(f"SELECT * FROM {table} ORDER BY id" if table != "lounge_members"
                           else "SELECT * FROM lounge_members ORDER BY rowid")
-    added = {"plays": {"correct_yardage": None, "yards_gained": None}, "predictions": {"yardage": None}}
-    for table in ("games", "users", "lounges", "lounge_members"):
+    added = {"plays": {"correct_yardage": None, "yards_gained": None, "resolved_by": None, "feed_text": None},
+             "predictions": {"yardage": None}}
+    live_data = {"feed_game_id": None, "feed_auto_score": 1, "feed_auto_open": 0, "feed_paused": 0,
+                 "feed_cursor": 0, "feed_requests": 0, "feed_cap_extra": 0}  # what the live-data release added
+    assert now("games") == [{**r, **live_data} for r in before["games"]]
+    for table in ("users", "lounges", "lounge_members"):
         assert now(table) == before[table], table
     expected_plays = middle([{**added["plays"], **r} for r in before["plays"]], "correct_direction")
     expected_preds = middle([{**added["predictions"], **r} for r in before["predictions"]], "direction")
@@ -511,7 +515,8 @@ def test_rules_page(client):
     assert "Center" not in text and "CENTER" not in text  # the position is "the center"; the call is Middle
     # The bonus math and both diagrams, labelled for screen readers, left to right as the QB sees it.
     assert 'class="bonus-math" role="img"' in res.text and "equals 40" in res.text
-    assert res.text.count("<svg") == 2 and res.text.count('role="img" aria-labelledby=') == 2
+    # (the theme toggle's sun and moon are decorative: aria-hidden)
+    assert len(re.findall(r"<svg(?![^>]*aria-hidden)", res.text)) == 2 and res.text.count('role="img" aria-labelledby=') == 2
     runs = res.text[res.text.index('id="runs-title"'):res.text.index('id="passes-title"')]
     assert [m for m in re.findall(r'class="player-label"[^>]*>(\w+)<', runs)] == ["LE", "LT", "LG", "C", "RG", "RT", "RE"]
     for svg in (runs, res.text[res.text.index('id="passes-title"'):]):

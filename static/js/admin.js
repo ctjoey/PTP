@@ -14,6 +14,7 @@
   };
 
   const A = {
+    key: null,
     state: null,
     down: 1,
     rtype: null,
@@ -27,6 +28,17 @@
   };
   let socket = null;
 
+  // Live data (Tank01 feed) lives in admin-feed.js; it only needs these few hooks into the console.
+  const feed = PTPFeed.create({
+    act: (action, payload) => act(action, payload),
+    getState: () => A.state,
+    getKey: () => A.key,
+    isBusy: () => A.busy,
+    loadResult,
+    applyNextDown,
+    refreshHistory: () => renderHistory((A.state && A.state.history) || []),
+  });
+
   // ------------------------------------------------------------------ auth
 
   function showAuth(message = "") {
@@ -39,6 +51,7 @@
   }
 
   function start(key) {
+    A.key = key;
     if (socket) socket.stop();
     socket = new LiveSocket("/ws/admin", {
       hello: () => ({ type: "auth", key }),
@@ -170,6 +183,7 @@
 
     renderBoard(st.leaderboard);
     renderHistory(st.history);
+    feed.render(st);
   }
 
   function syncTimer() {
@@ -206,23 +220,33 @@
         el("span", { class: "board-score" }, String(r.score)))));
   }
 
+  /** Rebuilt only when something shown changed, so an open Fix editor keeps its focus while picks stream in. */
   function renderHistory(rows) {
     const list = $("#history");
+    const sig = JSON.stringify([rows, feed.fixSig()]);
+    if (sig === A.historySig) return;
+    A.historySig = sig;
     if (!rows.length) {
       list.replaceChildren(el("li", { class: "empty", style: { display: "block" } }, "Plays you run show up here."));
+      feed.afterHistory();
       return;
     }
     list.replaceChildren(...rows.map((p) => {
       const result = p.voided ? "VOID"
         : p.state === "RESOLVED" ? resultText(p.correct_play_type, p.correct_direction, p.correct_yardage, p.yards_gained)
           : p.state;
-      return el("li", {},
+      const extras = feed.rowExtras(p);
+      const li = el("li", {},
         el("span", { class: "h-num" }, `#${p.play_number}`),
         el("span", {},
           el("span", { class: "h-res" }, result),
-          downDistance(p) ? el("span", { class: "muted" }, ` · ${downDistance(p)}`) : null),
-        el("span", { class: "h-meta" }, `${count(p.picks, "pick")} · ${p.exact_hits} perfect`));
+          downDistance(p) ? el("span", { class: "muted" }, ` · ${downDistance(p)}`) : null,
+          ...extras.tags.map((t) => [" ", t])),
+        el("span", { class: "h-meta" }, `${count(p.picks, "pick")} · ${p.exact_hits} perfect`, extras.action));
+      feed.mountEditor(li, p);
+      return li;
     }));
+    feed.afterHistory();
   }
 
   const count = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
@@ -240,6 +264,7 @@
     ev.preventDefault();
     const form = new FormData($("#game-form"));
     const payload = Object.fromEntries(form.entries());
+    if (!payload.feed_game_id) delete payload.feed_game_id;
     const game = A.state && A.state.game;
     if (game && game.status !== "FINAL" &&
         !confirm(`Start a new game? "${game.away_name} @ ${game.home_name}" will be marked FINAL.`)) return;
@@ -248,14 +273,38 @@
       clearResult();
       A.down = 1;
       $("#distance").value = "10";
+      const followed = feed.afterCreate();
       render();
-      toast("Game created. Open the first play when you're ready.", "success");
+      toast(followed === "live" ? "Game created and following the live feed. Open the first play when you're ready."
+        : followed === "demo" ? "Practice game created. Open the first play when you're ready."
+          : "Game created. Open the first play when you're ready.", "success");
     }
   }
 
   function clearResult() {
     A.rtype = A.rdir = A.ryard = null;
     $("#yards").value = "";
+  }
+
+  /** Put a result (a feed suggestion, say) into the manual controls so Resolve & Score applies it. */
+  function loadResult(parts) {
+    if (parts.play_type) A.rtype = parts.play_type;
+    if (parts.direction) A.rdir = parts.direction;
+    if (parts.yardage) A.ryard = parts.yardage;
+    if (parts.yards !== null && parts.yards !== undefined) $("#yards").value = String(parts.yards);
+    render();
+    const missing = !A.rtype ? '[data-rtype="RUN"]' : !A.rdir ? '[data-rdir="LEFT"]' : !A.ryard ? '[data-ryard="SHORT"]' : "#resolve-btn";
+    const target = $(missing);
+    if (target && !target.disabled) target.focus();
+    $(".result-grid").scrollIntoView({ block: "center", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  }
+
+  /** Fill Down and To go for the next play (from the feed) unless the host already did. */
+  function applyNextDown(nd) {
+    const down = Number(nd.down);
+    if (down >= 1 && down <= 4) A.down = down;
+    if (nd.distance !== null && nd.distance !== undefined) $("#distance").value = String(nd.distance);
+    for (const b of $$("[data-down]")) b.classList.toggle("selected", Number(b.dataset.down) === A.down);
   }
 
   /** The yards field as a whole number, null when empty, NaN when not a valid number. */
@@ -370,8 +419,10 @@
       if (confirm("End the game and mark it FINAL?")) act("set_status", { status: "FINAL" });
     });
 
+    $("#distance").addEventListener("input", () => feed.ddEdited());
     for (const b of $$("[data-down]")) {
       b.addEventListener("click", () => {
+        feed.ddEdited();
         const d = Number(b.dataset.down);
         A.down = A.down === d ? null : d;
         render();
@@ -379,11 +430,13 @@
     }
     $("#open-btn").addEventListener("click", openPlay);
     $("#lock-btn").addEventListener("click", () => act("lock_play"));
-    for (const b of $$("[data-rtype]")) b.addEventListener("click", () => { A.rtype = b.dataset.rtype; render(); });
-    for (const b of $$("[data-rdir]")) b.addEventListener("click", () => { A.rdir = b.dataset.rdir; render(); });
-    for (const b of $$("[data-ryard]")) b.addEventListener("click", () => chooseYardage(b.dataset.ryard));
+    // Choosing a result by hand stops the feed suggestion's timer so the two can't race.
+    for (const b of $$("[data-rtype]")) b.addEventListener("click", () => { feed.manualEdit(); A.rtype = b.dataset.rtype; render(); });
+    for (const b of $$("[data-rdir]")) b.addEventListener("click", () => { feed.manualEdit(); A.rdir = b.dataset.rdir; render(); });
+    for (const b of $$("[data-ryard]")) b.addEventListener("click", () => { feed.manualEdit(); chooseYardage(b.dataset.ryard); });
     const yardsInput = $("#yards");
     yardsInput.addEventListener("input", () => {
+      feed.manualEdit();
       const yards = typedYards();
       if (yards !== null && !Number.isNaN(yards)) A.ryard = bucketForYards(yards);
       render();
@@ -403,7 +456,13 @@
 
     document.addEventListener("keydown", (ev) => {
       if ($("#console").hidden || ev.metaKey || ev.ctrlKey || ev.altKey) return;
-      if (ev.target.closest("input, textarea, select")) return;
+      if (ev.target.closest("input, textarea, select, #fix-editor, summary")) return;
+      // Enter on a focused Live data button (Score now, Pause...) presses that button, as keyboard users expect.
+      if (ev.key === "Enter" && ev.target.closest("#feed-panel")) return;
+      if (feed.handleKey(ev)) {
+        ev.preventDefault();
+        return;
+      }
       const map = {
         o: () => click("#open-btn"),
         l: () => click("#lock-btn"),
@@ -422,7 +481,11 @@
             yardsInput.select();
           }
         },
-        enter: () => click("#resolve-btn"),
+        enter: () => {
+          const resolve = $("#resolve-btn");
+          if (!resolve.disabled) resolve.click();
+          else feed.scoreFromKey();
+        },
       };
       const fn = map[ev.key.toLowerCase()];
       if (fn) {

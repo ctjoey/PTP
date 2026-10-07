@@ -383,7 +383,8 @@ def test_team_presets_are_sane():
     labels = [t["label"] for t in TEAM_PRESETS]
     assert len(set(labels)) == 32
     for team in TEAM_PRESETS:
-        assert set(team) == {"name", "label", "primary", "secondary"}
+        assert set(team) == {"name", "label", "primary", "secondary", "feed_abbr"}
+        assert re.fullmatch(r"[A-Z]{2,3}", team["feed_abbr"])
         assert validate_team_name(team["name"]) == team["name"]
         for color in (team["primary"], team["secondary"]):
             assert re.fullmatch(r"#[0-9A-F]{6}", color) and validate_color(color) == color
@@ -391,7 +392,9 @@ def test_team_presets_are_sane():
     names = [t["name"] for t in TEAM_PRESETS]
     assert names.count("New York") == 2 and names.count("Los Angeles") == 2
     assert len(set(names)) == 30
-    assert preset("Chicago") == {"name": "Chicago", "label": "Chicago", "primary": "#0B162A", "secondary": "#C83803"}
+    assert len({t["feed_abbr"] for t in TEAM_PRESETS}) == 32
+    assert preset("Chicago") == {"name": "Chicago", "label": "Chicago", "primary": "#0B162A", "secondary": "#C83803",
+                                 "feed_abbr": "CHI"}
     assert preset("Detroit")["primary"] == "#0076B6"
     assert (DEFAULT_AWAY, DEFAULT_HOME) == ("Chicago", "Detroit")
 

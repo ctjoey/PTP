@@ -1,0 +1,1123 @@
+{
+ "statusCode": 200,
+ "body": {
+  "gameID": "20241020_CAR@WSH",
+  "home": "WSH",
+  "away": "CAR",
+  "gameDate": "20241020",
+  "gameStatus": "Completed",
+  "gameStatusCode": "2",
+  "currentPeriod": "Final",
+  "gameClock": "",
+  "homePts": "40",
+  "awayPts": "7",
+  "teamIDHome": "32",
+  "teamIDAway": "5",
+  "gameWeek": "Week 7",
+  "seasonType": "Regular Season",
+  "gameLocation": "Landover, MD",
+  "network": "CBS",
+  "allPlayByPlay": [
+   {
+    "play": "A.Seibert kicks 59 yards from WAS 35 to CAR 6. R.Blackshear to CAR 30 for 24 yards (C.Yankoff). PENALTY on CAR-L.Johnson, Offensive Holding, 10 yards, enforced at CAR 24.",
+    "playPeriod": "Q1",
+    "playClock": "15:00",
+    "teamID": "5"
+   },
+   {
+    "play": "A.Dalton pass short right to J.Sanders to CAR 21 for 7 yards (B.St-Juste).",
+    "playPeriod": "Q1",
+    "playClock": "14:55",
+    "downAndDistance": "1st & 10 at CAR 14",
+    "teamID": "5"
+   },
+   {
+    "play": "C.Hubbard left end to CAR 25 for 4 yards (M.Sainristil, Q.Martin).",
+    "playPeriod": "Q1",
+    "playClock": "14:24",
+    "downAndDistance": "2nd & 3 at CAR 21",
+    "teamID": "5"
+   },
+   {
+    "play": "M.Sanders left end pushed ob at WAS 49 for 26 yards (N.Igbinoghene).",
+    "playPeriod": "Q1",
+    "playClock": "13:50",
+    "downAndDistance": "1st & 10 at CAR 25",
+    "teamID": "5"
+   },
+   {
+    "play": "C.Hubbard left tackle to WAS 43 for 6 yards (B.Wagner; D.Payne).",
+    "playPeriod": "Q1",
+    "playClock": "13:16",
+    "downAndDistance": "1st & 10 at WSH 49",
+    "teamID": "5"
+   },
+   {
+    "play": "A.Dalton pass deep right to Di.Johnson to WAS 26 for 17 yards (M.Sainristil). Penalty on WAS-C.Ferrell, Defensive Offside, declined.",
+    "playPeriod": "Q1",
+    "playClock": "12:37",
+    "downAndDistance": "2nd & 4 at WSH 43",
+    "teamID": "5"
+   },
+   {
+    "play": "A.Dalton pass incomplete short left to X.Legette.",
+    "playPeriod": "Q1",
+    "playClock": "12:13",
+    "downAndDistance": "1st & 10 at WSH 26",
+    "teamID": "5"
+   },
+   {
+    "play": "C.Hubbard left end to WAS 25 for 1 yard (C.Ferrell).",
+    "playPeriod": "Q1",
+    "playClock": "12:08",
+    "downAndDistance": "2nd & 10 at WSH 26",
+    "teamID": "5"
+   },
+   {
+    "play": "A.Dalton pass short right intended for M.Sanders INTERCEPTED by D.Fowler at WAS 33. D.Fowler for 67 yards, TOUCHDOWN.A.Seibert extra point is GOOD, Center-T.Ott, Holder-T.Way.",
+    "playPeriod": "Q1",
+    "playClock": "11:14",
+    "downAndDistance": "3rd & 9 at WSH 25",
+    "teamID": "5"
+   },
+   {
+    "play": "Timeout at 11:14.",
+    "playPeriod": "Q1",
+    "playClock": "11:14",
+    "downAndDistance": "1st & 10 at WSH 35",
+    "teamID": "5"
+   },
+   {
+    "play": "A.Seibert kicks 60 yards from WAS 35 to CAR 5. R.Blackshear to CAR 35 for 30 yards (J.Chinn).",
+    "playPeriod": "Q1",
+    "playClock": "11:14",
+    "teamID": "5"
+   },
+   {
+    "play": "C.Hubbard left guard to CAR 36 for 1 yard (J.Davis; F.Luvu).",
+    "playPeriod": "Q1",
+    "playClock": "11:09",
+    "downAndDistance": "1st & 10 at CAR 35",
+    "teamID": "5"
+   },
+   {
+    "play": "A.Dalton pass short middle to J.Sanders to CAR 41 for 5 yards (N.Igbinoghene).",
+    "playPeriod": "Q1",
+    "playClock": "10:28",
+    "downAndDistance": "2nd & 9 at CAR 36",
+    "teamID": "5"
+   },
+   {
+    "play": "A.Dalton pass incomplete short left to Di.Johnson (M.Sainristil).",
+    "playPeriod": "Q1",
+    "playClock": "9:50",
+    "downAndDistance": "3rd & 4 at CAR 41",
+    "teamID": "5"
+   },
+   {
+    "play": "J.Hekker punts 49 yards to WAS 10, Center-J.Jansen, fair catch by O.Zaccheaus.",
+    "playPeriod": "Q1",
+    "playClock": "9:38",
+    "downAndDistance": "4th & 4 at CAR 41",
+    "teamID": "5"
+   },
+   {
+    "play": "Timeout at 09:38.",
+    "playPeriod": "Q1",
+    "playClock": "9:38",
+    "downAndDistance": "1st & 10 at WSH 10",
+    "teamID": "5"
+   },
+   {
+    "play": "J.Daniels right end to CAR 44 for 46 yards (M.Haynes; L.Johnson).",
+    "playPeriod": "Q1",
+    "playClock": "9:38",
+    "downAndDistance": "1st & 10 at WSH 10",
+    "teamID": "32"
+   },
+   {
+    "play": "A.Ekeler right tackle to CAR 39 for 5 yards (N.Thurman).",
+    "playPeriod": "Q1",
+    "playClock": "8:52",
+    "downAndDistance": "1st & 10 at CAR 44",
+    "teamID": "32"
+   },
+   {
+    "play": "PENALTY on WAS-T.Biadasz, False Start, 5 yards, enforced at CAR 39 - No Play.",
+    "playPeriod": "Q1",
+    "playClock": "8:19",
+    "downAndDistance": "2nd & 5 at CAR 39",
+    "teamID": "32"
+   },
+   {
+    "play": "J.McNichols left guard to CAR 35 for 9 yards (C.Wooten).",
+    "playPeriod": "Q1",
+    "playClock": "8:00",
+    "downAndDistance": "2nd & 10 at CAR 44",
+    "teamID": "32"
+   },
+   {
+    "play": "B.Robinson left tackle to CAR 32 for 3 yards (X.Woods; T.Wallace).",
+    "playPeriod": "Q1",
+    "playClock": "7:14",
+    "downAndDistance": "3rd & 1 at CAR 35",
+    "teamID": "32"
+   },
+   {
+    "play": "B.Robinson up the middle to CAR 21 for 11 yards (N.Scott).",
+    "playPeriod": "Q1",
+    "playClock": "6:52",
+    "downAndDistance": "1st & 10 at CAR 32",
+    "teamID": "32"
+   },
+   {
+    "play": "J.Daniels left end to CAR 14 for 7 yards (X.Woods).",
+    "playPeriod": "Q1",
+    "playClock": "6:31",
+    "downAndDistance": "1st & 10 at CAR 21",
+    "teamID": "32"
+   },
+   {
+    "play": "Direct snap to B.Robinson.  B.Robinson left guard to CAR 8 for 6 yards (D.Jackson; T.Wallace).",
+    "playPeriod": "Q1",
+    "playClock": "5:52",
+    "downAndDistance": "2nd & 3 at CAR 14",
+    "teamID": "32"
+   },
+   {
+    "play": "J.Daniels pass short right to T.McLaurin to CAR 5 for 3 yards (T.Wallace).",
+    "playPeriod": "Q1",
+    "playClock": "5:13",
+    "downAndDistance": "1st & Goal at CAR 8",
+    "teamID": "32"
+   },
+   {
+    "play": "J.Daniels up the middle to CAR 8 for -3 yards (T.Incoom).",
+    "playPeriod": "Q1",
+    "playClock": "4:37",
+    "downAndDistance": "2nd & Goal at CAR 5",
+    "teamID": "32"
+   },
+   {
+    "play": "J.Daniels pass short right to A.Ekeler to CAR 5 for 3 yards (C.Wooten).",
+    "playPeriod": "Q1",
+    "playClock": "4:02",
+    "downAndDistance": "3rd & Goal at CAR 8",
+    "teamID": "32"
+   },
+   {
+    "play": "A.Seibert 23 yard field goal is GOOD, Center-T.Ott, Holder-T.Way.",
+    "playPeriod": "Q1",
+    "playClock": "3:18",
+    "downAndDistance": "4th & Goal at CAR 5",
+    "teamID": "32"
+   },
+   {
+    "play": "Timeout at 03:18.",
+    "playPeriod": "Q1",
+    "playClock": "3:18",
+    "downAndDistance": "1st & 10 at WSH 35",
+    "teamID": "32"
+   },
+   {
+    "play": "A.Seibert kicks 56 yards from WAS 35 to CAR 9. R.Blackshear to CAR 25 for 16 yards (D.Forrest).",
+    "playPeriod": "Q1",
+    "playClock": "3:18",
+    "teamID": "5"
+   },
+   {
+    "play": "A.Dalton pass short left to J.Coker pushed ob at CAR 35 for 10 yards (M.Sainristil, B.Wagner).",
+    "playPeriod": "Q1",
+    "playClock": "3:13",
+    "downAndDistance": "1st & 10 at CAR 25",
+    "teamID": "5"
+   },
+   {
+    "play": "A.Dalton pass deep right intended for Di.Johnson INTERCEPTED by E.Forbes at WAS 45. E.Forbes to CAR 35 for 20 yards (D.Lewis). Penalty on CAR-D.Lewis, Ineligible Downfield Pass, declined. PENALTY on WAS-C.Ferrell, Illegal Block Above the Waist, 10 yards, enforced at CAR 36.",
+    "playPeriod": "Q1",
+    "playClock": "2:37",
+    "downAndDistance": "1st & 10 at CAR 35",
+    "teamID": "5"
+   },
+   {
+    "play": "Timeout at 02:27.",
+    "playPeriod": "Q1",
+    "playClock": "2:27",
+    "downAndDistance": "1st & 20 at CAR 45",
+    "teamID": "5"
+   },
+   {
+    "play": "M.Mariota right end to CAR 42 for 4 yards (J.Horn).",
+    "playPeriod": "Q1",
+    "playClock": "2:27",
+    "downAndDistance": "1st & 10 at CAR 46",
+    "teamID": "32"
+   },
+   {
+    "play": "M.Mariota sacked at CAR 46 for -4 yards (C.Harris).",
+    "playPeriod": "Q1",
+    "playClock": "1:51",
+    "downAndDistance": "2nd & 6 at CAR 42",
+    "teamID": "32"
+   },
+   {
+    "play": "PENALTY on WAS-Z.Ertz, False Start, 5 yards, enforced at CAR 46 - No Play.",
+    "playPeriod": "Q1",
+    "playClock": "1:11",
+    "downAndDistance": "3rd & 10 at CAR 46",
+    "teamID": "32"
+   },
+   {
+    "play": "M.Mariota pass incomplete deep right to D.Brown [D.Williams].",
+    "playPeriod": "Q1",
+    "playClock": "0:47",
+    "downAndDistance": "3rd & 15 at WSH 49",
+    "teamID": "32"
+   },
+   {
+    "play": "T.Way punts 40 yards to CAR 11, Center-T.Ott, fair catch by D.Moore.",
+    "playPeriod": "Q1",
+    "playClock": "0:34",
+    "downAndDistance": "4th & 15 at WSH 49",
+    "teamID": "32"
+   },
+   {
+    "play": "Timeout at 00:34.",
+    "playPeriod": "Q1",
+    "playClock": "0:34",
+    "downAndDistance": "1st & 10 at CAR 11",
+    "teamID": "32"
+   },
+   {
+    "play": "C.Hubbard up the middle to CAR 15 for 4 yards (J.Holmes).",
+    "playPeriod": "Q1",
+    "playClock": "0:34",
+    "downAndDistance": "1st & 10 at CAR 11",
+    "teamID": "5"
+   },
+   {
+    "play": "C.Hubbard left tackle to CAR 16 for 1 yard (D.Payne).",
+    "playPeriod": "Q2",
+    "playClock": "15:00",
+    "downAndDistance": "2nd & 6 at CAR 15",
+    "teamID": "5"
+   },
+   {
+    "play": "A.Dalton sacked at CAR 12 for -4 yards (F.Luvu).",
+    "playPeriod": "Q2",
+    "playClock": "14:19",
+    "downAndDistance": "3rd & 5 at CAR 16",
+    "teamID": "5"
+   },
+   {
+    "play": "J.Hekker punts 62 yards to WAS 26, Center-J.Jansen. O.Zaccheaus to WAS 41 for 15 yards (J.Windmon).",
+    "playPeriod": "Q2",
+    "playClock": "13:22",
+    "downAndDistance": "4th & 9 at CAR 12",
+    "teamID": "5"
+   },
+   {
+    "play": "Timeout at 13:22.",
+    "playPeriod": "Q2",
+    "playClock": "13:22",
+    "downAndDistance": "1st & 10 at WSH 41",
+    "teamID": "5"
+   },
+   {
+    "play": "B.Robinson right tackle to WAS 49 for 8 yards (T.Wallace, C.Smith-Wade).",
+    "playPeriod": "Q2",
+    "playClock": "13:22",
+    "downAndDistance": "1st & 10 at WSH 41",
+    "teamID": "32"
+   },
+   {
+    "play": "(No Huddle) B.Robinson left guard to CAR 44 for 7 yards (N.Scott; Dj.Johnson).",
+    "playPeriod": "Q2",
+    "playClock": "12:44",
+    "downAndDistance": "2nd & 2 at WSH 49",
+    "teamID": "32"
+   },
+   {
+    "play": "M.Mariota pass incomplete deep right to N.Brown. PENALTY on CAR-C.Smith-Wade, Defensive Pass Interference, 29 yards, enforced at CAR 44 - No Play.",
+    "playPeriod": "Q2",
+    "playClock": "12:11",
+    "downAndDistance": "1st & 10 at CAR 44",
+    "teamID": "32"
+   },
+   {
+    "play": "B.Robinson up the middle to CAR 8 for 7 yards (M.Haynes, J.Horn).",
+    "playPeriod": "Q2",
+    "playClock": "12:05",
+    "downAndDistance": "1st & 10 at CAR 15",
+    "teamID": "32"
+   },
+   {
+    "play": "B.Robinson up the middle for 8 yards, TOUCHDOWN.A.Seibert extra point is GOOD, Center-T.Ott, Holder-T.Way.",
+    "playPeriod": "Q2",
+    "playClock": "11:35",
+    "downAndDistance": "2nd & 3 at CAR 8",
+    "teamID": "32"
+   },
+   {
+    "play": "Timeout at 11:35.",
+    "playPeriod": "Q2",
+    "playClock": "11:35",
+    "downAndDistance": "1st & 10 at WSH 35",
+    "teamID": "32"
+   },
+   {
+    "play": "A.Seibert kicks 63 yards from WAS 35 to CAR 2. X.Legette to CAR 21 for 19 yards (J.McNichols).",
+    "playPeriod": "Q2",
+    "playClock": "11:35",
+    "teamID": "5"
+   },
+   {
+    "play": "A.Dalton scrambles left end ran ob at CAR 25 for 4 yards (J.Chinn).",
+    "playPeriod": "Q2",
+    "playClock": "11:27",
+    "downAndDistance": "1st & 10 at CAR 21",
+    "teamID": "5"
+   },
+   {
+    "play": "C.Hubbard right guard to CAR 29 for 4 yards (J.Chinn; B.Wagner).",
+    "playPeriod": "Q2",
+    "playClock": "10:52",
+    "downAndDistance": "2nd & 6 at CAR 25",
+    "teamID": "5"
+   },
+   {
+    "play": "A.Dalton pass short left to I.Thomas to CAR 31 for 2 yards (P.Butler).",
+    "playPeriod": "Q2",
+    "playClock": "10:15",
+    "downAndDistance": "3rd & 2 at CAR 29",
+    "teamID": "5"
+   },
+   {
+    "play": "C.Hubbard up the middle to CAR 39 for 8 yards (J.Chinn; Q.Martin).",
+    "playPeriod": "Q2",
+    "playClock": "9:30",
+    "downAndDistance": "1st & 10 at CAR 31",
+    "teamID": "5"
+   },
+   {
+    "play": "C.Hubbard left guard to CAR 39 for no gain (D.Payne).",
+    "playPeriod": "Q2",
+    "playClock": "8:56",
+    "downAndDistance": "2nd & 2 at CAR 39",
+    "teamID": "5"
+   },
+   {
+    "play": "M.Sanders up the middle to CAR 40 for 1 yard (B.Wagner, C.Ferrell).",
+    "playPeriod": "Q2",
+    "playClock": "8:17",
+    "downAndDistance": "3rd & 2 at CAR 39",
+    "teamID": "5"
+   },
+   {
+    "play": "C.Hubbard up the middle to CAR 38 for -2 yards (D.Fowler).",
+    "playPeriod": "Q2",
+    "playClock": "7:34",
+    "downAndDistance": "4th & 1 at CAR 40",
+    "teamID": "5"
+   },
+   {
+    "play": "A.Ekeler left end to CAR 35 for 3 yards (Dj.Johnson; S.Tuttle).",
+    "playPeriod": "Q2",
+    "playClock": "7:32",
+    "downAndDistance": "1st & 10 at CAR 38",
+    "teamID": "32"
+   },
+   {
+    "play": "M.Mariota pass incomplete short left to Z.Ertz (C.Smith-Wade). PENALTY on CAR-C.Smith-Wade, Defensive Holding, 5 yards, enforced at CAR 35 - No Play.",
+    "playPeriod": "Q2",
+    "playClock": "7:04",
+    "downAndDistance": "2nd & 7 at CAR 35",
+    "teamID": "32"
+   },
+   {
+    "play": "M.Mariota up the middle to CAR 21 for 9 yards (C.Wooten).",
+    "playPeriod": "Q2",
+    "playClock": "6:57",
+    "downAndDistance": "1st & 10 at CAR 30",
+    "teamID": "32"
+   },
+   {
+    "play": "A.Ekeler right tackle to CAR 15 for 6 yards (C.Wooten). PENALTY on WAS-A.Wylie, Offensive Holding, 10 yards, enforced at CAR 21 - No Play.",
+    "playPeriod": "Q2",
+    "playClock": "6:21",
+    "downAndDistance": "2nd & 1 at CAR 21",
+    "teamID": "32"
+   },
+   {
+    "play": "M.Mariota pass incomplete short left to Z.Ertz.",
+    "playPeriod": "Q2",
+    "playClock": "5:54",
+    "downAndDistance": "2nd & 11 at CAR 31",
+    "teamID": "32"
+   },
+   {
+    "play": "M.Mariota pass incomplete short left to D.Brown (J.Horn).",
+    "playPeriod": "Q2",
+    "playClock": "5:49",
+    "downAndDistance": "3rd & 11 at CAR 31",
+    "teamID": "32"
+   },
+   {
+    "play": "A.Seibert 49 yard field goal is GOOD, Center-T.Ott, Holder-T.Way.",
+    "playPeriod": "Q2",
+    "playClock": "5:39",
+    "downAndDistance": "4th & 11 at CAR 31",
+    "teamID": "32"
+   },
+   {
+    "play": "Timeout at 05:39.",
+    "playPeriod": "Q2",
+    "playClock": "5:39",
+    "downAndDistance": "1st & 10 at WSH 35",
+    "teamID": "32"
+   },
+   {
+    "play": "A.Seibert kicks 61 yards from WAS 35 to CAR 4. R.Blackshear to CAR 32 for 28 yards (D.Forrest; J.Chinn). Washington challenged the runner was down by contact ruling, and the play was Upheld. The ruling on the field stands. (Timeout #1.)",
+    "playPeriod": "Q2",
+    "playClock": "5:39",
+    "teamID": "5"
+   },
+   {
+    "play": "A.Dalton pass short right to J.Sanders to CAR 48 for 16 yards (N.Igbinoghene).",
+    "playPeriod": "Q2",
+    "playClock": "5:26",
+    "downAndDistance": "1st & 10 at CAR 32",
+    "teamID": "5"
+   },
+   {
+    "play": "C.Hubbard right tackle to CAR 46 for -2 yards (F.Luvu).",
+    "playPeriod": "Q2",
+    "playClock": "4:42",
+    "downAndDistance": "1st & 10 at CAR 48",
+    "teamID": "5"
+   },
+   {
+    "play": "C.Hubbard left end pushed ob at CAR 46 for no gain (M.Sainristil).",
+    "playPeriod": "Q2",
+    "playClock": "4:03",
+    "downAndDistance": "2nd & 12 at CAR 46",
+    "teamID": "5"
+   },
+   {
+    "play": "A.Dalton pass short right to J.Sanders to CAR 48 for 2 yards (N.Igbinoghene).",
+    "playPeriod": "Q2",
+    "playClock": "3:21",
+    "downAndDistance": "3rd & 12 at CAR 46",
+    "teamID": "5"
+   },
+   {
+    "play": "J.Hekker punts 44 yards to WAS 8, impetus ends at WAS 1, Center-J.Jansen, downed by CAR-J.Windmon.",
+    "playPeriod": "Q2",
+    "playClock": "2:22",
+    "downAndDistance": "4th & 10 at CAR 48",
+    "teamID": "5"
+   },
+   {
+    "play": "Timeout at 02:22.",
+    "playPeriod": "Q2",
+    "playClock": "2:22",
+    "downAndDistance": "1st & 10 at WSH 7",
+    "teamID": "5"
+   },
+   {
+    "play": "B.Robinson right guard to WAS 11 for 3 yards (L.Ray; C.Wooten).",
+    "playPeriod": "Q2",
+    "playClock": "2:22",
+    "downAndDistance": "1st & 10 at WSH 8",
+    "teamID": "32"
+   },
+   {
+    "play": "Two-Minute Warning",
+    "playPeriod": "Q2",
+    "playClock": "2:00",
+    "downAndDistance": "2nd & 7 at WSH 11",
+    "teamID": "32"
+   },
+   {
+    "play": "M.Mariota right end to WAS 15 for 4 yards (J.Horn).",
+    "playPeriod": "Q2",
+    "playClock": "2:00",
+    "downAndDistance": "2nd & 7 at WSH 11",
+    "teamID": "32"
+   },
+   {
+    "play": "PENALTY on CAR-M.Haynes, Neutral Zone Infraction, 5 yards, enforced at WAS 15 - No Play.",
+    "playPeriod": "Q2",
+    "playClock": "1:22",
+    "downAndDistance": "3rd & 3 at WSH 15",
+    "teamID": "32"
+   },
+   {
+    "play": "M.Mariota pass incomplete short left. PENALTY on CAR-D.Jackson, Defensive Holding, 5 yards, enforced at WAS 20 - No Play.",
+    "playPeriod": "Q2",
+    "playClock": "1:22",
+    "downAndDistance": "1st & 10 at WSH 20",
+    "teamID": "32"
+   },
+   {
+    "play": "M.Mariota pass short middle to Z.Ertz to WAS 32 for 7 yards (X.Woods).",
+    "playPeriod": "Q2",
+    "playClock": "1:19",
+    "downAndDistance": "1st & 10 at WSH 25",
+    "teamID": "32"
+   },
+   {
+    "play": "M.Mariota pass short left to T.McLaurin to 50 for 18 yards (C.Smith-Wade, M.Jackson).",
+    "playPeriod": "Q2",
+    "playClock": "1:03",
+    "downAndDistance": "2nd & 3 at WSH 32",
+    "teamID": "32"
+   },
+   {
+    "play": "M.Mariota pass short right to T.McLaurin to CAR 35 for 15 yards (M.Jackson).",
+    "playPeriod": "Q2",
+    "playClock": "0:44",
+    "downAndDistance": "1st & 10 at 50",
+    "teamID": "32"
+   },
+   {
+    "play": "Timeout #2 by WAS at 00:39.",
+    "playPeriod": "Q2",
+    "playClock": "0:39",
+    "downAndDistance": "1st & 10 at CAR 35",
+    "teamID": "32"
+   },
+   {
+    "play": "M.Mariota pass incomplete short right to O.Zaccheaus.",
+    "playPeriod": "Q2",
+    "playClock": "0:39",
+    "downAndDistance": "1st & 10 at CAR 35",
+    "teamID": "32"
+   },
+   {
+    "play": "M.Mariota pass deep middle to D.Brown to CAR 12 for 23 yards (N.Scott; M.Jackson).",
+    "playPeriod": "Q2",
+    "playClock": "0:36",
+    "downAndDistance": "2nd & 10 at CAR 35",
+    "teamID": "32"
+   },
+   {
+    "play": "M.Mariota pass short right to Z.Ertz for 12 yards, TOUCHDOWN.A.Seibert extra point is GOOD, Center-T.Ott, Holder-T.Way.",
+    "playPeriod": "Q2",
+    "playClock": "0:10",
+    "downAndDistance": "1st & 10 at CAR 12",
+    "teamID": "32"
+   },
+   {
+    "play": "A.Seibert kicks 65 yards from WAS 35 to end zone, Touchback to the CAR 30.",
+    "playPeriod": "Q2",
+    "playClock": "0:10",
+    "teamID": "5"
+   },
+   {
+    "play": "A.Dalton kneels to CAR 29 for -1 yards.",
+    "playPeriod": "Q2",
+    "playClock": "0:00",
+    "downAndDistance": "1st & 10 at CAR 30",
+    "teamID": "5"
+   },
+   {
+    "play": "END QUARTER 2",
+    "playPeriod": "Q2",
+    "playClock": "0:00",
+    "teamID": "5"
+   },
+   {
+    "play": "E.Pineiro kicks 58 yards from CAR 35 to WAS 7. A.Ekeler to WAS 41 for 34 yards (R.Blackshear).",
+    "playPeriod": "Q3",
+    "playClock": "15:00",
+    "teamID": "32"
+   },
+   {
+    "play": "M.Mariota Aborted. T.Biadasz FUMBLES at WAS 41, recovered by WAS-M.Mariota at WAS 41. M.Mariota to WAS 42 for 1 yard (S.Tuttle).",
+    "playPeriod": "Q3",
+    "playClock": "14:55",
+    "downAndDistance": "1st & 10 at WSH 41",
+    "teamID": "32"
+   },
+   {
+    "play": "M.Mariota scrambles left end ran ob at CAR 47 for 11 yards (C.Smith-Wade).",
+    "playPeriod": "Q3",
+    "playClock": "14:55",
+    "downAndDistance": "2nd & 9 at WSH 42",
+    "teamID": "32"
+   },
+   {
+    "play": "M.Mariota pass short middle to O.Zaccheaus to CAR 41 for 6 yards (N.Scott). PENALTY on WAS-S.Cosmi, Ineligible Downfield Pass, 5 yards, enforced at CAR 47 - No Play.",
+    "playPeriod": "Q3",
+    "playClock": "13:41",
+    "downAndDistance": "1st & 10 at CAR 47",
+    "teamID": "32"
+   },
+   {
+    "play": "M.Mariota pass short middle to A.Ekeler to WAS 48 for no gain (Dj.Johnson).",
+    "playPeriod": "Q3",
+    "playClock": "13:16",
+    "downAndDistance": "1st & 15 at WSH 48",
+    "teamID": "32"
+   },
+   {
+    "play": "M.Mariota pass short left to T.McLaurin to CAR 33 for 19 yards (M.Jackson).",
+    "playPeriod": "Q3",
+    "playClock": "12:38",
+    "downAndDistance": "2nd & 15 at WSH 48",
+    "teamID": "32"
+   },
+   {
+    "play": "M.Mariota pass short middle to Z.Ertz to CAR 18 for 15 yards (X.Woods).",
+    "playPeriod": "Q3",
+    "playClock": "12:07",
+    "downAndDistance": "1st & 10 at CAR 33",
+    "teamID": "32"
+   },
+   {
+    "play": "B.Robinson right guard to CAR 15 for 3 yards (N.Thurman; D.Williams).",
+    "playPeriod": "Q3",
+    "playClock": "11:40",
+    "downAndDistance": "1st & 10 at CAR 18",
+    "teamID": "32"
+   },
+   {
+    "play": "B.Robinson left tackle to CAR 13 for 2 yards (D.Williams; N.Thurman).",
+    "playPeriod": "Q3",
+    "playClock": "11:01",
+    "downAndDistance": "2nd & 7 at CAR 15",
+    "teamID": "32"
+   },
+   {
+    "play": "M.Mariota pass short right to O.Zaccheaus to CAR 6 for 7 yards (T.Wallace).",
+    "playPeriod": "Q3",
+    "playClock": "10:19",
+    "downAndDistance": "3rd & 5 at CAR 13",
+    "teamID": "32"
+   },
+   {
+    "play": "A.Ekeler right tackle to CAR 3 for 3 yards (X.Woods; L.Ray).",
+    "playPeriod": "Q3",
+    "playClock": "9:34",
+    "downAndDistance": "1st & Goal at CAR 6",
+    "teamID": "32"
+   },
+   {
+    "play": "M.Mariota pass short right to B.Sinnott for 3 yards, TOUCHDOWN.A.Seibert extra point is GOOD, Center-T.Ott, Holder-T.Way.",
+    "playPeriod": "Q3",
+    "playClock": "8:53",
+    "downAndDistance": "2nd & Goal at CAR 3",
+    "teamID": "32"
+   },
+   {
+    "play": "Timeout at 08:53.",
+    "playPeriod": "Q3",
+    "playClock": "8:53",
+    "downAndDistance": "1st & 10 at WSH 35",
+    "teamID": "32"
+   },
+   {
+    "play": "A.Seibert kicks 66 yards from WAS 35 to CAR -1. R.Blackshear to CAR 21 for 22 yards (J.Reaves; N.Bellore). FUMBLES (J.Reaves), recovered by CAR-J.Sanders at CAR 22. J.Sanders to CAR 24 for 2 yards (M.Davis; M.Sainristil). CAR-R.Blackshear was injured during the play.",
+    "playPeriod": "Q3",
+    "playClock": "8:53",
+    "teamID": "5"
+   },
+   {
+    "play": "Timeout at 08:44.",
+    "playPeriod": "Q3",
+    "playClock": "8:44",
+    "downAndDistance": "1st & 10 at CAR 23",
+    "teamID": "5"
+   },
+   {
+    "play": "A.Dalton sacked at CAR 24 for 0 yards (D.Fowler).",
+    "playPeriod": "Q3",
+    "playClock": "8:44",
+    "downAndDistance": "1st & 10 at CAR 24",
+    "teamID": "5"
+   },
+   {
+    "play": "A.Dalton pass short middle to X.Legette to CAR 30 for 6 yards (N.Igbinoghene).",
+    "playPeriod": "Q3",
+    "playClock": "8:05",
+    "downAndDistance": "2nd & 10 at CAR 24",
+    "teamID": "5"
+   },
+   {
+    "play": "A.Dalton pass incomplete short right.",
+    "playPeriod": "Q3",
+    "playClock": "7:23",
+    "downAndDistance": "3rd & 4 at CAR 30",
+    "teamID": "5"
+   },
+   {
+    "play": "(Punt formation) PENALTY on CAR, Delay of Game, 5 yards, enforced at CAR 30 - No Play.",
+    "playPeriod": "Q3",
+    "playClock": "7:17",
+    "downAndDistance": "4th & 4 at CAR 30",
+    "teamID": "5"
+   },
+   {
+    "play": "J.Hekker punts 43 yards to WAS 32, Center-J.Jansen, fair catch by O.Zaccheaus.",
+    "playPeriod": "Q3",
+    "playClock": "7:09",
+    "downAndDistance": "4th & 9 at CAR 25",
+    "teamID": "5"
+   },
+   {
+    "play": "Timeout at 07:09.",
+    "playPeriod": "Q3",
+    "playClock": "7:09",
+    "downAndDistance": "1st & 10 at WSH 32",
+    "teamID": "5"
+   },
+   {
+    "play": "B.Robinson right tackle to WAS 38 for 6 yards (C.Wooten; Dj.Johnson).",
+    "playPeriod": "Q3",
+    "playClock": "7:09",
+    "downAndDistance": "1st & 10 at WSH 32",
+    "teamID": "32"
+   },
+   {
+    "play": "M.Mariota right end to WAS 43 for 5 yards (D.Jackson).",
+    "playPeriod": "Q3",
+    "playClock": "6:38",
+    "downAndDistance": "2nd & 4 at WSH 38",
+    "teamID": "32"
+   },
+   {
+    "play": "M.Mariota pass deep right to T.McLaurin pushed ob at CAR 39 for 18 yards (N.Scott).",
+    "playPeriod": "Q3",
+    "playClock": "6:15",
+    "downAndDistance": "1st & 10 at WSH 43",
+    "teamID": "32"
+   },
+   {
+    "play": "B.Robinson right end to CAR 33 for 6 yards (C.Wooten; T.Wallace). PENALTY on WAS-J.Bates, Offensive Holding, 10 yards, enforced at CAR 39 - No Play.",
+    "playPeriod": "Q3",
+    "playClock": "5:42",
+    "downAndDistance": "1st & 10 at CAR 39",
+    "teamID": "32"
+   },
+   {
+    "play": "M.Mariota pass short middle to O.Zaccheaus to CAR 44 for 5 yards (T.Wallace).",
+    "playPeriod": "Q3",
+    "playClock": "5:18",
+    "downAndDistance": "1st & 20 at CAR 49",
+    "teamID": "32"
+   },
+   {
+    "play": "A.Ekeler up the middle to CAR 38 for 6 yards (X.Woods; C.Smith-Wade).",
+    "playPeriod": "Q3",
+    "playClock": "4:39",
+    "downAndDistance": "2nd & 15 at CAR 44",
+    "teamID": "32"
+   },
+   {
+    "play": "M.Mariota pass short middle to N.Brown to CAR 22 for 16 yards (N.Scott).",
+    "playPeriod": "Q3",
+    "playClock": "4:11",
+    "downAndDistance": "3rd & 9 at CAR 38",
+    "teamID": "32"
+   },
+   {
+    "play": "M.Mariota pass short left to O.Zaccheaus pushed ob at CAR 21 for 1 yard (C.Smith-Wade).",
+    "playPeriod": "Q3",
+    "playClock": "3:50",
+    "downAndDistance": "1st & 10 at CAR 22",
+    "teamID": "32"
+   },
+   {
+    "play": "B.Robinson right end to CAR 14 for 7 yards (C.Smith-Wade; T.Smith).",
+    "playPeriod": "Q3",
+    "playClock": "3:13",
+    "downAndDistance": "2nd & 9 at CAR 21",
+    "teamID": "32"
+   },
+   {
+    "play": "PENALTY on WAS-Z.Ertz, False Start, 5 yards, enforced at CAR 14 - No Play.",
+    "playPeriod": "Q3",
+    "playClock": "2:37",
+    "downAndDistance": "3rd & 2 at CAR 14",
+    "teamID": "32"
+   },
+   {
+    "play": "M.Mariota pass short middle to Z.Ertz to CAR 13 for 6 yards (D.Jackson; T.Wallace).",
+    "playPeriod": "Q3",
+    "playClock": "2:21",
+    "downAndDistance": "3rd & 7 at CAR 19",
+    "teamID": "32"
+   },
+   {
+    "play": "A.Seibert 31 yard field goal is GOOD, Center-T.Ott, Holder-T.Way.",
+    "playPeriod": "Q3",
+    "playClock": "1:33",
+    "downAndDistance": "4th & 1 at CAR 13",
+    "teamID": "32"
+   },
+   {
+    "play": "Timeout at 01:33.",
+    "playPeriod": "Q3",
+    "playClock": "1:33",
+    "downAndDistance": "1st & 10 at WSH 35",
+    "teamID": "32"
+   },
+   {
+    "play": "A.Seibert kicks 65 yards from WAS 35 to end zone, Touchback to the CAR 30.",
+    "playPeriod": "Q3",
+    "playClock": "1:33",
+    "teamID": "5"
+   },
+   {
+    "play": "C.Hubbard right guard to CAR 39 for 9 yards (S.Day).",
+    "playPeriod": "Q3",
+    "playClock": "1:33",
+    "downAndDistance": "1st & 10 at CAR 30",
+    "teamID": "5"
+   },
+   {
+    "play": "X.Legette right end to CAR 45 for 6 yards (B.Wagner).",
+    "playPeriod": "Q3",
+    "playClock": "0:58",
+    "downAndDistance": "2nd & 1 at CAR 39",
+    "teamID": "5"
+   },
+   {
+    "play": "A.Dalton pass short left to I.Thomas to CAR 47 for 2 yards (M.Sainristil).",
+    "playPeriod": "Q3",
+    "playClock": "0:17",
+    "downAndDistance": "1st & 10 at CAR 45",
+    "teamID": "5"
+   },
+   {
+    "play": "PENALTY on WAS-P.Mathis, Neutral Zone Infraction, 5 yards, enforced at CAR 47 - No Play.",
+    "playPeriod": "Q4",
+    "playClock": "15:00",
+    "downAndDistance": "2nd & 8 at CAR 47",
+    "teamID": "5"
+   },
+   {
+    "play": "C.Hubbard left guard to WAS 46 for 2 yards (S.Day).",
+    "playPeriod": "Q4",
+    "playClock": "15:00",
+    "downAndDistance": "2nd & 3 at WSH 48",
+    "teamID": "5"
+   },
+   {
+    "play": "A.Dalton pass deep left to J.Sanders to WAS 17 for 29 yards (E.Forbes; P.Butler).",
+    "playPeriod": "Q4",
+    "playClock": "14:22",
+    "downAndDistance": "3rd & 1 at WSH 46",
+    "teamID": "5"
+   },
+   {
+    "play": "C.Hubbard right guard to WAS 8 for 9 yards (F.Luvu; P.Butler).",
+    "playPeriod": "Q4",
+    "playClock": "13:38",
+    "downAndDistance": "1st & 10 at WSH 17",
+    "teamID": "5"
+   },
+   {
+    "play": "A.Dalton pass short left to X.Legette to WAS 11 for -3 yards (M.Sainristil).",
+    "playPeriod": "Q4",
+    "playClock": "13:03",
+    "downAndDistance": "2nd & 1 at WSH 8",
+    "teamID": "5"
+   },
+   {
+    "play": "M.Sanders left guard to WAS 4 for 7 yards (B.Wagner, J.Chinn).",
+    "playPeriod": "Q4",
+    "playClock": "12:21",
+    "downAndDistance": "3rd & 4 at WSH 11",
+    "teamID": "5"
+   },
+   {
+    "play": "C.Hubbard left end for 4 yards, TOUCHDOWN.E.Pineiro extra point is GOOD, Center-J.Jansen, Holder-J.Hekker.",
+    "playPeriod": "Q4",
+    "playClock": "11:38",
+    "downAndDistance": "1st & Goal at WSH 4",
+    "teamID": "5"
+   },
+   {
+    "play": "Timeout at 11:38.",
+    "playPeriod": "Q4",
+    "playClock": "11:38",
+    "downAndDistance": "1st & 10 at CAR 35",
+    "teamID": "5"
+   },
+   {
+    "play": "E.Pineiro kicks 65 yards from CAR 35 to end zone, Touchback to the WAS 30.",
+    "playPeriod": "Q4",
+    "playClock": "11:38",
+    "teamID": "32"
+   },
+   {
+    "play": "J.McNichols right tackle to WAS 35 for 5 yards (M.Haynes).",
+    "playPeriod": "Q4",
+    "playClock": "11:38",
+    "downAndDistance": "1st & 10 at WSH 30",
+    "teamID": "32"
+   },
+   {
+    "play": "M.Mariota right end to WAS 36 for 1 yard (C.Smith-Wade).",
+    "playPeriod": "Q4",
+    "playClock": "11:08",
+    "downAndDistance": "2nd & 5 at WSH 35",
+    "teamID": "32"
+   },
+   {
+    "play": "M.Mariota scrambles left end to WAS 42 for 6 yards (M.Haynes).",
+    "playPeriod": "Q4",
+    "playClock": "10:26",
+    "downAndDistance": "3rd & 4 at WSH 36",
+    "teamID": "32"
+   },
+   {
+    "play": "J.McNichols left end pushed ob at WAS 45 for 3 yards (J.Horn).",
+    "playPeriod": "Q4",
+    "playClock": "9:38",
+    "downAndDistance": "1st & 10 at WSH 42",
+    "teamID": "32"
+   },
+   {
+    "play": "M.Mariota pass incomplete short right to O.Zaccheaus.",
+    "playPeriod": "Q4",
+    "playClock": "9:00",
+    "downAndDistance": "2nd & 7 at WSH 45",
+    "teamID": "32"
+   },
+   {
+    "play": "M.Mariota pass deep left to T.McLaurin pushed ob at CAR 30 for 25 yards (J.Horn).",
+    "playPeriod": "Q4",
+    "playClock": "8:54",
+    "downAndDistance": "3rd & 7 at WSH 45",
+    "teamID": "32"
+   },
+   {
+    "play": "M.Mariota pass short right to B.Sinnott to CAR 27 for 3 yards (N.Scott, S.Tuttle).",
+    "playPeriod": "Q4",
+    "playClock": "8:15",
+    "downAndDistance": "1st & 10 at CAR 30",
+    "teamID": "32"
+   },
+   {
+    "play": "M.Mariota pass short right to O.Zaccheaus to CAR 15 for 12 yards (C.Wooten).",
+    "playPeriod": "Q4",
+    "playClock": "7:39",
+    "downAndDistance": "2nd & 7 at CAR 27",
+    "teamID": "32"
+   },
+   {
+    "play": "(No Huddle) J.McNichols right end to CAR 9 for 6 yards (C.Smith-Wade).",
+    "playPeriod": "Q4",
+    "playClock": "6:51",
+    "downAndDistance": "1st & 10 at CAR 15",
+    "teamID": "32"
+   },
+   {
+    "play": "J.McNichols right guard to CAR 7 for 2 yards (T.Incoom, L.Ray).",
+    "playPeriod": "Q4",
+    "playClock": "6:26",
+    "downAndDistance": "2nd & 4 at CAR 9",
+    "teamID": "32"
+   },
+   {
+    "play": "(No Huddle) M.Mariota right end to CAR 11 for -4 yards (D.Jackson).",
+    "playPeriod": "Q4",
+    "playClock": "5:41",
+    "downAndDistance": "3rd & 2 at CAR 7",
+    "teamID": "32"
+   },
+   {
+    "play": "A.Seibert 29 yard field goal is GOOD, Center-T.Ott, Holder-T.Way.",
+    "playPeriod": "Q4",
+    "playClock": "4:55",
+    "downAndDistance": "4th & 6 at CAR 11",
+    "teamID": "32"
+   },
+   {
+    "play": "Timeout at 04:55.",
+    "playPeriod": "Q4",
+    "playClock": "4:55",
+    "downAndDistance": "1st & 10 at WSH 35",
+    "teamID": "32"
+   },
+   {
+    "play": "A.Seibert kicks 65 yards from WAS 35 to end zone, Touchback to the CAR 30.",
+    "playPeriod": "Q4",
+    "playClock": "4:55",
+    "teamID": "5"
+   },
+   {
+    "play": "C.Hubbard right tackle to CAR 33 for 3 yards (E.Obada).",
+    "playPeriod": "Q4",
+    "playClock": "4:55",
+    "downAndDistance": "1st & 10 at CAR 30",
+    "teamID": "5"
+   },
+   {
+    "play": "B.Young pass short left to J.Sanders to CAR 35 for 2 yards (N.Igbinoghene).",
+    "playPeriod": "Q4",
+    "playClock": "4:16",
+    "downAndDistance": "2nd & 7 at CAR 33",
+    "teamID": "5"
+   },
+   {
+    "play": "B.Young pass short right to M.Sanders to CAR 29 for -6 yards (N.Bellore).",
+    "playPeriod": "Q4",
+    "playClock": "3:29",
+    "downAndDistance": "3rd & 5 at CAR 35",
+    "teamID": "5"
+   },
+   {
+    "play": "J.Hekker punts 47 yards to WAS 24, Center-J.Jansen, downed by CAR-F.Franks.",
+    "playPeriod": "Q4",
+    "playClock": "2:34",
+    "downAndDistance": "4th & 11 at CAR 29",
+    "teamID": "5"
+   },
+   {
+    "play": "T.Scott reported in as eligible.  J.McNichols right tackle to WAS 31 for 7 yards (L.Ray).",
+    "playPeriod": "Q4",
+    "playClock": "2:34",
+    "downAndDistance": "1st & 10 at WSH 24",
+    "teamID": "32"
+   },
+   {
+    "play": "Two-Minute Warning",
+    "playPeriod": "Q4",
+    "playClock": "2:00",
+    "downAndDistance": "2nd & 3 at WSH 31",
+    "teamID": "32"
+   },
+   {
+    "play": "J.McNichols left guard to WAS 41 for 10 yards (X.Woods).",
+    "playPeriod": "Q4",
+    "playClock": "2:00",
+    "downAndDistance": "2nd & 3 at WSH 31",
+    "teamID": "32"
+   },
+   {
+    "play": "M.Mariota kneels to WAS 39 for -2 yards.",
+    "playPeriod": "Q4",
+    "playClock": "1:15",
+    "downAndDistance": "1st & 10 at WSH 41",
+    "teamID": "32"
+   },
+   {
+    "play": "M.Mariota kneels to WAS 38 for -1 yards.",
+    "playPeriod": "Q4",
+    "playClock": "0:38",
+    "downAndDistance": "2nd & 12 at WSH 39",
+    "teamID": "32"
+   },
+   {
+    "play": "END GAME",
+    "playPeriod": "Q4",
+    "playClock": "0:00",
+    "teamID": "32"
+   }
+  ]
+ }
+}

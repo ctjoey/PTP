@@ -10,7 +10,8 @@
     </a>
     <div class="topbar-actions">
       <a class="btn btn-sm" id="rules-btn" href="/rules">Rules</a>
-      <button class="btn btn-sm" id="lounge-btn" type="button">H2H Lounges</button>
+      <button class="btn btn-sm" id="lounge-btn" type="button"><span class="h2h-prefix">H2H </span>Lounges</button>
+      {% include "_theme_toggle.html" %}
       <span class="conn connecting" id="conn" role="img" aria-label="Connecting"></span>
     </div>
   </header>
@@ -158,6 +159,7 @@
 <!-- Sign-up -->
 <div class="modal-backdrop" id="signin-modal" hidden>
   <form class="modal" id="signin-form" novalidate role="dialog" aria-modal="true" aria-labelledby="signin-title">
+    <div class="modal-theme">{% include "_theme_toggle.html" %}</div>
     <h2 id="signin-title">Welcome to Pick the Play</h2>
     <p class="muted">Call every snap before it happens. When a play opens you have 15 seconds to pick
       <b>Run or Pass</b>, <b>Left, Middle or Right</b> (as the QB looks downfield) and <b>how far</b>:

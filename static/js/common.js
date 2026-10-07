@@ -260,8 +260,49 @@ const PTP = (() => {
     });
   }
 
+  // ------------------------------------------------------------ light / dark theme
+  // base.html applies the saved choice before first paint; this wires the toggle buttons
+  // (every page header has one), saves the choice and keeps the browser chrome color in step.
+  const theme = (() => {
+    const KEY = "ptp-theme";
+    const BAR = { dark: "#070b12", light: "#f2f5fa" };
+    const root = document.documentElement;
+    const get = () => (root.getAttribute("data-theme") === "light" ? "light" : "dark");
+
+    function paint() {
+      const current = get();
+      const label = current === "light" ? "Switch to dark mode" : "Switch to light mode";
+      for (const btn of $$("[data-theme-toggle]")) {
+        btn.setAttribute("aria-label", label);
+        btn.setAttribute("title", label);
+      }
+      const bar = $('meta[name="theme-color"]');
+      if (bar) bar.setAttribute("content", BAR[current]);
+      const scheme = $('meta[name="color-scheme"]');
+      if (scheme) scheme.setAttribute("content", current);
+    }
+
+    function set(next, save = true) {
+      root.setAttribute("data-theme", next === "light" ? "light" : "dark");
+      if (save) {
+        try { localStorage.setItem(KEY, get()); } catch { /* private mode: applies for this visit only */ }
+      }
+      paint();
+    }
+
+    document.addEventListener("click", (ev) => {
+      if (ev.target.closest("[data-theme-toggle]")) set(get() === "light" ? "dark" : "light");
+    });
+    // Another tab changed the choice: follow it.
+    window.addEventListener("storage", (ev) => {
+      if (ev.key === KEY && (ev.newValue === "light" || ev.newValue === "dark")) set(ev.newValue, false);
+    });
+    paint();
+    return { get, set };
+  })();
+
   return {
-    $, $$, el, toast, api, LiveSocket, now, syncClock,
+    $, $$, el, toast, api, LiveSocket, now, syncClock, theme,
     ordinal, downDistance, teamAbbr, inkFor, applyTeamColors, renderScorebug, pct, crowdBars,
     YARDAGE_RANGE, bucketForYards, yardsText, titleCase, describeResult,
   };

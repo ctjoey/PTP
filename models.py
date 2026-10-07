@@ -7,6 +7,7 @@ into it and is responsible for broadcasting changes over WebSockets.
 
 from __future__ import annotations
 
+import json
 import re
 import secrets
 import sqlite3
@@ -362,6 +363,8 @@ _PLAYS = """(
     locks_at           REAL NOT NULL,
     locked_at          REAL,
     resolved_at        REAL,
+    resolved_by        TEXT CHECK (resolved_by IN ('host', 'feed', 'void', 'host-fix')),  -- NULL on old rows
+    feed_text          TEXT,  -- the live-data text this play was scored from (admin only)
     UNIQUE (game_id, play_number)
 )"""
 
@@ -388,7 +391,14 @@ CREATE TABLE IF NOT EXISTS games (
     away_secondary  TEXT NOT NULL,
     status          TEXT NOT NULL DEFAULT 'SCHEDULED'
                     CHECK (status IN ('SCHEDULED', 'LIVE', 'FINAL')),
-    created_at      REAL NOT NULL
+    created_at      REAL NOT NULL,
+    feed_game_id    TEXT,                           -- live data: the Tank01 game id, or 'demo'
+    feed_auto_score INTEGER NOT NULL DEFAULT 1,
+    feed_auto_open  INTEGER NOT NULL DEFAULT 0,
+    feed_paused     INTEGER NOT NULL DEFAULT 0,
+    feed_cursor     INTEGER NOT NULL DEFAULT 0,     -- feed entries already examined
+    feed_requests   INTEGER NOT NULL DEFAULT 0,     -- real requests made for this game
+    feed_cap_extra  INTEGER NOT NULL DEFAULT 0      -- requests the host allowed beyond the per-game cap
 );
 
 CREATE TABLE IF NOT EXISTS plays {_PLAYS};
@@ -421,14 +431,46 @@ CREATE TABLE IF NOT EXISTS lounge_members (
     PRIMARY KEY (lounge_id, user_id)
 );
 CREATE INDEX IF NOT EXISTS ix_lounge_members_user ON lounge_members(user_id);
+
+-- Live data (Tank01): the recorder, so the feature can be tuned after a real game.
+CREATE TABLE IF NOT EXISTS feed_log (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    game_id     INTEGER,
+    ts          REAL NOT NULL,
+    kind        TEXT NOT NULL,
+    play_id     INTEGER,
+    feed_index  INTEGER,
+    data        TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_feed_log_game ON feed_log(game_id, id);
+
+-- Real requests per UTC day (and the plan's last-seen allowance), so restarts cannot reset the caps.
+CREATE TABLE IF NOT EXISTS feed_usage (
+    day             TEXT PRIMARY KEY,
+    requests        INTEGER NOT NULL DEFAULT 0,
+    plan_remaining  INTEGER,   -- the plan's allowance as its last response showed it
+    plan_limit      INTEGER,
+    plan_seen_at    REAL       -- when that response arrived
+);
 """
 
 # Columns added after the first release. ``Store`` adds any that an older database (for example a
 # game.db on a host's persistent disk) is missing, so upgrading keeps every game, player and score.
 MIGRATIONS: dict[str, dict[str, str]] = {
+    "games": {
+        "feed_game_id": "TEXT",
+        "feed_auto_score": "INTEGER NOT NULL DEFAULT 1",
+        "feed_auto_open": "INTEGER NOT NULL DEFAULT 0",
+        "feed_paused": "INTEGER NOT NULL DEFAULT 0",
+        "feed_cursor": "INTEGER NOT NULL DEFAULT 0",
+        "feed_requests": "INTEGER NOT NULL DEFAULT 0",
+        "feed_cap_extra": "INTEGER NOT NULL DEFAULT 0",
+    },
     "plays": {
         "correct_yardage": "TEXT CHECK (correct_yardage IN ('SHORT', 'MEDIUM', 'LONG', 'LOSS'))",
         "yards_gained": "INTEGER",
+        "resolved_by": "TEXT CHECK (resolved_by IN ('host', 'feed', 'void', 'host-fix'))",
+        "feed_text": "TEXT",
     },
     "predictions": {
         "yardage": "TEXT CHECK (yardage IN ('SHORT', 'MEDIUM', 'LONG'))",
@@ -443,6 +485,11 @@ DIRECTION_TABLES: tuple[tuple[str, str, str], ...] = (
 )
 
 MAX_LOUNGE_MEMBERS = 50
+
+# Live-data recorder: rows kept per game, and how many writes pass between clean-ups.
+FEED_LOG_KEEP = 5000
+FEED_LOG_PRUNE_EVERY = 100
+PLAN_INFO_MAX_AGE = 86400.0  # seconds a remembered plan allowance is trusted
 
 # All-three-right test shared by the leaderboard queries (aliases: pr, pl). A LOSS or a NULL
 # distance never matches.
@@ -480,6 +527,7 @@ class Store:
     def __init__(self, path: str = "game.db") -> None:
         self.path = path
         self._lock = threading.RLock()
+        self._feed_log_writes = 0
         self._conn = sqlite3.connect(path, check_same_thread=False, isolation_level=None)
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA foreign_keys = ON")
@@ -646,7 +694,9 @@ class Store:
         away_name: str,
         away_primary: str,
         away_secondary: str,
+        feed_game_id: str | None = None,
     ) -> dict[str, Any]:
+        """Start a new game (the previous one becomes FINAL). ``feed_game_id`` links live data from the start."""
         home_name = validate_team_name(home_name)
         away_name = validate_team_name(away_name)
         if home_name.lower() == away_name.lower():
@@ -663,10 +713,10 @@ class Store:
                 c.execute("UPDATE games SET status = ? WHERE id = ?", (GameStatus.FINAL, current["id"]))
             cur = c.execute(
                 """INSERT INTO games (home_name, home_primary, home_secondary,
-                                      away_name, away_primary, away_secondary, status, created_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                                      away_name, away_primary, away_secondary, status, created_at, feed_game_id)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (home_name, colors[0], colors[1], away_name, colors[2], colors[3],
-                 GameStatus.SCHEDULED, time.time()),
+                 GameStatus.SCHEDULED, time.time(), feed_game_id or None),
             )
             game_id = cur.lastrowid
         return self.get_game(game_id)  # type: ignore[return-value]
@@ -773,11 +823,14 @@ class Store:
         direction: Direction,
         yardage: YardageOutcome | str | None = None,
         yards: int | None = None,
+        resolved_by: str = "host",
+        feed_text: str | None = None,
     ) -> dict[str, Any]:
         """Record the actual outcome of the LOCKED play and score every prediction.
 
         The distance comes from ``yardage`` (SHORT/MEDIUM/LONG/LOSS), ``yards`` (total yards
-        gained, from which the bucket is derived) or both, which must then agree.
+        gained, from which the bucket is derived) or both, which must then agree. ``resolved_by``
+        says who scored it ('host', or 'feed' for live data, with the feed's ``feed_text``).
         """
         play_type, direction = PlayType(play_type), Direction(direction)
         yardage, yards = resolve_yardage(yardage, yards)
@@ -790,8 +843,9 @@ class Store:
                 raise GameError("Lock predictions before resolving the play.", 409)
             c.execute(
                 """UPDATE plays SET state = 'RESOLVED', correct_play_type = ?, correct_direction = ?,
-                          correct_yardage = ?, yards_gained = ?, resolved_at = ? WHERE id = ?""",
-                (play_type, direction, yardage, yards, time.time(), play["id"]),
+                          correct_yardage = ?, yards_gained = ?, resolved_at = ?,
+                          resolved_by = ?, feed_text = ? WHERE id = ?""",
+                (play_type, direction, yardage, yards, time.time(), resolved_by, feed_text, play["id"]),
             )
             preds = c.execute(
                 "SELECT id, user_id, play_type, direction, yardage FROM predictions WHERE play_id = ?",
@@ -809,8 +863,8 @@ class Store:
                           [(pts, uid) for pts, _, uid in scored if pts])
         return self.get_play(play["id"])  # type: ignore[return-value]
 
-    def void_play(self) -> dict[str, Any]:
-        """Cancel the active play (penalty / no play). Nobody scores."""
+    def void_play(self, feed_text: str | None = None) -> dict[str, Any]:
+        """Cancel the active play (penalty / no play). Nobody scores. ``feed_text`` is set when live data did it."""
         with self._tx() as c:
             game = _row(c.execute("SELECT id FROM games ORDER BY id DESC LIMIT 1").fetchone())
             play = self._active_play_in(c, game["id"]) if game else None
@@ -818,9 +872,9 @@ class Store:
                 raise GameError("There is no active play to void.", 409)
             now = time.time()
             c.execute(
-                """UPDATE plays SET state = 'RESOLVED', voided = 1,
+                """UPDATE plays SET state = 'RESOLVED', voided = 1, resolved_by = 'void', feed_text = ?,
                           locked_at = COALESCE(locked_at, ?), resolved_at = ? WHERE id = ?""",
-                (now, now, play["id"]),
+                (feed_text, now, now, play["id"]),
             )
             c.execute("UPDATE predictions SET points_earned = 0 WHERE play_id = ?", (play["id"],))
         return self.get_play(play["id"])  # type: ignore[return-value]
@@ -829,7 +883,7 @@ class Store:
         return self._all(
             f"""SELECT pl.id, pl.play_number, pl.down, pl.distance, pl.state, pl.voided,
                        pl.correct_play_type, pl.correct_direction,
-                       pl.correct_yardage, pl.yards_gained,
+                       pl.correct_yardage, pl.yards_gained, pl.resolved_by, pl.feed_text,
                        COUNT(pr.id) AS picks,
                        COALESCE(SUM({_EXACT_SQL}), 0) AS exact_hits
                 FROM plays pl LEFT JOIN predictions pr ON pr.play_id = pl.id
@@ -837,6 +891,161 @@ class Store:
                 GROUP BY pl.id ORDER BY pl.play_number DESC LIMIT ?""",
             (game_id, limit),
         )
+
+    def played_count(self, game_id: int) -> int:
+        """How many of the game's plays have locked (including voided ones)."""
+        row = self._one("SELECT COUNT(*) AS n FROM plays WHERE game_id = ? AND state != 'OPEN'", (game_id,))
+        return row["n"] if row else 0
+
+    def locked_plays(self, game_id: int) -> list[dict[str, Any]]:
+        """The game's LOCKED plays (waiting for a result), oldest first."""
+        return self._all(
+            "SELECT * FROM plays WHERE game_id = ? AND state = 'LOCKED' ORDER BY play_number", (game_id,)
+        )
+
+    def correct_play(
+        self,
+        play_id: int,
+        play_type: PlayType | str,
+        direction: Direction | str,
+        yardage: YardageOutcome | str | None = None,
+        yards: int | None = None,
+    ) -> dict[str, Any]:
+        """Fix the result of a scored play: re-score every pick and move each player's total by the difference.
+
+        Only a RESOLVED, non-voided play of the current game can be corrected. The distance follows the same
+        rules as ``resolve_play``. All-or-nothing: any failure leaves every score as it was.
+        """
+        play_type, direction = PlayType(play_type), Direction(direction)
+        yardage, yards = resolve_yardage(yardage, yards)
+        with self._tx() as c:
+            game = _row(c.execute("SELECT id FROM games ORDER BY id DESC LIMIT 1").fetchone())
+            play = _row(c.execute("SELECT * FROM plays WHERE id = ?", (play_id,)).fetchone())
+            if not play:
+                raise GameError("Unknown play.", 404)
+            if not game or play["game_id"] != game["id"]:
+                raise GameError("Only plays from the current game can be corrected.", 409)
+            if play["state"] != PlayState.RESOLVED:
+                raise GameError("That play has not been scored yet.", 409)
+            if play["voided"]:
+                raise GameError("A voided play has no result to correct.", 409)
+            c.execute(
+                """UPDATE plays SET correct_play_type = ?, correct_direction = ?, correct_yardage = ?,
+                          yards_gained = ?, resolved_by = 'host-fix' WHERE id = ?""",
+                (play_type, direction, yardage, yards, play_id),
+            )
+            preds = c.execute(
+                "SELECT id, user_id, play_type, direction, yardage, points_earned FROM predictions WHERE play_id = ?",
+                (play_id,),
+            ).fetchall()
+            for p in preds:
+                points = score_prediction(p["play_type"], p["direction"], p["yardage"],
+                                          play_type, direction, yardage).points
+                delta = points - (p["points_earned"] or 0)
+                c.execute("UPDATE predictions SET points_earned = ? WHERE id = ?", (points, p["id"]))
+                if delta:
+                    c.execute("UPDATE users SET total_score = total_score + ? WHERE id = ?", (delta, p["user_id"]))
+        return self.get_play(play_id)  # type: ignore[return-value]
+
+    # -- live data (Tank01) ------------------------------------------------ #
+
+    def set_feed_link(self, game_id: int, feed_game_id: str | None) -> dict[str, Any]:
+        """Link (or, with None, unlink) a game to a live-data source. Starts over at the first feed entry."""
+        with self._tx() as c:
+            c.execute("UPDATE games SET feed_game_id = ?, feed_cursor = 0, feed_paused = 0 WHERE id = ?",
+                      (feed_game_id or None, game_id))
+        return self.get_game(game_id)  # type: ignore[return-value]
+
+    def set_feed_options(
+        self, game_id: int, auto_score: bool | None = None, auto_open: bool | None = None,
+        paused: bool | None = None,
+    ) -> dict[str, Any]:
+        """Change the per-game live-data switches that are given (None leaves one as it is)."""
+        changes = {"feed_auto_score": auto_score, "feed_auto_open": auto_open, "feed_paused": paused}
+        changes = {k: int(bool(v)) for k, v in changes.items() if v is not None}
+        if changes:
+            sets = ", ".join(f"{k} = ?" for k in changes)
+            with self._tx() as c:
+                c.execute(f"UPDATE games SET {sets} WHERE id = ?", (*changes.values(), game_id))
+        return self.get_game(game_id)  # type: ignore[return-value]
+
+    def set_feed_cursor(self, game_id: int, cursor: int) -> None:
+        with self._tx() as c:
+            c.execute("UPDATE games SET feed_cursor = ? WHERE id = ?", (max(0, int(cursor)), game_id))
+
+    def raise_feed_cap(self, game_id: int, extra: int) -> int:
+        """Allow ``extra`` more requests for this game; returns the total allowed beyond the default cap."""
+        with self._tx() as c:
+            c.execute("UPDATE games SET feed_cap_extra = feed_cap_extra + ? WHERE id = ?", (int(extra), game_id))
+            row = c.execute("SELECT feed_cap_extra FROM games WHERE id = ?", (game_id,)).fetchone()
+        return row["feed_cap_extra"] if row else 0
+
+    def count_feed_request(
+        self, game_id: int | None, day: str, *, spent: bool = True,
+        plan_remaining: int | None = None, plan_limit: int | None = None, now: float | None = None,
+    ) -> dict[str, int | None]:
+        """Record one live-data request: for the game, for the UTC ``day``, and the plan's allowance if it was shown.
+
+        ``spent=False`` (the recorded demo game) counts it for the game's meter only. Returns the new totals.
+        """
+        now = time.time() if now is None else now
+        with self._tx() as c:
+            if game_id is not None:
+                c.execute("UPDATE games SET feed_requests = feed_requests + 1 WHERE id = ?", (game_id,))
+            if spent:
+                c.execute(
+                    """INSERT INTO feed_usage (day, requests, plan_remaining, plan_limit, plan_seen_at)
+                       VALUES (?, 1, ?, ?, ?)
+                       ON CONFLICT (day) DO UPDATE SET
+                           requests = requests + 1,
+                           plan_remaining = COALESCE(excluded.plan_remaining, plan_remaining),
+                           plan_limit = COALESCE(excluded.plan_limit, plan_limit),
+                           plan_seen_at = CASE WHEN excluded.plan_remaining IS NOT NULL
+                                               THEN excluded.plan_seen_at ELSE plan_seen_at END""",
+                    (day, plan_remaining, plan_limit, now if plan_remaining is not None else None),
+                )
+        return self.feed_usage(day, game_id, now=now)
+
+    def feed_usage(self, day: str, game_id: int | None = None, now: float | None = None) -> dict[str, int | None]:
+        """Requests made today (UTC), for ``game_id``, and the plan's allowance as last seen (None when never seen or
+        older than a day: a plan changes, and a stale number must not block live data forever)."""
+        now = time.time() if now is None else now
+        today = self._one("SELECT requests FROM feed_usage WHERE day = ?", (day,))
+        plan = self._one("SELECT plan_remaining, plan_limit FROM feed_usage WHERE plan_remaining IS NOT NULL "
+                         "AND plan_seen_at > ? ORDER BY plan_seen_at DESC LIMIT 1", (now - PLAN_INFO_MAX_AGE,)) or {}
+        game = self._one("SELECT feed_requests, feed_cap_extra FROM games WHERE id = ?", (game_id,)) if game_id else None
+        return {"today": today["requests"] if today else 0,
+                "game": game["feed_requests"] if game else 0,
+                "cap_extra": game["feed_cap_extra"] if game else 0,
+                "plan_remaining": plan.get("plan_remaining"), "plan_limit": plan.get("plan_limit")}
+
+    def log_feed(
+        self, game_id: int | None, kind: str, data: dict[str, Any] | None = None,
+        play_id: int | None = None, feed_index: int | None = None, ts: float | None = None,
+    ) -> None:
+        """Append one row to the live-data recorder; each game keeps its most recent ``FEED_LOG_KEEP`` rows."""
+        row = (game_id, ts if ts is not None else time.time(), kind, play_id, feed_index,
+               json.dumps(data or {}, separators=(",", ":"), default=str))
+        with self._tx() as c:
+            c.execute("INSERT INTO feed_log (game_id, ts, kind, play_id, feed_index, data) VALUES (?, ?, ?, ?, ?, ?)", row)
+            self._feed_log_writes += 1
+            if self._feed_log_writes % FEED_LOG_PRUNE_EVERY == 0:
+                c.execute(
+                    """DELETE FROM feed_log WHERE game_id IS ? AND id <= (
+                           SELECT id FROM feed_log WHERE game_id IS ? ORDER BY id DESC LIMIT 1 OFFSET ?)""",
+                    (game_id, game_id, FEED_LOG_KEEP),
+                )
+
+    def feed_log(self, game_id: int | None) -> list[dict[str, Any]]:
+        """The recorder rows for a game, oldest first, with ``data`` decoded."""
+        rows = self._all("SELECT id, ts, kind, play_id, feed_index, data FROM feed_log WHERE game_id IS ? ORDER BY id",
+                         (game_id,))
+        for row in rows:
+            try:
+                row["data"] = json.loads(row["data"] or "{}")
+            except ValueError:
+                row["data"] = {}
+        return rows
 
     # -- predictions ------------------------------------------------------ #
 

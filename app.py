@@ -6,6 +6,7 @@ FastAPI app serving three surfaces:
 * ``/lounge/{code}``     private head-to-head lounge (same app, lounge leaderboard)
 * ``/admin``             admin console that drives the play state machine
 * ``/rules``             Rules of the Game: how it works, points, what Left / Middle / Right mean
+* live data              optional Tank01 play-by-play that suggests (and scores) each play's result (``feed.py``)
 * ``/privacy``, ``/support``  privacy policy and support pages (App Store listing URLs)
 
 Real-time sync uses two WebSocket endpoints (``/ws`` for players, ``/ws/admin``
@@ -38,7 +39,7 @@ from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Request,
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel, Field, ValidationError, model_validator
+from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 from starlette.websockets import WebSocketDisconnect, WebSocketState
 
 from models import (
@@ -62,6 +63,7 @@ from models import (
     resolve_yardage,
     score_prediction,
 )
+from feed import DEFAULT_BASE_URL, FEED_ID_RE, LiveFeed
 from teams import DEFAULT_AWAY, DEFAULT_HOME, TEAM_PRESETS
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -80,6 +82,14 @@ SCORING = {"type": TYPE_POINTS, "direction": DIRECTION_POINTS, "yardage": YARDAG
 log = logging.getLogger("pick_the_play")
 
 
+def _env_number(name: str, default: float, cast: type = float) -> Any:
+    """An environment variable as a number; a missing or garbled value falls back to the default."""
+    try:
+        return cast(os.environ.get(name, "").strip() or default)
+    except ValueError:
+        return cast(default)
+
+
 @dataclass(frozen=True)
 class Settings:
     db_path: str = field(default_factory=lambda: os.environ.get("PTP_DB_PATH", str(BASE_DIR / "game.db")))
@@ -89,6 +99,20 @@ class Settings:
     contact_email: str = field(default_factory=lambda: os.environ.get("PTP_CONTACT_EMAIL", "").strip())
     # Picks sent in the final instant still count if they arrive this late.
     grace_seconds: float = 0.5
+    # Live data (Tank01). The key is a secret: it is never shown, logged or sent anywhere but Tank01.
+    tank01_api_key: str = field(default_factory=lambda: os.environ.get("TANK01_API_KEY", "").strip(), repr=False)
+    tank01_base_url: str = field(default_factory=lambda: os.environ.get("TANK01_BASE_URL", "").strip() or DEFAULT_BASE_URL)
+    tank01_max_requests_per_game: int = field(default_factory=lambda: _env_number("TANK01_MAX_REQUESTS_PER_GAME", 900, int))
+    tank01_max_requests_per_day: int = field(default_factory=lambda: _env_number("TANK01_MAX_REQUESTS_PER_DAY", 1000, int))
+    tank01_reserve: int = field(default_factory=lambda: _env_number("TANK01_RESERVE", 15, int))  # keep this many spare
+    tank01_allow_overage: bool = field(
+        default_factory=lambda: os.environ.get("TANK01_ALLOW_OVERAGE", "").strip().lower() in ("1", "true", "yes", "on"))
+    tank01_first_delay: float = field(default_factory=lambda: _env_number("TANK01_FIRST_DELAY", 10.0))
+    tank01_fast_interval: float = field(default_factory=lambda: _env_number("TANK01_FAST_INTERVAL", 5.0))
+    tank01_auto_score_grace: float = field(default_factory=lambda: _env_number("TANK01_AUTO_SCORE_GRACE", 8.0))
+    tank01_open_delay: float = field(default_factory=lambda: _env_number("TANK01_OPEN_DELAY", 12.0))
+    tank01_timeout: float = field(default_factory=lambda: _env_number("TANK01_TIMEOUT", 15.0))
+    tank01_demo_lag: float = field(default_factory=lambda: _env_number("TANK01_DEMO_LAG", 12.0))  # practice game's delay
 
 
 # --------------------------------------------------------------------------- #
@@ -118,6 +142,20 @@ class CreateGameIn(BaseModel):
     away_name: str = Field(max_length=40)
     away_primary: str = Field(max_length=7)
     away_secondary: str = Field(max_length=7)
+    feed_game_id: str | None = Field(default=None, max_length=40)  # link live data from the start (or "demo")
+
+    @field_validator("feed_game_id")
+    @classmethod
+    def _known_feed_id(cls, value: str | None) -> str | None:
+        return _feed_id(value)
+
+
+def _feed_id(value: str | None) -> str | None:
+    """A Tank01 game id ("20261008_TB@DAL"), "demo", or nothing."""
+    value = (value or "").strip()
+    if value and not FEED_ID_RE.match(value):
+        raise ValueError("That is not a game the live feed knows. Pick one from today's list.")
+    return value or None
 
 
 class StatusIn(BaseModel):
@@ -150,6 +188,56 @@ class ResolveIn(BaseModel):
 
 class EmptyIn(BaseModel):
     pass
+
+
+class FeedLinkIn(BaseModel):
+    """Connect the current game to a live game (``null`` disconnects)."""
+
+    feed_game_id: str | None = Field(default=None, max_length=40)
+
+    @field_validator("feed_game_id")
+    @classmethod
+    def _known_feed_id(cls, value: str | None) -> str | None:
+        return _feed_id(value)
+
+
+class FeedSetIn(BaseModel):
+    auto_score: bool | None = None
+    auto_open: bool | None = None
+
+
+class FeedAcceptIn(BaseModel):
+    """Apply the feed's suggestion now. Any field given overrides the suggestion; ``void`` voids the play."""
+
+    play_id: int
+    play_type: PlayType | None = None
+    direction: Direction | None = None
+    yardage: YardageOutcome | None = None
+    yards: int | None = Field(default=None, ge=MIN_YARDS, le=MAX_YARDS, strict=True)
+    void: bool = False
+
+    @model_validator(mode="after")
+    def _distance_consistent(self) -> "FeedAcceptIn":
+        if self.yardage is not None or self.yards is not None:
+            try:
+                resolve_yardage(self.yardage, self.yards)
+            except GameError as exc:
+                raise ValueError(exc.message) from None
+        return self
+
+
+class FeedSkipIn(BaseModel):
+    play_id: int
+
+
+class FeedMoreIn(BaseModel):
+    n: int = Field(default=100, ge=1, le=1000)
+
+
+class CorrectPlayIn(ResolveIn):
+    """Fix the result of a play that was already scored."""
+
+    play_id: int
 
 
 def _validation_message(exc: ValidationError) -> str:
@@ -220,6 +308,13 @@ class _Snapshot:
     lounges: dict[str, dict[str, Any] | None] = field(default_factory=dict)
 
 
+def public_game(game: dict[str, Any] | None) -> dict[str, Any] | None:
+    """The game as players see it: no live-data settings (those are the host's business)."""
+    if not game:
+        return None
+    return {k: v for k, v in game.items() if not k.startswith("feed_")}
+
+
 def public_play(play: dict[str, Any] | None) -> dict[str, Any] | None:
     if not play:
         return None
@@ -250,17 +345,43 @@ class GameController:
         self.settings = settings
         self._lock_task: asyncio.Task | None = None
         self._admin_push_pending = False
+        self._feed_push_pending = False
         self._background: set[asyncio.Task] = set()
+        self.feed = LiveFeed(store, self, settings)
 
     # -- lifecycle -------------------------------------------------------- #
 
+    def _feed_hook(self, name: str, *args: Any) -> None:
+        """Tell live data about a host action. Whatever goes wrong in there must never stop the host's own action:
+        scoring by hand has to keep working exactly as it always did."""
+        try:
+            getattr(self.feed, name)(*args)
+        except Exception:  # noqa: BLE001
+            log.exception("live data hook %s failed", name)
+
+    def _feed_state(self) -> dict[str, Any]:
+        """The ``feed`` part of ``admin_state``; a fault in live data shows as an error, never breaks the console."""
+        try:
+            return self.feed.state()
+        except Exception:  # noqa: BLE001
+            log.exception("live data state failed")
+            return {"available": False, "linked": False, "source": None, "game_id": None, "state": "error",
+                    "message": "Live data hit a problem. Score by hand.", "paused": False, "auto_score": True,
+                    "auto_open": False,
+                    "requests": {"game": 0, "today": 0, "game_cap": 0, "day_cap": 0, "plan_remaining": None,
+                                 "plan_limit": None},
+                    "lag": {"median": None, "last": None, "samples": 0}, "waiting": None, "suggestion": None,
+                    "disagreement": None, "next_down": None, "auto_open_at": None, "last_scored": None}
+
     async def recover(self) -> None:
-        """Re-arm the auto-lock timer for a play left OPEN by a restart."""
+        """After a restart: re-arm the auto-lock timer for a play left OPEN, and pick live data back up."""
         for play in self.store.open_plays():
             self._arm_lock_timer(play)
+        self._feed_hook("attach", self.store.current_game())
 
     async def shutdown(self) -> None:
         self._cancel_lock_timer()
+        await self.feed.stop()
         for task in list(self._background):
             task.cancel()
 
@@ -292,13 +413,16 @@ class GameController:
     # -- admin actions ---------------------------------------------------- #
 
     async def create_game(self, data: CreateGameIn) -> dict[str, Any]:
+        self.feed.check_linkable(data.feed_game_id)  # refuse a bad live-data link before anything is created
         game = self.store.create_game(**data.model_dump())
         self._cancel_lock_timer()
+        self._feed_hook("attach", game)
         await self.broadcast("game_created")
         return game
 
     async def set_status(self, data: StatusIn) -> dict[str, Any]:
         game = self.store.set_game_status(data.status)
+        self._feed_hook("on_game_status", game)
         await self.broadcast("game_status")
         return game
 
@@ -306,25 +430,126 @@ class GameController:
         window = data.window_seconds or self.settings.window_seconds
         _, play = self.store.open_next_play(data.down, data.distance, window)
         self._arm_lock_timer(play)
+        self._feed_hook("on_play_opened", play)
         await self.broadcast("play_opened")
         return public_play(play)  # type: ignore[return-value]
 
     async def lock_play(self, data: EmptyIn | None = None, play_id: int | None = None) -> dict[str, Any]:
         play = self.store.lock_play(play_id)
         self._cancel_lock_timer()
+        self._feed_hook("on_play_locked", play)
         await self.broadcast("play_locked")
         return public_play(play)  # type: ignore[return-value]
 
     async def resolve_play(self, data: ResolveIn) -> dict[str, Any]:
         play = self.store.resolve_play(data.play_type, data.direction, data.yardage, data.yards)
+        self._feed_hook("on_play_resolved", play)
         await self.broadcast("play_resolved")
         return public_play(play)  # type: ignore[return-value]
 
     async def void_play(self, data: EmptyIn | None = None) -> dict[str, Any]:
         play = self.store.void_play()
         self._cancel_lock_timer()
+        self._feed_hook("on_play_voided", play)
         await self.broadcast("play_voided")
         return public_play(play)  # type: ignore[return-value]
+
+    async def correct_play(self, data: CorrectPlayIn) -> dict[str, Any]:
+        """Fix a play that was scored wrongly: every pick is re-scored and each player's total moves by the difference."""
+        play = self.store.correct_play(data.play_id, data.play_type, data.direction, data.yardage, data.yards)
+        self._feed_hook("on_play_corrected", data.play_id)
+        await self.broadcast("play_corrected")
+        return public_play(play)  # type: ignore[return-value]
+
+    # -- live data (the feed calls these to apply its results) -------------- #
+
+    def _waiting_play(self, play_id: int) -> dict[str, Any]:
+        game = self.store.current_game()
+        play = self.store.latest_play(game["id"]) if game else None
+        if not play or play["id"] != play_id or play["state"] != PlayState.LOCKED:
+            raise GameError("That play is no longer waiting for a result.", 409)
+        return play
+
+    def feed_resolve(self, play_id: int, play_type: str, direction: str, yardage: str | None, yards: int | None,
+                     feed_text: str) -> dict[str, Any]:
+        self._waiting_play(play_id)
+        return self.store.resolve_play(play_type, direction, yardage, yards, resolved_by="feed", feed_text=feed_text)
+
+    def feed_void(self, play_id: int, feed_text: str) -> dict[str, Any]:
+        self._waiting_play(play_id)
+        play = self.store.void_play(feed_text=feed_text)
+        self._cancel_lock_timer()
+        return play
+
+    async def feed_broadcast(self, event: str) -> None:
+        await self.broadcast(event)
+
+    async def feed_open(self, down: int | None, distance: str | None) -> None:
+        await self.open_play(OpenPlayIn(down=down, distance=distance))
+
+    def feed_changed(self) -> None:
+        """Live data changed: tell the host consoles now (changes in one moment go out as one message)."""
+        if self._feed_push_pending or not self.hub.admins:
+            return
+        self._feed_push_pending = True
+
+        async def flush() -> None:
+            await asyncio.sleep(0)
+            self._feed_push_pending = False
+            await self.push_admin("feed")
+
+        self._spawn(flush())
+
+    # -- live data (host console actions) ----------------------------------- #
+
+    def _feed_result(self) -> dict[str, Any]:
+        return {"feed": self._feed_state()}
+
+    async def feed_link(self, data: FeedLinkIn) -> dict[str, Any]:
+        await self.feed.link(data.feed_game_id)
+        return self._feed_result()
+
+    async def feed_pause(self, data: EmptyIn | None = None) -> dict[str, Any]:
+        await self.feed.pause()
+        return self._feed_result()
+
+    async def feed_resume(self, data: EmptyIn | None = None) -> dict[str, Any]:
+        await self.feed.resume()
+        return self._feed_result()
+
+    async def feed_check_now(self, data: EmptyIn | None = None) -> dict[str, Any]:
+        await self.feed.check_now()
+        return self._feed_result()
+
+    async def feed_set(self, data: FeedSetIn) -> dict[str, Any]:
+        self.feed.set_options(data.auto_score, data.auto_open)
+        return self._feed_result()
+
+    async def feed_hold(self, data: EmptyIn | None = None) -> dict[str, Any]:
+        self.feed.hold()
+        return self._feed_result()
+
+    async def feed_accept(self, data: FeedAcceptIn) -> dict[str, Any]:
+        play = await self.feed.accept(
+            data.play_id,
+            data.play_type.value if data.play_type else None,
+            data.direction.value if data.direction else None,
+            data.yardage.value if data.yardage else None,
+            data.yards, data.void,
+        )
+        return {**self._feed_result(), "play": public_play(play)}
+
+    async def feed_skip(self, data: FeedSkipIn) -> dict[str, Any]:
+        self.feed.skip(data.play_id)
+        return self._feed_result()
+
+    async def feed_dismiss(self, data: EmptyIn | None = None) -> dict[str, Any]:
+        self.feed.dismiss()
+        return self._feed_result()
+
+    async def feed_allow_more(self, data: FeedMoreIn) -> dict[str, Any]:
+        self.feed.allow_more(data.n)
+        return self._feed_result()
 
     # -- player actions --------------------------------------------------- #
 
@@ -369,7 +594,7 @@ class GameController:
         if play and play["state"] != PlayState.OPEN:  # never reveal the split while picking
             crowd = self.store.pick_stats(play["id"])
         return _Snapshot(
-            game=game,
+            game=public_game(game),
             play=play,
             leaderboard=leaderboard,
             by_user={r["user_id"]: r for r in leaderboard},
@@ -448,6 +673,7 @@ class GameController:
             "ranked_players": len(leaderboard),
             "history": self.store.play_history(game["id"]) if game else [],
             "window_seconds": self.settings.window_seconds,
+            "feed": self._feed_state(),
         }
 
     # -- broadcasting ----------------------------------------------------- #
@@ -495,6 +721,17 @@ ADMIN_ACTIONS: dict[str, tuple[type[BaseModel], Callable[[GameController, Any], 
     "lock_play": (EmptyIn, GameController.lock_play),
     "resolve_play": (ResolveIn, GameController.resolve_play),
     "void_play": (EmptyIn, GameController.void_play),
+    "correct_play": (CorrectPlayIn, GameController.correct_play),
+    "feed_link": (FeedLinkIn, GameController.feed_link),
+    "feed_pause": (EmptyIn, GameController.feed_pause),
+    "feed_resume": (EmptyIn, GameController.feed_resume),
+    "feed_check_now": (EmptyIn, GameController.feed_check_now),
+    "feed_set": (FeedSetIn, GameController.feed_set),
+    "feed_hold": (EmptyIn, GameController.feed_hold),
+    "feed_accept": (FeedAcceptIn, GameController.feed_accept),
+    "feed_skip": (FeedSkipIn, GameController.feed_skip),
+    "feed_dismiss": (EmptyIn, GameController.feed_dismiss),
+    "feed_allow_more": (FeedMoreIn, GameController.feed_allow_more),
 }
 
 
@@ -664,6 +901,49 @@ async def admin_resolve_play(body: ResolveIn, ctrl: GameController = Depends(get
 @admin_api.post("/play/void")
 async def admin_void_play(ctrl: GameController = Depends(get_ctrl)) -> dict[str, Any]:
     return await ctrl.void_play()
+
+
+@admin_api.post("/play/correct")
+async def admin_correct_play(body: CorrectPlayIn, ctrl: GameController = Depends(get_ctrl)) -> dict[str, Any]:
+    return await ctrl.correct_play(body)
+
+
+@admin_api.get("/feed/games")
+async def admin_feed_games(date: str | None = None, ctrl: GameController = Depends(get_ctrl)) -> dict[str, Any]:
+    """Games on a day (``date`` = YYYYMMDD) for the "Pick today's game" list: one real request, cached for minutes."""
+    return await ctrl.feed.games_for_date(date)
+
+
+@admin_api.get("/feed/log")
+async def admin_feed_log(game_id: int | None = None, download: bool = False,
+                         ctrl: GameController = Depends(get_ctrl)) -> JSONResponse:
+    """Everything the live-data recorder noted for a game (default: the current one), oldest first."""
+    if game_id is None:
+        current = ctrl.store.current_game()
+        game_id = current["id"] if current else None
+    rows = ctrl.store.feed_log(game_id)
+    headers = {"Content-Disposition": f'attachment; filename="feed-log-game-{game_id}.json"'} if download else None
+    return JSONResponse({"game_id": game_id, "count": len(rows), "rows": rows}, headers=headers)
+
+
+@admin_api.post("/feed/{action}")
+async def admin_feed_action(action: str, request: Request, ctrl: GameController = Depends(get_ctrl)) -> Any:
+    """REST mirror of the live-data admin actions: ``/feed/pause`` (or ``/feed/feed_pause``), ``/feed/correct_play``..."""
+    name = action if action == "correct_play" or action.startswith("feed_") else f"feed_{action}"
+    if name not in ADMIN_ACTIONS or not (name.startswith("feed_") or name == "correct_play"):
+        raise HTTPException(404, f"Unknown live-data action: {action}")
+    try:
+        body = await request.json() if await request.body() else {}
+    except ValueError:
+        raise GameError("The request body must be JSON.", 422) from None
+    if not isinstance(body, dict):
+        raise GameError("The request body must be a JSON object.", 422)
+    model, handler = ADMIN_ACTIONS[name]
+    try:
+        payload = model.model_validate(body)
+    except ValidationError as exc:
+        raise GameError(_validation_message(exc), 422) from None
+    return await handler(ctrl, payload)
 
 
 router.include_router(admin_api)

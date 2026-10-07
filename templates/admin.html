@@ -3,6 +3,7 @@
 {% block body_class %}admin-body{% endblock %}
 {% block body %}
 <div class="auth-wrap" id="auth" hidden>
+  <div class="auth-theme">{% include "_theme_toggle.html" %}</div>
   <form class="card auth-card" id="auth-form">
     <div class="brand">
       <span class="brand-name">PICK THE <b>PLAY</b></span>
@@ -29,6 +30,7 @@
       <a class="btn btn-sm" href="/rules" target="_blank" rel="noopener">Rules ↗</a>
       <a class="btn btn-sm" href="/" target="_blank" rel="noopener">Player view ↗</a>
       <button class="btn btn-sm btn-ghost" type="button" id="logout">Sign out</button>
+      {% include "_theme_toggle.html" %}
       <span class="conn connecting" id="conn" role="img" aria-label="Connecting"></span>
     </div>
   </header>
@@ -44,7 +46,30 @@
     <div class="admin-col">
       <section class="card">
         <h2 class="card-title">Game Setup</h2>
+        <div class="pick-game" id="pick-game" hidden>
+          <button class="btn btn-block" type="button" id="pick-game-btn" aria-expanded="false" aria-controls="pick-game-panel">Pick today's game</button>
+          <p class="small muted pick-note" id="pick-note" hidden></p>
+          <div class="pick-panel" id="pick-game-panel" hidden>
+            <div class="pick-date" id="pick-date-row">
+              <div class="field">
+                <label for="pick-date">Date</label>
+                <input class="input" type="date" id="pick-date">
+              </div>
+              <button class="btn" type="button" id="pick-load">Show games</button>
+            </div>
+            <div class="field">
+              <label for="pick-select">Game</label>
+              <select class="input" id="pick-select"></select>
+            </div>
+            <p class="small" id="pick-status" role="status"></p>
+          </div>
+          <p class="pick-picked small" id="pick-picked" hidden>
+            <span id="pick-picked-text"></span>
+            <button class="link-btn" type="button" id="pick-clear">Clear</button>
+          </p>
+        </div>
         <form class="team-form" id="game-form" novalidate>
+          <input type="hidden" name="feed_game_id" id="feed-game-id" value="">
           {% for side in ("away", "home") %}{% set team = defaults[side] %}
           <fieldset class="team-fieldset">
             <legend>{{ side|capitalize }} team</legend>
@@ -90,6 +115,102 @@
           </div>
         </div>
 
+        <!-- Live data (Tank01 feed): shown only when the server reports a feed -->
+        <div class="ctrl-section feed-panel" id="feed-panel" aria-label="Live data" hidden>
+          <div class="feed-head">
+            <span class="feed-dot" id="feed-dot" data-tone="off" aria-hidden="true"></span>
+            <div class="feed-headtext">
+              <div class="feed-title"><b>Live data</b> <span class="feed-state" id="feed-state">OFF</span></div>
+              <div class="feed-msg" id="feed-msg"></div>
+              <div class="feed-sub small muted" id="feed-sub" hidden></div>
+            </div>
+          </div>
+          <div class="feed-buttons" id="feed-buttons">
+            <button class="btn btn-sm" type="button" id="feed-pause">Pause <kbd>Shift+P</kbd></button>
+            <button class="btn btn-sm" type="button" id="feed-check">Check now</button>
+            <button class="btn btn-sm btn-warn" type="button" id="feed-more" hidden>Allow 100 more</button>
+          </div>
+          <div class="feed-usage" id="feed-usage" hidden>
+            <div class="small" id="feed-usage-text"></div>
+            <div class="meter" id="feed-meter" role="meter" aria-label="Requests used this game" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span></span></div>
+          </div>
+
+          <div class="sg-banner" id="feed-disagree" role="group" aria-label="Feed disagrees" hidden>
+            <div class="sg-banner-title" id="fd-title">The feed disagrees with a scored play</div>
+            <p class="sg-banner-body" id="fd-body"></p>
+            <p class="small muted sg-quote" id="fd-text"></p>
+            <div class="sg-actions">
+              <button class="btn btn-sm btn-warn" type="button" id="fd-fix">Fix result</button>
+              <button class="btn btn-sm" type="button" id="fd-dismiss">Dismiss</button>
+            </div>
+          </div>
+
+          <section class="sg" id="feed-card" data-status="ready" aria-label="Feed suggestion" hidden>
+            <div class="sg-top">
+              <span class="sg-badge" id="sg-badge">FEED SUGGESTS</span>
+              <span class="sg-clock small muted" id="sg-clock"></span>
+            </div>
+            <p class="sg-text" id="sg-text"></p>
+            <div class="sg-chips" id="sg-chips"></div>
+            <ul class="sg-flags" id="sg-flags"></ul>
+            <p class="sg-warning" id="sg-warning" hidden></p>
+            <div class="sg-timer" id="sg-timer" hidden>
+              <div class="sg-timer-text" id="sg-timer-text"></div>
+              <div class="sg-bar" aria-hidden="true"><span id="sg-bar"></span></div>
+            </div>
+            <p class="sg-note small" id="sg-note" hidden></p>
+            <div class="sg-actions">
+              <button class="btn btn-primary" type="button" id="sg-score">Score now <kbd>Enter</kbd></button>
+              <button class="btn" type="button" id="sg-hold">Hold <kbd>H</kbd></button>
+              <button class="btn" type="button" id="sg-change">Change…</button>
+              <button class="btn btn-ghost" type="button" id="sg-skip">Skip feed play</button>
+            </div>
+          </section>
+
+          <div class="sg-done" id="feed-scored" hidden>
+            <span class="sg-done-icon" aria-hidden="true">✓</span>
+            <span id="fs-text"></span>
+            <button class="link-btn" type="button" id="fs-fix">Fix result</button>
+          </div>
+
+          <div class="feed-link" id="feed-link" hidden>
+            <p class="small muted" id="feed-link-note"></p>
+            <div class="field">
+              <label for="feed-link-select">Follow a game</label>
+              <select class="input" id="feed-link-select"></select>
+            </div>
+            <div class="feed-buttons">
+              <button class="btn btn-sm" type="button" id="feed-link-load">Load today's games</button>
+              <button class="btn btn-sm btn-primary" type="button" id="feed-link-go">Link this game</button>
+            </div>
+            <p class="small" id="feed-link-status" role="status"></p>
+          </div>
+
+          <details class="feed-details" id="feed-details">
+            <summary>Settings and details</summary>
+            <div class="feed-details-body">
+              <label class="switch">
+                <input type="checkbox" role="switch" id="feed-auto-score">
+                <span class="switch-ui" aria-hidden="true"></span>
+                <span class="switch-text"><b>Auto-score clean plays</b>
+                  <small>The feed's result is scored for you after a few seconds. Odd plays (sacks, turnovers, penalties) always wait for you.</small></span>
+              </label>
+              <label class="switch">
+                <input type="checkbox" role="switch" id="feed-auto-open">
+                <span class="switch-ui" aria-hidden="true"></span>
+                <span class="switch-text"><b>Open next play automatically</b>
+                  <small>Off by default. Opens the next play for you after a clean score on 1st to 3rd down. Only turn it on once you have seen the typical delay below on a few plays: if the feed runs slow, the next play could open too late.</small></span>
+              </label>
+              <p class="feed-delay small" id="feed-delay"></p>
+              <p class="feed-detail-actions">
+                <button class="link-btn" type="button" id="feed-log">Download feed log</button>
+                <button class="link-btn danger" type="button" id="feed-unlink">Turn off live data for this game</button>
+              </p>
+            </div>
+          </details>
+          <div class="visually-hidden" id="feed-live" role="status" aria-live="polite" aria-atomic="true"></div>
+        </div>
+
         <div class="ctrl-section">
           <div class="ctrl-row">
             <div class="field">
@@ -110,6 +231,7 @@
               <input class="input" id="window" type="number" min="5" max="60" value="15">
             </div>
           </div>
+          <p class="dd-hint small" id="dd-hint" hidden>Down and distance filled in from the live feed. Change them if they look wrong.</p>
           <button class="big-btn btn-open" type="button" id="open-btn">Open Next Play <kbd>O</kbd></button>
           <button class="big-btn btn-lock" type="button" id="lock-btn">Lock Predictions <kbd>L</kbd></button>
         </div>
@@ -141,7 +263,7 @@
           </div>
           <button class="big-btn btn-resolve" type="button" id="resolve-btn">Resolve &amp; Score Play <kbd>Enter</kbd></button>
           <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap">
-            <span class="shortcuts">Keys: <kbd>O</kbd> open · <kbd>L</kbd> lock · <kbd>R</kbd>/<kbd>P</kbd> type · <kbd>←</kbd><kbd>↑</kbd><kbd>→</kbd> left/middle/right · <kbd>S</kbd>/<kbd>M</kbd>/<kbd>G</kbd> short/medium/long · <kbd>X</kbd> loss · <kbd>Y</kbd> yards · <kbd>Enter</kbd> resolve</span>
+            <span class="shortcuts">Keys: <kbd>O</kbd> open · <kbd>L</kbd> lock · <kbd>R</kbd>/<kbd>P</kbd> type · <kbd>←</kbd><kbd>↑</kbd><kbd>→</kbd> left/middle/right · <kbd>S</kbd>/<kbd>M</kbd>/<kbd>G</kbd> short/medium/long · <kbd>X</kbd> loss · <kbd>Y</kbd> yards · <kbd>Enter</kbd> resolve<span class="feed-keys" id="feed-keys" hidden> · <kbd>H</kbd> hold the feed's suggestion · <kbd>Shift</kbd>+<kbd>P</kbd> pause live data · <kbd>Enter</kbd> also scores a ready suggestion</span></span>
             <button class="text-btn" type="button" id="void-btn">Void play (penalty / no play)</button>
           </div>
         </div>
@@ -167,10 +289,29 @@
       <section class="card">
         <h2 class="card-title">Play Log</h2>
         <ul class="history" id="history"></ul>
+        <div class="fix-editor" id="fix-editor" role="group" aria-labelledby="fix-title" hidden>
+          <div class="fix-title" id="fix-title">Fix result</div>
+          <div class="seg seg-sm" data-fx="play_type" role="group" aria-label="Play type">
+            <button type="button" data-v="RUN">RUN</button><button type="button" data-v="PASS">PASS</button>
+          </div>
+          <div class="seg seg-sm" data-fx="direction" role="group" aria-label="Direction as the QB looks downfield">
+            <button type="button" data-v="LEFT">LEFT</button><button type="button" data-v="MIDDLE">MIDDLE</button><button type="button" data-v="RIGHT">RIGHT</button>
+          </div>
+          <div class="seg seg-sm" data-fx="yardage" role="group" aria-label="Distance">
+            <button type="button" data-v="SHORT">SHORT</button><button type="button" data-v="MEDIUM">MEDIUM</button><button type="button" data-v="LONG">LONG</button><button type="button" data-v="LOSS">LOSS</button>
+          </div>
+          <div class="fix-row">
+            <label class="fix-yards"><span>Yards (optional)</span>
+              <input class="input" id="fix-yards" type="number" inputmode="numeric" min="-99" max="99" step="1" placeholder="e.g. 7"></label>
+            <button class="btn btn-sm btn-primary" type="button" id="fix-save">Save fix</button>
+            <button class="btn btn-sm" type="button" id="fix-cancel">Cancel</button>
+          </div>
+        </div>
       </section>
     </div>
   </div>
 </main>
 {% endblock %}
 {% block scripts %}<script type="application/json" id="team-presets">{{ teams|tojson }}</script>
+<script src="/static/js/admin-feed.js?v={{ v }}"></script>
 <script src="/static/js/admin.js?v={{ v }}"></script>{% endblock %}

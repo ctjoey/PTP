@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -14,6 +14,23 @@
   <link rel="icon" href="/static/img/favicon.png" type="image/png">
   <link rel="apple-touch-icon" href="/static/img/apple-touch-icon.png">
   <link rel="manifest" href="/static/manifest.webmanifest">
+  {# Apply the saved light/dark choice before first paint so a light-mode visitor never sees a dark flash. #}
+  <script>
+    (function () {
+      var theme = "dark";
+      try {
+        var saved = localStorage.getItem("ptp-theme");
+        if (saved === "light" || saved === "dark") theme = saved;
+      } catch (e) { /* storage blocked: stay dark */ }
+      var root = document.documentElement;
+      root.setAttribute("data-theme", theme);
+      var color = theme === "light" ? "#f2f5fa" : "#070b12";
+      var bar = document.querySelector('meta[name="theme-color"]');
+      var scheme = document.querySelector('meta[name="color-scheme"]');
+      if (bar) bar.setAttribute("content", color);
+      if (scheme) scheme.setAttribute("content", theme);
+    })();
+  </script>
   <link rel="stylesheet" href="/static/css/style.css?v={{ v }}">
 </head>
 <body class="{% block body_class %}{% endblock %}" {% block body_attrs %}{% endblock %}>

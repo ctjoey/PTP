@@ -1,0 +1,24 @@
+HTTP/1.1 200 Connection Established
+
+HTTP/2 200 
+date: Wed, 07 Oct 2026 15:11:18 GMT
+content-type: application/json
+content-length: 91646
+vary: Accept-Encoding
+x-amz-apigw-id: E4QbjEfwiYcEf2Q=
+x-amzn-trace-id: Root=1-6ac66115-403635db0618197152bc8d18;Parent=014c946368777ea7;Sampled=0;Lineage=1:79b6f317:0
+x-amzn-requestid: 763e20f4-ccbd-421b-afc4-f853d3b9fe9c
+x-ratelimit-requests-limit: 1000
+x-ratelimit-requests-remaining: 999
+x-ratelimit-requests-reset: 2631638
+x-ratelimit-rapid-free-plans-hard-limit-limit: 500000
+x-ratelimit-rapid-free-plans-hard-limit-remaining: 499999
+x-ratelimit-rapid-free-plans-hard-limit-reset: 2631638
+server: RapidAPI-0.0.46
+x-rapidapi-version: 0.0.46
+x-rapidapi-region: AWS - us-east-1
+x-rapidapi-request-id: 1d0501fc115cebddedb175a2cfec812b76182959d89769853e6a325f5a23231d
+x-content-type-options: nosniff
+x-frame-options: DENY
+referrer-policy: strict-origin-when-cross-origin
+
