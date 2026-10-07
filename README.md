@@ -76,7 +76,7 @@ in the [iPhone guide](IPHONE_GUIDE.md).
    colors. Teams are city names only: official league marks and club nicknames are rejected. Two
    clubs share New York and two share Los Angeles; their presets fill the plain city name, so for a
    game between them add a word to each (e.g. *New York Blue* at *New York Green*).
-2. **Open Next Play.** Set down and distance (e.g. 3rd & 7), then open. Every player gets the pick
+2. **Open Next Play.** Set the down and the yards to go (e.g. 3rd & 7), then open. Every player gets the pick
    grid and a synchronised 15-second countdown. (The game goes LIVE automatically on the first play.)
 3. **Lock Predictions.** Lock early, or let the timer lock it automatically. Late picks are rejected
    by the server.
