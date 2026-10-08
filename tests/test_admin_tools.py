@@ -9,6 +9,13 @@ from tests.test_app import recv_until, register, state_event
 from tests.test_app_store import auth, play_one
 
 
+def hello(ws, token=None):
+    """Open a player socket: wait for the state, then for the banner every connection is told about."""
+    ws.send_json({"type": "hello", "token": token} if token else {"type": "hello"})
+    recv_until(ws, state_event("sync"))
+    return recv_until(ws, lambda m: m["type"] == "announcement")
+
+
 def admin_post(client, admin_headers, path, body=None):
     return client.post(f"/api/admin/{path}", json=body or {}, headers=admin_headers)
 
@@ -154,10 +161,7 @@ def test_remove_player_over_the_admin_socket(client):
 def test_announce_reaches_everyone_connected_and_late_joiners(client, admin_headers):
     alice = register(client, "alice")
     with client.websocket_connect("/ws") as signed_in, client.websocket_connect("/ws") as spectator:
-        signed_in.send_json({"type": "hello", "token": alice["token"]})
-        recv_until(signed_in, state_event("sync"))
-        spectator.send_json({"type": "hello"})
-        recv_until(spectator, state_event("sync"))
+        assert hello(signed_in, alice["token"])["text"] == "" and hello(spectator)["text"] == ""   # nothing showing yet
 
         res = admin_post(client, admin_headers, "announce", {"text": "  Kickoff   is delayed\n10 minutes  "})
         assert res.status_code == 200
@@ -169,9 +173,7 @@ def test_announce_reaches_everyone_connected_and_late_joiners(client, admin_head
 
         # Someone who opens the page later still sees it.
         with client.websocket_connect("/ws") as late:
-            late.send_json({"type": "hello"})
-            recv_until(late, state_event("sync"))
-            assert recv_until(late, lambda m: m["type"] == "announcement")["text"] == "Kickoff is delayed 10 minutes"
+            assert hello(late)["text"] == "Kickoff is delayed 10 minutes"
 
         # Clearing hides it for everyone and for later arrivals.
         cleared = admin_post(client, admin_headers, "announce", {"text": "   "}).json()
@@ -179,12 +181,11 @@ def test_announce_reaches_everyone_connected_and_late_joiners(client, admin_head
         for ws in (signed_in, spectator):
             msg = recv_until(ws, lambda m: m["type"] == "announcement")
             assert msg["text"] == "" and msg["id"] == cleared["id"] and msg["id"] > res.json()["id"]
+        # ... and a connection that opens after the clear is told there is nothing to show (so a phone that was asleep
+        # when the host cleared the banner drops the stale one when it reconnects).
         with client.websocket_connect("/ws") as late:
-            late.send_json({"type": "hello"})
-            first = recv_until(late, state_event("sync"))
-            assert first["type"] == "state"
-            late.send_json({"type": "ping"})
-            assert recv_until(late, lambda m: m["type"] in ("pong", "announcement"))["type"] == "pong"
+            banner = hello(late)
+            assert banner["text"] == "" and banner["id"] == cleared["id"]
 
 
 def test_announce_validation_and_admin_view(client, admin_headers):
@@ -200,8 +201,7 @@ def test_announce_over_the_admin_socket(client):
     with client.websocket_connect("/ws/admin") as admin, client.websocket_connect("/ws") as player:
         admin.send_json({"type": "auth", "key": ADMIN_KEY})
         recv_until(admin, lambda m: m["type"] == "admin_state")
-        player.send_json({"type": "hello"})
-        recv_until(player, state_event("sync"))
+        hello(player)
         admin.send_json({"action": "announce", "request_id": 1, "text": "Halftime: back in 15"})
         ack = recv_until(admin, lambda m: m["type"] == "admin_ack")
         assert ack["ok"] and ack["result"]["sent_to"] == 1
@@ -218,3 +218,103 @@ def test_the_message_is_plain_text_on_the_player_page():
     body = js[js.index("function showAnnouncement"):]
     body = body[:body.index("\n  }\n")]
     assert "textContent" in body and "innerHTML" not in body
+
+
+def test_a_new_connection_is_always_told_what_the_banner_is(client):
+    with client.websocket_connect("/ws") as ws:
+        ws.send_json({"type": "hello"})
+        recv_until(ws, state_event("sync"))
+        banner = recv_until(ws, lambda m: m["type"] == "announcement")
+    assert banner["text"] == "" and isinstance(banner["id"], int)
+
+
+def test_banner_ids_keep_growing_across_server_restarts(tmp_path):
+    """A player who dismissed banner N must not have a later banner (after a restart) hidden because its id is also N."""
+    import time
+
+    from fastapi.testclient import TestClient
+
+    from app import Settings, create_app
+
+    ids = []
+    for _ in range(2):
+        settings = Settings(db_path=str(tmp_path / "app.db"), admin_key=ADMIN_KEY, window_seconds=15)
+        with TestClient(create_app(settings)) as c:
+            ids.append(c.post("/api/admin/announce", json={"text": "hi"}, headers={"X-Admin-Key": ADMIN_KEY}).json()["id"])
+        time.sleep(0.01)
+    assert ids[1] > ids[0]
+
+
+# --------------------------------------------------------------------------- #
+# More removal cases
+# --------------------------------------------------------------------------- #
+
+
+def test_removing_a_lounge_host_with_connected_members(client, admin_headers):
+    host, member = register(client, "host"), register(client, "member")
+    lounge = client.post("/api/lounges", json={"name": "Host Crew"}, headers=auth(host)).json()
+    assert client.post(f"/api/lounges/{lounge['id']}/join", headers=auth(member)).status_code == 200
+    with client.websocket_connect("/ws") as ws:
+        ws.send_json({"type": "hello", "token": member["token"], "lounge": lounge["id"]})
+        first = recv_until(ws, state_event("sync"))
+        assert first["lounge"]["name"] == "Host Crew"
+        assert admin_post(client, admin_headers, "player/remove", {"user_id": host["id"]}).status_code == 200
+        update = recv_until(ws, state_event("leaderboard_updated"))
+        assert update["lounge"] is None                       # the lounge went with its host; the member is fine
+        assert client.get("/api/me", headers=auth(member)).json()["lounges"] == []
+    assert client.get(f"/api/lounges/{lounge['id']}").status_code == 404
+
+
+def test_removing_a_player_who_picked_on_an_open_play(client, admin_headers):
+    alice, bob = register(client, "alice"), register(client, "bob")
+    client.post("/api/admin/game", json=GAME, headers=admin_headers)
+    play = admin_post(client, admin_headers, "play/open").json()
+    for user in (alice, bob):
+        res = client.post("/api/predictions", headers=auth(user),
+                          json={"play_id": play["id"], "play_type": "PASS", "direction": "LEFT", "yardage": "MEDIUM"})
+        assert res.status_code == 200
+    assert admin_post(client, admin_headers, "player/remove", {"user_id": alice["id"]}).status_code == 200
+    assert admin_post(client, admin_headers, "play/lock").status_code == 200
+    assert admin_post(client, admin_headers, "play/resolve",
+                      {"play_type": "PASS", "direction": "LEFT", "yardage": "MEDIUM"}).status_code == 200
+    board = client.get("/api/state").json()["leaderboard"]
+    assert [(r["username"], r["score"]) for r in board] == [("bob", 40)]
+    late = client.post("/api/predictions", headers=auth(alice),
+                       json={"play_id": play["id"], "play_type": "RUN", "direction": "LEFT", "yardage": "SHORT"})
+    assert late.status_code == 401
+
+
+def test_remove_user_is_one_step_and_reports_who(store):
+    user = store.create_user("Someone")
+    assert store.remove_user(user["id"], block=True) == "Someone"
+    assert store.is_name_blocked("someone") and store.get_user(user["id"]) is None
+    assert store.remove_user(user["id"], block=True) is None
+
+
+def test_unblock_over_rest_and_the_socket(client, admin_headers):
+    one, two = register(client, "Name One"), register(client, "Name Two")
+    admin_post(client, admin_headers, "player/remove", {"user_id": one["id"], "block": True})
+    admin_post(client, admin_headers, "player/remove", {"user_id": two["id"], "block": True})
+    assert client.post("/api/users", json={"username": "name one"}).status_code == 400
+    res = admin_post(client, admin_headers, "name/unblock", {"name": "NAME ONE"})
+    assert res.status_code == 200 and res.json() == {"unblocked": "NAME ONE"}
+    assert client.post("/api/users", json={"username": "name one"}).status_code == 201
+    assert admin_post(client, admin_headers, "name/unblock", {"name": "name one"}).status_code == 404
+    assert client.post("/api/admin/name/unblock", json={"name": "Name Two"}).status_code == 401
+    with client.websocket_connect("/ws/admin") as admin:
+        admin.send_json({"type": "auth", "key": ADMIN_KEY})
+        recv_until(admin, lambda m: m["type"] == "admin_state")
+        admin.send_json({"action": "unblock_name", "request_id": 3, "name": "Name Two"})
+        ack = recv_until(admin, lambda m: m["type"] == "admin_ack")
+        assert ack["ok"] and ack["result"] == {"unblocked": "Name Two"}
+    assert players(client, admin_headers)["blocked_names"] == []
+
+
+def test_players_search_is_case_insensitive_and_treats_wildcards_literally(client, admin_headers):
+    for name in ("Alice", "alicia", "Bob_1", "Bobby"):
+        register(client, name)
+    names = lambda q: [p["username"] for p in client.get("/api/admin/players", params={"q": q}, headers=admin_headers).json()["players"]]
+    assert names("ALI") == ["alicia", "Alice"]
+    assert names("b_") == ["Bob_1"]            # "_" is not "any one character"
+    assert names("%") == [] and names("") == ["Bobby", "Bob_1", "alicia", "Alice"]
+    assert client.get("/api/admin/players", params={"q": "ali"}, headers=admin_headers).json()["count"] == 4

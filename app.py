@@ -198,6 +198,12 @@ class RemovePlayerIn(BaseModel):
     block: bool = False
 
 
+class UnblockNameIn(BaseModel):
+    """Let a blocked name be used again."""
+
+    name: str = Field(max_length=40)
+
+
 class AnnounceIn(BaseModel):
     """A short banner for every player. Empty text clears the banner."""
 
@@ -363,7 +369,8 @@ class GameController:
         self._background: set[asyncio.Task] = set()
         # The host's banner for the players (kept in memory: a restart clears it). ``None`` when nothing is showing.
         self.announcement: dict[str, Any] | None = None
-        self._announcement_seq = 0
+        # Ids grow across restarts (a player's dismissed id must never match a later message), so start from the clock.
+        self._announcement_seq = int(time.time() * 1000)
         self.feed = LiveFeed(store, self, settings)
 
     # -- lifecycle -------------------------------------------------------- #
@@ -600,15 +607,19 @@ class GameController:
     async def remove_player(self, data: RemovePlayerIn) -> dict[str, Any]:
         """Remove a player (and with ``block`` their name too): the same deletion as Settings > Delete account, done by
         the host. Their picks and points go, they are signed out where they are, and the boards refresh."""
-        user = self.store.get_user(data.user_id)
-        if not user:
+        username = self.store.remove_user(data.user_id, data.block)
+        if username is None:
             raise GameError("That player is already gone.", 404)
-        if data.block:
-            self.store.block_name(user["username"])
-        self.store.delete_user(user["id"])
-        await self._sign_out_deleted(user["id"], "You were removed by the host.")
-        log.info("Host removed player %r (blocked=%s)", user["username"], data.block)
-        return {"removed": user["username"], "blocked": data.block}
+        await self._sign_out_deleted(data.user_id, "You were removed by the host.")
+        log.info("Host removed player %r (blocked=%s)", username, data.block)
+        return {"removed": username, "blocked": data.block}
+
+    async def unblock_name(self, data: UnblockNameIn) -> dict[str, Any]:
+        """Let a name the host blocked be used again (undoing a mistaken "Remove and block name")."""
+        if not self.store.unblock_name(data.name):
+            raise GameError("That name isn't blocked.", 404)
+        await self.push_admin("name_unblocked")
+        return {"unblocked": data.name}
 
     async def announce(self, data: AnnounceIn) -> dict[str, Any]:
         """Show ``text`` as a banner to every player (empty text clears it). New connections get the current banner."""
@@ -789,6 +800,7 @@ ADMIN_ACTIONS: dict[str, tuple[type[BaseModel], Callable[[GameController, Any], 
     "feed_allow_more": (FeedMoreIn, GameController.feed_allow_more),
     "remove_player": (RemovePlayerIn, GameController.remove_player),
     "announce": (AnnounceIn, GameController.announce),
+    "unblock_name": (UnblockNameIn, GameController.unblock_name),
 }
 
 
@@ -966,11 +978,12 @@ async def admin_correct_play(body: CorrectPlayIn, ctrl: GameController = Depends
 
 
 @admin_api.get("/players")
-async def admin_players(ctrl: GameController = Depends(get_ctrl)) -> dict[str, Any]:
-    """Everyone signed up, newest first, with their points in the current game (for the Players list)."""
+async def admin_players(q: str = "", ctrl: GameController = Depends(get_ctrl)) -> dict[str, Any]:
+    """Everyone signed up, newest first, with their points in the current game (for the Players list). ``q`` narrows
+    the list to names containing it."""
     game = ctrl.store.current_game()
     online = {c.user["id"] for c in ctrl.hub.players if c.user}
-    rows = ctrl.store.list_players(game["id"] if game else None)
+    rows = ctrl.store.list_players(game["id"] if game else None, query=q[:40])
     for row in rows:
         row["online"] = row["id"] in online
     return {"count": ctrl.store.count_users(), "players": rows, "blocked_names": ctrl.store.blocked_names()}
@@ -979,6 +992,11 @@ async def admin_players(ctrl: GameController = Depends(get_ctrl)) -> dict[str, A
 @admin_api.post("/player/remove")
 async def admin_remove_player(body: RemovePlayerIn, ctrl: GameController = Depends(get_ctrl)) -> dict[str, Any]:
     return await ctrl.remove_player(body)
+
+
+@admin_api.post("/name/unblock")
+async def admin_unblock_name(body: UnblockNameIn, ctrl: GameController = Depends(get_ctrl)) -> dict[str, Any]:
+    return await ctrl.unblock_name(body)
 
 
 @admin_api.post("/announce")
@@ -1075,8 +1093,9 @@ async def player_socket(ws: WebSocket) -> None:
     ctrl.request_admin_push()
     try:
         await ctrl.send_state(conn, "sync")
-        if ctrl.announcement:
-            await Hub.send(ws, ctrl.announcement_message())
+        # Always say what the banner is (empty text when none), so a phone that reconnects after the host cleared
+        # it drops the stale banner.
+        await Hub.send(ws, ctrl.announcement_message())
         while True:
             msg = await _receive_json(ws)
             kind = msg.get("type") if msg else None

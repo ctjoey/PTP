@@ -669,8 +669,10 @@ class Store:
     def count_users(self) -> int:
         return self._one("SELECT COUNT(*) AS n FROM users")["n"]  # type: ignore[index]
 
-    def list_players(self, game_id: int | None, limit: int = 500) -> list[dict[str, Any]]:
-        """Newest sign-ups first, with their points in ``game_id`` (the current game): for the host's Players list."""
+    def list_players(self, game_id: int | None, limit: int = 500, query: str = "") -> list[dict[str, Any]]:
+        """Newest sign-ups first, with their points in ``game_id`` (the current game): for the host's Players list.
+        ``query`` keeps only names containing it (case-insensitive)."""
+        like = "%" + query.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
         return self._all(
             """SELECT u.id, u.username, u.total_score, u.created_at,
                       COALESCE(g.picks, 0) AS picks, COALESCE(g.score, 0) AS game_score
@@ -681,9 +683,23 @@ class Store:
                    WHERE pl.game_id = ?
                    GROUP BY pr.user_id
                ) g ON g.user_id = u.id
+               WHERE u.username LIKE ? ESCAPE '\\'
                ORDER BY u.id DESC LIMIT ?""",
-            (game_id if game_id is not None else -1, limit),
+            (game_id if game_id is not None else -1, like, limit),
         )
+
+    def remove_user(self, user_id: int, block: bool = False) -> str | None:
+        """The host's removal, in one transaction: delete the account (picks, memberships and hosted lounges go with
+        it) and, with ``block``, stop that name being used again. Returns the username, or None if already gone."""
+        with self._tx() as c:
+            row = c.execute("SELECT username FROM users WHERE id = ?", (user_id,)).fetchone()
+            if not row:
+                return None
+            if block:
+                c.execute("INSERT OR IGNORE INTO blocked_names (name, created_at) VALUES (?, ?)",
+                          (" ".join(row["username"].split()), time.time()))
+            c.execute("DELETE FROM users WHERE id = ?", (user_id,))
+        return row["username"]
 
     def is_name_blocked(self, name: str) -> bool:
         return self._one("SELECT 1 AS hit FROM blocked_names WHERE name = ?", (" ".join(name.split()),)) is not None

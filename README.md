@@ -126,16 +126,20 @@ Two cards in the right-hand column of the admin console:
 
 - **Message to Players.** Type a short message (200 characters at most) or tap a quick one (*Delayed*,
   *Halftime*, *Paused*, *Game over*) and **Send to everyone**: it appears as a banner at the top of every player's
-  screen on the website, including lounge pages and people who haven't signed in. Anyone can dismiss it with the ✕
-  (it stays dismissed until you send a different message). **Clear banner** takes it down for everyone. People who open
-  the page later get the banner while it is showing. It lives in memory, so a server restart clears it. The iPhone app
-  ignores it until its next update.
+  screen on the website, including lounge pages and people who haven't signed in. It floats over the top of the page,
+  so it never shifts the pick buttons. Anyone can dismiss it with the ✕ (it stays dismissed until you send a different
+  message). **Clear banner** takes it down for everyone. Every connection is told what the banner is when it opens (a
+  phone that reconnects after you cleared it drops the old one). It lives in memory, so a server restart clears it. Pages
+  that were already open before this feature was deployed need a reload to show banners. The iPhone app ignores it until
+  its next update.
 - **Players.** Open the list to see everyone who signed up (newest first, with their picks and points in the current
   game, and a dot for who is online); type a name to narrow it. **Remove** asks first: **Remove and block name** deletes
   the account (picks, points and any lounges they host) and stops anyone signing up with that name again;
   **Remove only** deletes it but leaves the name free. The removed player is signed out where they are (the website says
   "You were removed by the host."; the iPhone app returns to its welcome screen) and every leaderboard refreshes.
-  Blocked names are listed under the players; they are stored in the `blocked_names` table.
+  Blocked names are listed under the players, each with an **Unblock** button (for a mistaken block); they are stored in
+  the `blocked_names` table. Typing in the search box also searches the server, so players beyond the first 500 can
+  still be found. The iPhone app shows "Your account was deleted." (not the host's wording) until its next update.
 
 ## Live data (Tank01)
 
@@ -436,7 +440,7 @@ Inside a lounge you play the same live game, with a private leaderboard tab of e
 | → | `{"type":"sync"}` · `{"type":"ping"}` |
 | ← | `{"type":"state","event":"play_opened"\|"play_locked"\|"play_resolved"\|"play_voided"\|"play_corrected"\|"game_created"\|"game_status"\|"lounge_updated"\|"sync", …snapshot}` |
 | ← | `{"type":"prediction_saved","prediction":{"play_id":7,"play_type":"PASS","direction":"LEFT","yardage":"SHORT","points_earned":null}}` · `{"type":"error","message":"…"}` |
-| ← | `{"type":"announcement","id":3,"text":"Halftime! Back in about 15 minutes.","sent_at":1760000000.0}`: the host's banner (`text` is empty when it has been cleared); also sent once to every new connection while a banner is showing. Clients that don't know the type ignore it |
+| ← | `{"type":"announcement","id":3,"text":"Halftime! Back in about 15 minutes.","sent_at":1760000000.0}`: the host's banner (`text` is empty when it has been cleared); also sent once to every new connection (with an empty `text` when nothing is showing). Ids keep growing across server restarts. Clients that don't know the type ignore it |
 | ← | `{"type":"error","code":"account_deleted","message":"Your account was deleted."\|"You were removed by the host."}` then the socket closes with `4401` |
 
 **Admin — `/ws/admin`**
@@ -446,7 +450,7 @@ Inside a lounge you play the same live game, with a private leaderboard tab of e
 | → | `{"type":"auth","key":"…"}` first |
 | → | `{"action":"create_game"\|"set_status"\|"open_play"\|"lock_play"\|"resolve_play"\|"void_play"\|"correct_play","request_id":1, …payload}` and the `feed_*` live-data actions ([protocol](#live-data-protocol)) |
 | → | e.g. `{"action":"resolve_play","request_id":2,"play_type":"RUN","direction":"LEFT","yardage":"MEDIUM","yards":7}` |
-| → | Host tools: `{"action":"announce","text":"…"}` (empty text clears the banner) · `{"action":"remove_player","user_id":12,"block":true}` |
+| → | Host tools: `{"action":"announce","text":"…"}` (empty text clears the banner) · `{"action":"remove_player","user_id":12,"block":true}` · `{"action":"unblock_name","name":"…"}` |
 | ← | `{"type":"admin_state", …}` with live pick stats, players online, leaderboard, play log, the `feed` object, `announcement` (what is showing, or `null`) and `registered_players` |
 | ← | `{"type":"admin_ack","request_id":1,"ok":true\|false,"error":"…"}` |
 
@@ -499,8 +503,9 @@ handy for scripting.
 | `POST /api/admin/play/lock` · `/resolve` `{play_type, direction, yardage?, yards?}` · `/void` | Drive the play (resolve needs `yardage`, `yards` or both) |
 | `POST /api/admin/play/correct` `{play_id, play_type, direction, yardage?, yards?}` | Fix a scored play: re-scores every pick, moves each total by the difference, broadcasts `play_corrected` |
 | `POST /api/admin/feed/<action>` · `GET /api/admin/feed/games?date=` · `GET /api/admin/feed/log` | Live data (see [Live data protocol](#live-data-protocol)) |
-| `GET /api/admin/players` | Everyone signed up, newest first: `{count, players:[{id, username, total_score, game_score, picks, online, created_at}], blocked_names}` |
+| `GET /api/admin/players[?q=]` | Everyone signed up (or whose name contains `q`), newest first: `{count, players:[{id, username, total_score, game_score, picks, online, created_at}], blocked_names}` |
 | `POST /api/admin/player/remove` `{user_id, block?}` | Remove a player (and with `block` their name) → `{removed, blocked}`; `404` if they are already gone |
+| `POST /api/admin/name/unblock` `{name}` | Let a blocked name be used again → `{unblocked}`; `404` if it isn't blocked |
 | `POST /api/admin/announce` `{text}` | Show a banner to every player (≤ 200 chars; empty clears it) → `{id, text, sent_to}` |
 | `GET /rules` | Rules of the Game (HTML) |
 | `GET /privacy` · `GET /support` | Privacy policy and support pages (HTML; use as the App Store privacy policy and support URLs) |
