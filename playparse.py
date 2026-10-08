@@ -4,9 +4,10 @@ Pure functions, no I/O. ``classify`` turns one feed entry into a ``Parsed`` resu
 uses to suggest a score:
 
 * ``skip``    not a scrimmage play (kickoff, punt, field goal, extra point, kneel, timeout, quarter marker, ...)
-* ``void``    a scrimmage entry nullified by a penalty ("No Play")
+* ``void``    a scrimmage entry that does not count: nullified by a penalty ("No Play"), a sack, or a quarterback
+              scramble (no throw happened, so nobody could have called it: nobody scores)
 * ``play``    a run or pass whose type, direction and yards are all unambiguous: safe to score automatically
-* ``review``  a scrimmage play the host must look at (sack, interception, fumble, accepted penalty, no charted
+* ``review``  a scrimmage play the host must look at (interception, fumble, accepted penalty, no charted
               direction, anything unusual). It carries a best-effort prefill and plain-English ``flags``.
 
 The host's rules: direction is the offense's left/right as the QB looks downfield (runs by run location or gap,
@@ -60,6 +61,8 @@ _YARDS = re.compile(
     r"\bfor\s+(?:(?:a\s+)?loss\s+of\s+(\d+)\s+(?:yards?|yds?)|(-?\d+)\s+(?:yards?|yds?)\b|(no\s+gain))", _I
 )
 _SACK = re.compile(r"\bsacked\b|\bsack\b", _I)
+_AVOID_SACK = re.compile(r"\bavoid\w*\s+(?:a\s+|the\s+)?sack\b", _I)   # "thrown away to avoid a sack": a throw, not a sack
+_SCRAMBLE = re.compile(r"\bscrambl(?:es|ed|ing)\b", _I)
 _INTERCEPTION = re.compile(r"\bintercept(?:ed|ion|s)?\b", _I)
 _FUMBLE = re.compile(r"\bfumbl(?:es|ed|e)\b", _I)
 _ABORTED = re.compile(r"\baborted\b", _I)
@@ -222,17 +225,24 @@ def _scrimmage(out: Parsed, core: str, has_dd: bool) -> Parsed:
     body = _LEADING_PAREN.sub("", " ".join(kept))
     out.touchdown = bool(_TOUCHDOWN.search(core))
 
-    sack = bool(_SACK.search(body))
+    avoided_sack = bool(_AVOID_SACK.search(body))
+    sack = bool(_SACK.search(_AVOID_SACK.sub(" ", body)))
+    # A sack and a quarterback scramble are no play: the throw (its direction and distance) never happened, so nobody
+    # could have called it and nobody scores. (A scramble that ends in a pass is still read as a pass.)
+    if sack or (_SCRAMBLE.search(body) and not _PASS_WORD.search(body)):
+        out.kind, out.reason = VOID, "sack" if sack else "scramble"
+        out.flags = ["Sack: counts as no play, nobody scores" if sack else "QB scramble: counts as no play, nobody scores"]
+        return out
     interception = bool(_INTERCEPTION.search(body))
     fumble = bool(_FUMBLE.search(body))
     aborted = bool(_ABORTED.search(body))
 
     pass_dirs = {m.group(1).upper() for m in _PASS_LOCATION.finditer(body)}
     run_dirs = {("MIDDLE" if m.group(2) else m.group(1).upper()) for m in _RUN_LOCATION.finditer(body)}
-    passes = bool(_PASS_WORD.search(body)) or sack
+    passes = bool(_PASS_WORD.search(body))
     runs = bool(run_dirs) or bool(_RUN_WORDS.search(body))
 
-    if not (passes or runs or sack or aborted):
+    if not (passes or runs or aborted):
         if accepted_penalty or offsetting:
             return _review(out, ["A penalty with no play described: probably no play, check it"], "penalty_only")
         if not has_dd or _MARKER_WORDS.search(body):
@@ -242,7 +252,7 @@ def _scrimmage(out: Parsed, core: str, has_dd: bool) -> Parsed:
 
     play_type: str | None
     reason = ""
-    if passes and runs and not sack:
+    if passes and runs:
         play_type = None
         flags.append("The text mentions both a run and a pass")
         reason = "conflicting"
@@ -275,11 +285,9 @@ def _scrimmage(out: Parsed, core: str, has_dd: bool) -> Parsed:
             reason = reason or "conflicting_numbers"
 
     # Things that always need the host.
-    if sack:
-        play_type = "PASS"
-        direction = None
-        flags[:0] = ["Sack", "No direction is charted for a sack: pick Left, Middle or Right"]
-        reason = "sack"
+    if avoided_sack:
+        flags.append("Thrown away to avoid a sack: check the result")
+        reason = reason or "thrown_away"
     if interception:
         play_type = "PASS"
         yards = 0  # any yardage in the text is the return, not the play
@@ -313,7 +321,7 @@ def _scrimmage(out: Parsed, core: str, has_dd: bool) -> Parsed:
     if play_type is None and not flags:
         flags.append("Could not tell if this was a run or a pass")
         reason = "no_type"
-    if play_type is not None and direction is None and not sack and not aborted:
+    if play_type is not None and direction is None and not aborted:
         flags.append("No direction in the feed text: pick Left, Middle or Right")
         reason = reason or "no_direction"
     if play_type is not None and yards is None and not aborted and not flags_mention_yards(flags):

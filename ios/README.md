@@ -87,7 +87,7 @@ PickThePlay/
              Host/ (the host console: key screen, Run, Log, Players, Message)
 PickThePlayTests/
   Fixtures/  Real messages captured from the Python server; ContractTests decode every one
-             (incl. state_play_resolved_loss: a sack that scores type + direction only)
+             (incl. state_play_resolved_loss: a pass for a loss that scores type + direction only)
   ContractTests.swift   fixtures decode; the server's points equal ScoreRules on the same pick
   GameLogicTests.swift  every 3-part scoring combination incl. the bonus, LOSS, labels, MIDDLE and
                         the CENTER alias, practice odds, pick restore

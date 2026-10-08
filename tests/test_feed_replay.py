@@ -12,9 +12,9 @@ from playparse import classify
 from tests.fakefeed import ENTRIES, FEED_ID, SENTINEL_KEY, Clock, FakeTank01, Rig, run_rig
 from tests.test_feed import dd
 
-# What the host does with the six plays the feed leaves to them.
+# What the host does with the three plays the feed leaves to them.
 HOST_CHOICES = {
-    "sack": {"direction": "LEFT"},                             # a sack has no charted direction
+    # (a sack and a quarterback scramble are no play now: the feed voids them by itself, like a penalty's no play)
     "interception": {},                                        # the prefill (a pass for 0) is right
     "aborted_snap": {"play_type": "RUN", "direction": "MIDDLE", "yards": 1},
 }
@@ -62,11 +62,15 @@ def check_replay(rig: Rig, users, results):
     plays = [r for r in results if r[1].kind == "play"]
     voids = [r for r in results if r[1].kind == "void"]
     reviews = [r for r in results if r[1].kind == "review"]
-    assert (len(plays), len(voids), len(reviews)) == (97, 12, 6)
+    assert (len(plays), len(voids), len(reviews)) == (94, 18, 3)
     totals = {u["id"]: 0 for u in users}
     for i, parsed, play, picks in results:
         if parsed.kind == "void":
-            assert play["voided"] == 1 and play["resolved_by"] == "void" and "No Play" in play["feed_text"]
+            assert play["voided"] == 1 and play["resolved_by"] == "void"
+            if parsed.reason == "no_play":
+                assert "No Play" in play["feed_text"]
+            else:                                       # a sack or a QB scramble: no play, nobody scores
+                assert parsed.reason in ("sack", "scramble") and parsed.text in play["feed_text"]
             expected = {uid: 0 for uid in picks}
         else:
             assert not play["voided"] and play["resolved_by"] == "feed" and play["feed_text"] == parsed.text
@@ -83,9 +87,10 @@ def check_replay(rig: Rig, users, results):
             totals[uid] += pts
     assert {u["id"]: rig.store.get_user(u["id"])["total_score"] for u in users} == totals
     assert totals[users[0]["id"]] > max(totals[u["id"]] for u in users[1:])        # alice, who calls them all, wins
-    # The three review kinds went through the host: prefill respected, direction/yards supplied by the host.
+    # Sacks and QB scrambles were voided: no points for anyone (checked above, they are voids with 0 for every pick).
+    assert sorted(r[1].reason for r in voids).count("sack") == 3 and sorted(r[1].reason for r in voids).count("scramble") == 3
+    # The review kinds went through the host: prefill respected, direction/yards supplied by the host.
     by_reason = {r[1].reason: r[2] for r in reviews}
-    assert by_reason["sack"]["correct_direction"] == "LEFT" and by_reason["sack"]["correct_yardage"] in ("LOSS", "SHORT")
     assert (by_reason["interception"]["correct_play_type"], by_reason["interception"]["yards_gained"]) == ("PASS", 0)
     assert (by_reason["aborted_snap"]["correct_direction"], by_reason["aborted_snap"]["yards_gained"]) == ("MIDDLE", 1)
     # Clean plays were scored with no host action: only the review plays needed one.

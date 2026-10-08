@@ -370,7 +370,7 @@ private struct FeedStatusSection: View {
             if showSettings {
                 FeedSwitchRow(
                     title: "Auto-score clean plays",
-                    hint: "The feed's result is scored for you after a few seconds. Odd plays (sacks, turnovers, penalties) always wait for you.",
+                    hint: "The feed's result is scored for you after a few seconds. A sack or a QB scramble counts as no play. Other odd plays (turnovers, penalties) always wait for you.",
                     serverValue: feed.autoScore
                 ) { on in await host.feedSetAutoScore(on) }
                 FeedSwitchRow(

@@ -278,7 +278,7 @@ struct ResultStage: View {
             Text("\(play.label) — \(play.voided ? "No play" : "Result")").kicker()
             if play.voided {
                 Text("VOID").font(.system(size: 60, weight: .black)).foregroundStyle(Theme.dim)
-                Text("Play voided (penalty / no play). No points.").foregroundStyle(Theme.muted)
+                Text("No play (penalty, sack or QB scramble). No points.").foregroundStyle(Theme.muted)
             } else if let outcome {
                 ResultReveal(outcome: outcome, points: points, label: ScoreRules.label(pick: pick, scoring: snapshot.scoring),
                              exact: exact, animationKey: play.id)

@@ -35,7 +35,7 @@
   /**
    * Yards gained, by a uniform `roll` in 0..1.
    * Runs: 10% loss, 58% 0-5, 22% 6-10, 10% 11+.
-   * Passes: 6% sack (loss), 35% incomplete (0 yds = short), 17% 1-5, 20% 6-10, 22% 11+.
+   * Passes: 37% incomplete (0 yds = short), 18% 1-5, 21% 6-10, 24% 11+ (no sacks: a sack is no play).
    */
   function randomYards(type, roll = rand()) {
     if (type === "RUN") {
@@ -44,10 +44,9 @@
       if (roll < 0.90) return randInt(6, 10);
       return randInt(11, 45);
     }
-    if (roll < 0.06) return -randInt(3, 10);
-    if (roll < 0.41) return 0;
-    if (roll < 0.58) return randInt(1, 5);
-    if (roll < 0.78) return randInt(6, 10);
+    if (roll < 0.37) return 0;
+    if (roll < 0.55) return randInt(1, 5);
+    if (roll < 0.76) return randInt(6, 10);
     return randInt(11, 60);
   }
 

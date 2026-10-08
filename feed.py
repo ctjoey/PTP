@@ -6,7 +6,7 @@ How it works (the "smart method"):
 * While a play is LOCKED and waiting for its result, ``LiveFeed`` polls Tank01 (and only then: zero requests
   between plays). The first entry that is a scrimmage play belongs to that play. ``playparse.classify`` reads it.
 * A clean run or pass becomes a *suggestion*; after a short grace period it is scored automatically (the host can
-  Hold, change, or score it at once). Anything odd (sack, interception, penalty, no direction) waits for the host.
+  Hold, change, or score it at once). A sack, a quarterback scramble or a penalty's "No Play" is voided (nobody scores). Anything else odd (interception, accepted penalty, no direction) waits for the host.
 * The host can always score by hand exactly as before. If the feed is wrong, slow, capped or down, nothing blocks.
 
 ``LiveFeed`` keeps the game's state in memory (rebuilt from the database after a restart) and asks its host, the

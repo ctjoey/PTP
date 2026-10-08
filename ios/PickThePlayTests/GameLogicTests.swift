@@ -322,7 +322,7 @@ final class GameLogicTests: XCTestCase {
         XCTAssertEqual(game.gradedPick?.directionCorrect, true)
         XCTAssertEqual(game.gradedPick?.yardageCorrect, false)
 
-        // A sack: type and direction right, no distance points.
+        // A play for a loss of yards: type and direction right, no distance points.
         game.outcome = { PlayOutcome(playType: .pass, direction: .left, yards: -6) }
         game.nextPlay()
         game.pickType = .pass
@@ -376,7 +376,7 @@ final class GameLogicTests: XCTestCase {
         // Each roll band lands in its bucket.
         let bands: [(PlayType, Double, YardageOutcome)] = [
             (.run, 0.05, .loss), (.run, 0.5, .short), (.run, 0.8, .medium), (.run, 0.95, .long),
-            (.pass, 0.03, .loss), (.pass, 0.2, .short), (.pass, 0.5, .short), (.pass, 0.7, .medium), (.pass, 0.9, .long),
+            (.pass, 0.03, .short), (.pass, 0.2, .short), (.pass, 0.5, .short), (.pass, 0.7, .medium), (.pass, 0.9, .long),
         ]
         for (type, roll, bucket) in bands {
             for _ in 0..<20 {
@@ -394,9 +394,9 @@ final class GameLogicTests: XCTestCase {
         XCTAssertEqual(share(.run, .loss), 0.10, accuracy: 0.03)
         XCTAssertEqual(share(.run, .short), 0.58, accuracy: 0.04)
         XCTAssertEqual(share(.run, .long), 0.10, accuracy: 0.03)
-        XCTAssertEqual(share(.pass, .loss), 0.06, accuracy: 0.02)
-        XCTAssertEqual(share(.pass, .short), 0.52, accuracy: 0.04)
-        XCTAssertEqual(share(.pass, .long), 0.22, accuracy: 0.04)
+        XCTAssertEqual(share(.pass, .loss), 0.0, accuracy: 0.001, "a sack is no play, so practice has none")
+        XCTAssertEqual(share(.pass, .short), 0.55, accuracy: 0.04)
+        XCTAssertEqual(share(.pass, .long), 0.24, accuracy: 0.04)
         for _ in 0..<2_000 {
             let outcome = PracticeGame.randomOutcome()
             XCTAssertNotNil(outcome.yards)

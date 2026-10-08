@@ -86,7 +86,7 @@ in the [iPhone guide](IPHONE_GUIDE.md).
    looks downfield** (the offense's left and right, not the TV picture's; see
    [Left, Middle and Right](#left-middle-and-right)), and the distance:
    **Short** (0-5 yards), **Medium** (6-10), **Long** (11+) or **Loss** (negative yards). Or type the
-   **yards gained** (e.g. `7`, or `-4` for a sack) and the distance is picked for you; an incomplete
+   **yards gained** (e.g. `7`, or `-4` for a run stopped behind the line) and the distance is picked for you; an incomplete
    pass or no gain is 0 yards = Short. Points are calculated, totals and leaderboards update, and every
    player sees their result animation.
 5. Repeat. Use **Void play** for penalties or no-plays (nobody scores). **End Game** marks it FINAL.
@@ -190,8 +190,8 @@ working, and nothing waits for the feed.
 | What the feed says | What happens |
 | --- | --- |
 | A clean run or pass: type, direction **and** yards all unambiguous (touchdowns too) | Ready: scored automatically after the grace period. Incomplete pass or no gain = 0 yards = Short; a loss of yards = Loss |
-| "No Play" (a penalty nullified the play) | Void: voided automatically after the grace period |
-| A sack, interception, fumble or aborted snap, lateral or reverse, an accepted penalty, no charted direction or yards, anything unrecognised | **Review**: an amber card with a prefill and the reasons. Never automatic: you finish it (e.g. pick the direction for a sack) and press Score |
+| "No Play" (a penalty nullified the play), a **sack**, or a **quarterback scramble** | Void: voided automatically after the grace period. A sack or a scramble is no play and scores nothing for anyone: there was no throw to call |
+| An interception, fumble or aborted snap, lateral or reverse, an accepted penalty, no charted direction or yards, anything unrecognised | **Review**: an amber card with a prefill and the reasons. Never automatic: you finish it (e.g. pick the direction) and press Score |
 | The feed's down and distance differs from the play you opened ("Feed shows 2nd & 3 but this play is 2nd & 8") | Review with that warning, and a **Skip this feed play** button that throws the entry away and keeps waiting |
 | Kickoffs, punts, field goals, extra points, two-point tries, kneel-downs, spikes, timeouts, quarter markers | Not plays: skipped silently |
 
@@ -283,7 +283,7 @@ URL. The console only ever learns whether a key exists (`available: true`).
 
 **Practice with a recorded game** replays a real finished game (Carolina at Washington, from `demo/`). When you lock
 a play, its recorded entry "appears" after `TANK01_DEMO_LAG` seconds, so you can rehearse the whole flow: auto-score,
-Hold, Change, Skip, Pause, review plays (it has sacks, an interception and an aborted snap), voids, Fix result.
+Hold, Change, Skip, Pause, review plays (it has an interception and an aborted snap), voids (penalties, sacks and scrambles), Fix result.
 It costs zero requests, needs no key and is never capped. The host's team presets are filled in for you.
 
 ### The feed log
@@ -376,7 +376,7 @@ adds a **10-point bonus**: +10 play type, +10 direction, +10 distance, +10 bonus
 | Bonus: all three right | | +10 |
 | **Perfect call** | | **40** |
 
-So a play scores 0, 10, 20 or 40 (30 can't happen). A **loss of yards** (a sack, a run stopped behind
+So a play scores 0, 10, 20 or 40 (30 can't happen). A **loss of yards** (a run stopped behind
 the line) scores no distance points, and so no bonus: a loss earns at most 20. An incomplete pass or
 no gain is 0 yards, which is Short. Example: you pick *Run, Left, Short* and it's a run to the left for
 7 yards (Medium): **20 points**. Pick *Run, Left, Medium*: **40**. Points already scored before the
@@ -391,14 +391,14 @@ Directions follow the official NFL play-by-play (the full text, with diagrams, i
 **Rules of the Game** page at `/rules`, linked from the player app, the welcome screen, the admin
 console and the support page). Always from the offense's point of view, as the QB looks downfield:
 
-- **Runs** go by run location and run gap. **Middle** is any run between the left and right guards
+- **Runs** go by run location (and the gap the run goes through). **Middle** is any run between the left and right guards
   (the A-gaps on either side of the center); **Left** / **Right** is at or outside a guard: guard,
   tackle or end on that side.
-- **Passes** go by pass location, using the hash marks. **Middle** is between the hashes (18 ft 6 in
-  apart); **Left** / **Right** is outside a hash, out to that sideline.
-- A sack is a pass with a loss; a quarterback scramble is a run. When no direction is charted, the host
-  makes the call. All official calls are derived from the official NFL statistics, and all final calls
-  are at the host's discretion.
+- **Passes** go by pass location, using the hash marks. **Middle** is between the hashes;
+  **Left** / **Right** is outside a hash, out to that sideline.
+- A sack or a quarterback scramble is no play and scores no points for anyone: there was no throw to call. When
+  no direction is charted, the host makes the call. All official calls are derived from the official game
+  statistics, and all final calls are at the host's discretion.
 
 ## Head-to-Head Lounges
 

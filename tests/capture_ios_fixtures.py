@@ -10,7 +10,7 @@ whenever the protocol changes, then update the Swift tests to match.
   Play 1, 3rd & 7:  JoeyC Pass/Middle/Medium, Sam Run/Middle/Medium (sent as the old "CENTER", saved as
                     MIDDLE) -> Pass over the middle for 7 yards (Medium):
                     JoeyC 40 (all three + the bonus), Sam 20 (direction + distance)
-  Play 2, 2nd & 10: JoeyC Pass/Right/Short, Sam Run/Right/Short -> sacked for -4 (Loss):
+  Play 2, 2nd & 10: JoeyC Pass/Right/Short, Sam Run/Right/Short -> a pass for a loss of 4 (Loss):
                     JoeyC 20 (no distance points for a loss), Sam 10
   Play 3, 1st & 10: voided; then the game goes FINAL.
   Host tools: a banner is sent and cleared, and a removed player is signed out (msg_announcement*, msg_account_removed).
@@ -155,7 +155,7 @@ try:
         assert resolved["my_prediction"]["points_earned"] == 40, resolved["my_prediction"]
         save("state_play_resolved", resolved)
 
-        # Play 2, 2nd & 10: JoeyC Pass/Right/Short, Sam Run/Right/Short. Sacked for a loss of 4.
+        # Play 2, 2nd & 10: JoeyC Pass/Right/Short, Sam Run/Right/Short. A pass for a loss of 4.
         play = act("open_play", down=2, distance="10")
         recv(j, state("play_opened"))
         j.send(json.dumps({"type": "predict", "play_id": play["id"], "play_type": "PASS", "direction": "RIGHT",

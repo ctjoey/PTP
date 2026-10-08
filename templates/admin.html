@@ -193,7 +193,7 @@
                 <input type="checkbox" role="switch" id="feed-auto-score">
                 <span class="switch-ui" aria-hidden="true"></span>
                 <span class="switch-text"><b>Auto-score clean plays</b>
-                  <small>The feed's result is scored for you after a few seconds. Odd plays (sacks, turnovers, penalties) always wait for you.</small></span>
+                  <small>The feed's result is scored for you after a few seconds. A sack or a QB scramble counts as no play and is voided. Other odd plays (turnovers, penalties) always wait for you.</small></span>
               </label>
               <label class="switch">
                 <input type="checkbox" role="switch" id="feed-auto-open">
@@ -264,7 +264,7 @@
           <button class="big-btn btn-resolve" type="button" id="resolve-btn">Resolve &amp; Score Play <kbd>Enter</kbd></button>
           <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap">
             <span class="shortcuts">Keys: <kbd>O</kbd> open · <kbd>L</kbd> lock · <kbd>R</kbd>/<kbd>P</kbd> type · <kbd>←</kbd><kbd>↑</kbd><kbd>→</kbd> left/middle/right · <kbd>S</kbd>/<kbd>M</kbd>/<kbd>G</kbd> short/medium/long · <kbd>X</kbd> loss · <kbd>Y</kbd> yards · <kbd>Enter</kbd> resolve<span class="feed-keys" id="feed-keys" hidden> · <kbd>H</kbd> hold the feed's suggestion · <kbd>Shift</kbd>+<kbd>P</kbd> pause live data · <kbd>Enter</kbd> also scores a ready suggestion</span></span>
-            <button class="text-btn" type="button" id="void-btn">Void play (penalty / no play)</button>
+            <button class="text-btn" type="button" id="void-btn">Void play (penalty, sack or no play)</button>
           </div>
         </div>
       </section>

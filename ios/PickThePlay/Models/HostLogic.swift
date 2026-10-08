@@ -130,7 +130,7 @@ struct ResultDraft: Equatable {
 
 // MARK: - The feed's suggestion
 
-/// What the host filled in for the parts of a suggestion the feed couldn't read (a sack's direction, say).
+/// What the host filled in for the parts of a suggestion the feed couldn't read (an interception's direction, say).
 struct SuggestionChoices: Equatable {
     private(set) var playId: Int?
     var playType: PlayType?

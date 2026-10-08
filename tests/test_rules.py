@@ -475,7 +475,7 @@ RULES_SENTENCES = (
     "You can change your pick until it locks at the snap or when the countdown ends.",
     "After the play, the official result is read from the live play-by-play data and scored automatically. The host checks it and can correct it, and points land within seconds.",
     "Only scrimmage plays are called. Kickoffs, punts, field goals, extra points and kneel-downs are skipped. "
-    "A play wiped out by a penalty (no play) is voided and nobody scores.",
+    "A play wiped out by a penalty, a sack or a quarterback scramble is no play: it is voided and nobody scores.",
     "Play for the live leaderboard, or head-to-head with friends in a private lounge.",
     "Call Points Play type right (Run / Pass) +10 Direction right (Left / Middle / Right) +10 "
     "Distance right (Short / Medium / Long) +10 Bonus: all three right +10 Perfect call 40",
@@ -494,11 +494,11 @@ RULES_SENTENCES = (
     "Right: the same to the right: right guard, right tackle or right end.",
     "Passing plays are called by where the ball is thrown as it crosses the line of scrimmage, using the hash marks:",
     "Left: thrown outside the left hash mark, out to the left sideline.",
-    "Middle: thrown between the hash marks (18 feet 6 inches apart).",
+    "Middle: thrown between the hash marks.",
     "Right: thrown outside the right hash mark, out to the right sideline.",
-    "A sack counts as a pass play with a loss. A quarterback scramble is charted as a run. When no direction is "
-    "charted, the host makes the call.",
-    "All official play calls are derived from the official NFL statistics: play type, run location and gap, pass "
+    "A sack or a quarterback scramble is no play and scores no points for anyone: there was no throw to call. "
+    "When no direction is charted, the host makes the call.",
+    "All official play calls are derived from the official game statistics: play type, run location, pass "
     "location and yards gained.",
     "All final calls are at the host's discretion.",
     "Pick the Play is an independent fan game. It is not affiliated with, endorsed by or sponsored by the NFL or "

@@ -449,7 +449,7 @@
     if (play.voided) {
       points.textContent = "VOID";
       points.className = "points zero";
-      label.textContent = "Play voided (penalty / no play) — no points";
+      label.textContent = "No play (penalty, sack or QB scramble) — no points";
       $("#result-pick").replaceChildren();
       $("#result-crowd").textContent = "";
     } else {

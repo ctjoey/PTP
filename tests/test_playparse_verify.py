@@ -27,8 +27,8 @@ def read(text, dd=DD):
 # (text, (kind, type, direction, yards)); None parts are not checked.
 INVENTED = [
     # -- clean plays: these may be scored without the host --
-    ("J.Burrow scrambles up the middle to CIN 40 for 8 yards (R.Smith).", ("play", "RUN", "MIDDLE", 8)),
-    ("J.Burrow scrambles right end ran ob at CIN 40 for 8 yards (R.Smith).", ("play", "RUN", "RIGHT", 8)),
+    ("J.Burrow scrambles up the middle to CIN 40 for 8 yards (R.Smith).", ("void", None, None, None)),   # a QB scramble is no play
+    ("J.Burrow scrambles right end ran ob at CIN 40 for 8 yards (R.Smith).", ("void", None, None, None)),
     ("L.Jackson pass incomplete short middle to M.Andrews (K.Hamilton).", ("play", "PASS", "MIDDLE", 0)),
     ("L.Jackson pass incomplete short middle intended for M.Andrews.", ("play", "PASS", "MIDDLE", 0)),
     ("J.Fields pass incomplete short left to N.Mooney [A.Jones] deflected.", ("play", "PASS", "LEFT", 0)),
@@ -51,11 +51,11 @@ INVENTED = [
      ("play", "PASS", "LEFT", 22)),
     ("D.Henry left end for 9 yards, TOUCHDOWN.EXTRA POINT is GOOD.", ("play", "RUN", "LEFT", 9)),
     ("D.Henry left end for 9 yards, TOUCHDOWN.J.Smith Extra Point is NO GOOD.", ("play", "RUN", "LEFT", 9)),
-    # -- sacks and turnovers: the host decides --
-    ("P.Mahomes sacked at KC 21 for -9 yards (C.Jones). FUMBLES (C.Jones), RECOVERED by KC-P.Mahomes at KC 20.", ("review", "PASS", None, -9)),
-    ("J.Allen sacked at BUF 20 for a loss of 7 yards (M.Crosby).", ("review", "PASS", None, -7)),
-    ("J.Allen was sacked for a safety at BUF 0. SAFETY.", ("review", "PASS", None, None)),
-    ("J.Allen pass short left is incomplete. thrown away to avoid sack.", ("review", "PASS", None, None)),
+    # -- sacks are no play; turnovers: the host decides --
+    ("P.Mahomes sacked at KC 21 for -9 yards (C.Jones). FUMBLES (C.Jones), RECOVERED by KC-P.Mahomes at KC 20.", ("void", None, None, None)),
+    ("J.Allen sacked at BUF 20 for a loss of 7 yards (M.Crosby).", ("void", None, None, None)),
+    ("J.Allen was sacked for a safety at BUF 0. SAFETY.", ("void", None, None, None)),
+    ("J.Allen pass short left is incomplete. thrown away to avoid sack.", ("review", "PASS", "LEFT", 0)),   # a throw, not a sack
     ("J.Love pass short left intended for A.Dillon INTERCEPTED by J.Gardner at GB 40. J.Gardner to GB 45 for 5 yards (A.Jones).",
      ("review", "PASS", "LEFT", 0)),
     ("J.Love pass incomplete deep right INTERCEPTED by K.Fuller.", ("review", "PASS", "RIGHT", 0)),
@@ -97,7 +97,7 @@ INVENTED = [
     ("J.Allen up the middle.", ("review", "RUN", "MIDDLE", None)),
     ("J.Allen pass short left to S.Diggs is complete.", ("review", "PASS", "LEFT", None)),
     ("J.Allen pass short left to S.Diggs, no gain.", ("review", "PASS", "LEFT", None)),
-    ("J.Burrow scrambles to CIN 40 for 8 yards (R.Smith).", ("review", "RUN", None, 8)),
+    ("J.Burrow scrambles to CIN 40 for 8 yards (R.Smith).", ("void", None, None, None)),
     ("J.Fields pass deflected at the line.", ("review", "PASS", None, None)),
     ("J.Allen pass short left to S.Diggs for 105 yards, TOUCHDOWN.", ("review", None, None, None)),   # not a legal distance
     ("J.Allen left end for 1000 yards", ("review", None, None, None)),
@@ -269,7 +269,7 @@ INVENTED_2 = [
     ("Jet sweep: R.Rice left end to KC 35 for 7 yards (V.Vea).", ("play", "RUN", "LEFT", 7)),
     ("P.Mahomes scrambles up the middle to KC 40 for 9 yards (V.Vea). Pass was thrown away earlier.", ("review", None, None, 9)),
     ("P.Mahomes pass to the sideline thrown away.", ("review", "PASS", None, None)),
-    ("P.Mahomes sack: no direction charted. -8 yards.", ("review", "PASS", None, None)),
+    ("P.Mahomes sack: no direction charted. -8 yards.", ("void", None, None, None)),
     ("P.Mahomes pass incomplete deep middle to M.Hardman. Intended for X, INTERCEPTION overturned by replay.",
      ("review", "PASS", "MIDDLE", 0)),
     ("Hail Mary: A.Rodgers pass deep middle to A.Lazard to END ZONE, incomplete.", ("play", "PASS", "MIDDLE", 0)),

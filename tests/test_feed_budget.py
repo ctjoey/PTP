@@ -670,9 +670,9 @@ def test_a_request_still_counts_when_the_game_changes_while_it_is_in_flight(tmp_
 
 def test_holding_a_review_suggestion_leaves_it_in_review(tmp_path):
     async def scenario(rig: Rig):
-        await new_game_midway(rig, 34)
-        await lock_entry(rig, 34)
-        await show_and_wait(rig, 34)
+        await new_game_midway(rig, 89)           # an aborted snap: the host must look (a sack is no play now)
+        await lock_entry(rig, 89)
+        await show_and_wait(rig, 89)
         rig.ctrl.feed.hold()
         sug = rig.state()["suggestion"]
         assert sug["status"] == "review" and sug["auto_at"] is None

@@ -228,7 +228,7 @@ final class PracticeGame: ObservableObject {
 
     /// Yards gained, by a uniform `roll` in 0..<1 (so tests can pin the bucket):
     /// runs: 10% loss, 58% 0–5, 22% 6–10, 10% 11+.
-    /// passes: 6% sack (loss), 35% incomplete (0 yds = short), 17% 1–5, 20% 6–10, 22% 11+.
+    /// passes: 37% incomplete (0 yds = short), 18% 1–5, 21% 6–10, 24% 11+ (no sacks: a sack is no play).
     nonisolated static func randomYards(for type: PlayType, roll: Double = Double.random(in: 0..<1)) -> Int {
         switch type {
         case .run:
@@ -237,10 +237,9 @@ final class PracticeGame: ObservableObject {
             if roll < 0.90 { return Int.random(in: 6...10) }
             return Int.random(in: 11...45)
         case .pass:
-            if roll < 0.06 { return -Int.random(in: 3...10) }
-            if roll < 0.41 { return 0 }
-            if roll < 0.58 { return Int.random(in: 1...5) }
-            if roll < 0.78 { return Int.random(in: 6...10) }
+            if roll < 0.37 { return 0 }
+            if roll < 0.55 { return Int.random(in: 1...5) }
+            if roll < 0.76 { return Int.random(in: 6...10) }
             return Int.random(in: 11...60)
         }
     }

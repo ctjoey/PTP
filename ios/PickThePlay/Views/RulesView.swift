@@ -47,7 +47,7 @@ struct RulesView: View {
             RulesBullet("Before each snap the host opens the play. You have a short window (usually 15 seconds; the countdown is on screen) to make three calls: **Run or Pass**, **Left, Middle or Right**, and **Short, Medium or Long**.")
             RulesBullet("You can change your pick until it locks at the snap or when the countdown ends.")
             RulesBullet("After the play, the official result is read from the live play-by-play data and scored automatically. The host checks it and can correct it, and points land within seconds.")
-            RulesBullet("Only scrimmage plays are called. Kickoffs, punts, field goals, extra points and kneel-downs are skipped. A play wiped out by a penalty (no play) is voided and nobody scores.")
+            RulesBullet("Only scrimmage plays are called. Kickoffs, punts, field goals, extra points and kneel-downs are skipped. A play wiped out by a penalty, a sack or a quarterback scramble is no play: it is voided and nobody scores.")
             RulesBullet("Play for the live leaderboard, or head-to-head with friends in a private lounge.")
         }
     }
@@ -79,19 +79,19 @@ struct RulesView: View {
                 RulesParagraph("*Passing plays* are called by where the ball is thrown as it crosses the line of scrimmage, using the hash marks:")
                 PassZoneDiagram()
                 RulesBullet("**Left:** thrown outside the left hash mark, out to the left sideline.")
-                RulesBullet("**Middle:** thrown between the hash marks (18 feet 6 inches apart).")
+                RulesBullet("**Middle:** thrown between the hash marks.")
                 RulesBullet("**Right:** thrown outside the right hash mark, out to the right sideline.")
             }
             .padding(.top, 4)
 
-            RulesParagraph("A sack counts as a pass play with a loss. A quarterback scramble is charted as a run. When no direction is charted, the host makes the call.")
+            RulesParagraph("A sack or a quarterback scramble is no play and scores no points for anyone: there was no throw to call. When no direction is charted, the host makes the call.")
                 .padding(.top, 4)
         }
     }
 
     private var officialCalls: some View {
         RulesCard(title: "Official calls") {
-            RulesBullet("All official play calls are derived from the official NFL statistics: play type, run location and gap, pass location and yards gained.")
+            RulesBullet("All official play calls are derived from the official game statistics: play type, run location, pass location and yards gained.")
             RulesBullet("All final calls are at the host's discretion.")
             RulesBullet("Pick the Play is an independent fan game. It is not affiliated with, endorsed by or sponsored by the NFL or any club.")
         }

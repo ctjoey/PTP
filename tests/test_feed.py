@@ -184,29 +184,52 @@ def test_entries_bind_to_plays_in_order_skipping_kickoffs_punts_and_timeouts(tmp
     run_rig(tmp_path, scenario)
 
 
+ABORTED_SNAP = 89
+
+
 def test_review_needs_the_host_and_never_scores_by_itself(tmp_path):
+    async def scenario(rig: Rig):
+        await new_game_midway(rig, ABORTED_SNAP)
+        await lock_entry(rig, ABORTED_SNAP)
+        await show_and_wait(rig, ABORTED_SNAP)
+        sug = rig.state()["suggestion"]
+        assert sug["status"] == "review" and sug["auto_at"] is None
+        assert (sug["direction"], sug["yards"]) == (None, None)
+        assert "Aborted snap" in sug["flags"]
+        for _ in range(10):
+            await rig.step(30)
+        assert rig.play()["state"] == "LOCKED"                  # still waiting for the host
+        # Score now without choosing anything is refused (nothing changes) ...
+        with pytest.raises(GameError, match="Left, Middle or Right|Run or Pass"):
+            await rig.ctrl.feed_accept(FeedAcceptIn(play_id=sug["play_id"]))
+        assert rig.state()["suggestion"] is not None and rig.play()["state"] == "LOCKED"
+        # ... the host completes it (an aborted snap has no charted result) and scores.
+        out = await rig.ctrl.feed_accept(FeedAcceptIn(play_id=sug["play_id"], play_type="RUN", direction="MIDDLE", yards=1))
+        play = rig.play()
+        assert (play["correct_play_type"], play["correct_direction"], play["correct_yardage"], play["yards_gained"]) == \
+            ("RUN", "MIDDLE", "SHORT", 1)
+        assert play["resolved_by"] == "feed" and out["feed"]["suggestion"] is None
+        assert rig.state()["next_down"] is None                 # not a clean play: nothing to prefill
+
+    run_rig(tmp_path, scenario)
+
+
+def test_a_sack_is_no_play_and_voids_itself_after_the_grace_period(tmp_path):
+    """Nobody could have called a throw that never happened: a sack is voided, like a penalty's no play (and, like it,
+    only by itself when the down and distance prove it is this play)."""
     async def scenario(rig: Rig):
         await new_game_midway(rig, SACK)
         await lock_entry(rig, SACK)
         await show_and_wait(rig, SACK)
         sug = rig.state()["suggestion"]
-        assert sug["status"] == "review" and sug["auto_at"] is None
-        assert (sug["play_type"], sug["direction"], sug["yards"], sug["yardage"]) == ("PASS", None, -4, "LOSS")
-        assert "Sack" in sug["flags"]
-        for _ in range(10):
-            await rig.step(30)
-        assert rig.play()["state"] == "LOCKED"                  # still waiting for the host
-        # Score now without choosing a direction is refused (nothing changes) ...
-        with pytest.raises(GameError, match="Left, Middle or Right"):
-            await rig.ctrl.feed_accept(FeedAcceptIn(play_id=sug["play_id"]))
-        assert rig.state()["suggestion"] is not None and rig.play()["state"] == "LOCKED"
-        # ... the host completes it (a sack has no charted direction) and scores.
-        out = await rig.ctrl.feed_accept(FeedAcceptIn(play_id=sug["play_id"], direction="MIDDLE"))
+        assert sug["status"] == "void" and sug["auto_at"]
+        assert sug["flags"] == ["Sack: counts as no play, nobody scores"]
+        assert (sug["play_type"], sug["direction"], sug["yards"]) == (None, None, None)
+        await rig.step(8)
         play = rig.play()
-        assert (play["correct_play_type"], play["correct_direction"], play["correct_yardage"], play["yards_gained"]) == \
-            ("PASS", "MIDDLE", "LOSS", -4)
-        assert play["resolved_by"] == "feed" and out["feed"]["suggestion"] is None
-        assert rig.state()["next_down"] is None                 # not a clean play: nothing to prefill
+        assert play["state"] == "RESOLVED" and play["voided"] == 1 and play["resolved_by"] == "void"
+        assert "sacked" in play["feed_text"]
+        assert rig.state()["last_scored"]["voided"] is True and rig.state()["next_down"] is None
 
     run_rig(tmp_path, scenario)
 

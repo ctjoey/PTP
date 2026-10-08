@@ -38,22 +38,17 @@ def test_fixture_totals():
     skipping them would shift every later play onto the wrong feed entry."""
     kinds = Counter(classify(e).kind for e in ENTRIES)
     assert len(ENTRIES) == 159
-    assert kinds == {"skip": 44, "void": 12, "play": 97, "review": 6}
+    assert kinds == {"skip": 44, "void": 18, "play": 94, "review": 3}
     # The same data in the spec's terms: add the five touchdown entries to skip and take them off play/review.
     td_with_xp = [i for i, e in enumerate(ENTRIES) if "extra point" in e["play"] and "TOUCHDOWN" in e["play"]]
     assert len(td_with_xp) == 5
     assert [classify(ENTRIES[i]).kind for i in td_with_xp] == ["review", "play", "play", "play", "play"]
-    assert kinds["skip"] + 5 == 49 and kinds["play"] - 4 == 93 and kinds["review"] - 1 == 5
+    assert kinds["skip"] + 5 == 49 and kinds["play"] - 4 == 90 and kinds["review"] - 1 == 2
 
 
 def test_fixture_reviews_are_exactly_the_odd_plays():
     reviews = {i: classify(e) for i, e in enumerate(ENTRIES) if classify(e).kind == "review"}
-    assert set(reviews) == {8, 31, 34, 41, 89, 103}
-    for i in (34, 41, 103):  # sacks: a pass, no direction, the (negative or zero) yards prefilled
-        p = reviews[i]
-        assert (p.play_type, p.direction, p.reason) == ("PASS", None, "sack") and "Sack" in p.flags
-    assert (reviews[34].yards, reviews[34].yardage) == (-4, "LOSS")
-    assert (reviews[103].yards, reviews[103].yardage) == (0, "SHORT")
+    assert set(reviews) == {8, 31, 89}   # (sacks and quarterback scrambles are no play now: see below)
     # Interceptions: the "for 20 yards" / "for 67 yards" are returns, so the prefill is a pass for 0.
     for i in (8, 31):
         p = reviews[i]
@@ -65,9 +60,12 @@ def test_fixture_reviews_are_exactly_the_odd_plays():
 
 def test_fixture_voids_are_all_the_no_play_entries():
     voids = [i for i, e in enumerate(ENTRIES) if classify(e).kind == "void"]
-    assert voids == [18, 35, 46, 59, 61, 76, 77, 91, 106, 112, 118, 126]
-    assert all("no play" in ENTRIES[i]["play"].lower() for i in voids)
+    assert voids == [18, 34, 35, 41, 46, 51, 59, 61, 76, 77, 90, 91, 103, 106, 112, 118, 126, 137]
+    assert Counter(classify(ENTRIES[i]).reason for i in voids) == {"no_play": 12, "sack": 3, "scramble": 3}
+    assert all("no play" in ENTRIES[i]["play"].lower() for i in voids if classify(ENTRIES[i]).reason == "no_play")
     assert all(classify(ENTRIES[i]).flags for i in voids)
+    # Sacks (34, 41, 103) and quarterback scrambles (51, 90, 137) are no play: nobody could have called them.
+    assert [classify(ENTRIES[i]).reason for i in (34, 41, 103, 51, 90, 137)] == ["sack"] * 3 + ["scramble"] * 3
 
 
 def test_fixture_skips_are_the_non_plays():
@@ -78,7 +76,7 @@ def test_fixture_skips_are_the_non_plays():
 
 def test_every_fixture_play_is_complete_and_consistent():
     plays = [classify(e) for e in ENTRIES if classify(e).kind == "play"]
-    assert len(plays) == 97
+    assert len(plays) == 94
     for p in plays:
         assert p.play_type in ("RUN", "PASS") and p.direction in ("LEFT", "MIDDLE", "RIGHT")
         assert isinstance(p.yards, int) and p.yardage == yardage_for_yards(p.yards).value
@@ -100,10 +98,10 @@ SPOT_CHECKS = [
     ("A.Dalton pass short right to J.Sanders to CAR 21 for 7 yards (B.St-Juste).", ("play", "PASS", "RIGHT", 7, "MEDIUM")),
     ("C.Hubbard left end to CAR 25 for 4 yards (M.Sainristil, Q.Martin).", ("play", "RUN", "LEFT", 4, "SHORT")),
     ("A.Dalton pass incomplete short left to Di.Johnson (M.Sainristil).", ("play", "PASS", "LEFT", 0, "SHORT")),
-    ("M.Mariota scrambles left end ran ob at CAR 47 for 11 yards (C.Smith-Wade).", ("play", "RUN", "LEFT", 11, "LONG")),
+    ("M.Mariota scrambles left end ran ob at CAR 47 for 11 yards (C.Smith-Wade).", ("void", None, None, None, None)),
     ("C.Hubbard left end pushed ob at CAR 46 for no gain (M.Sainristil).", ("play", "RUN", "LEFT", 0, "SHORT")),
     ("A.Ekeler up the middle to CAR 38 for 6 yards (X.Woods; C.Smith-Wade).", ("play", "RUN", "MIDDLE", 6, "MEDIUM")),
-    ("M.Mariota sacked at CAR 46 for -4 yards (C.Harris).", ("review", "PASS", None, -4, "LOSS")),
+    ("M.Mariota sacked at CAR 46 for -4 yards (C.Harris).", ("void", None, None, None, None)),
 ]
 
 
@@ -122,8 +120,6 @@ def test_spot_checks(text, expected):
     ("J.Taylor right guard to IND 33 for 5 yards (X.Smith).", ("play", "RUN", "RIGHT", 5, "SHORT")),
     ("D.Henry left tackle to TEN 22 for 12 yards (A.Smith; B.Jones).", ("play", "RUN", "LEFT", 12, "LONG")),
     ("N.Chubb up the middle for 2 yards, TOUCHDOWN.", ("play", "RUN", "MIDDLE", 2, "SHORT")),
-    ("J.Allen scrambles up the middle to BUF 30 for 4 yards (D.Wise).", ("play", "RUN", "MIDDLE", 4, "SHORT")),
-    ("J.Allen scrambles right end ran ob at BUF 30 for 14 yards.", ("play", "RUN", "RIGHT", 14, "LONG")),
     ("A.Ekeler left end for a loss of 3 yards (X.Woods).", ("play", "RUN", "LEFT", -3, "LOSS")),
     ("A.Ekeler right end to CAR 38 for no gain (X.Woods).", ("play", "RUN", "RIGHT", 0, "SHORT")),
     ("D.Henry right tackle to TEN 25 for 1 yard (A.Smith).", ("play", "RUN", "RIGHT", 1, "SHORT")),
@@ -153,8 +149,6 @@ def test_clean_plays(text, expected):
 
 
 @pytest.mark.parametrize("text, reason, flag", [
-    ("J.Allen sacked at BUF 20 for -7 yards (J.Doe).", "sack", "Sack"),
-    ("J.Allen sacked at BUF 20 for a loss of 7 yards (J.Doe).", "sack", "Sack"),
     ("J.Allen pass short left intended for S.Diggs INTERCEPTED by X.Y at BUF 40. X.Y to BUF 30 for 10 yards.",
      "interception", "Interception"),
     ("J.Allen pass deep middle to S.Diggs INTERCEPTED by X.Y at END ZONE, touchback.", "interception", "Interception"),
@@ -171,7 +165,6 @@ def test_clean_plays(text, expected):
     ("J.Allen pass to S.Diggs to BUF 40 for 8 yards (J.Doe).", "no_direction", None),
     ("J.Allen pass incomplete to S.Diggs.", "no_direction", None),
     ("J.Taylor rushes to IND 33 for 5 yards (X.Smith).", "no_direction", None),
-    ("J.Allen scrambles to BUF 30 for 6 yards (D.Wise).", "no_direction", None),
     ("J.Taylor left end to IND 33.", "no_yards", None),
     ("J.Taylor to IND 33 for 5 yards (X.Smith).", "unrecognised", None),
     ("J.Allen pass short left to S.Diggs to BUF 40 for 8 yards, then runs left end for 12 yards.", "conflicting", None),
@@ -196,8 +189,35 @@ def test_review_prefills_what_it_can():
     assert (p.play_type, p.direction, p.yards, p.yardage) == ("RUN", "LEFT", 4, "SHORT")
     p = classify(entry("J.Allen pass to S.Diggs to BUF 40 for 8 yards (J.Doe)."))
     assert (p.play_type, p.direction, p.yards, p.yardage) == ("PASS", None, 8, "MEDIUM")
-    p = classify(entry("J.Allen sacked at BUF 20 for -7 yards (J.Doe)."))
-    assert (p.play_type, p.direction, p.yards, p.yardage) == ("PASS", None, -7, "LOSS")
+
+
+@pytest.mark.parametrize("text, reason, flag", [
+    ("J.Allen sacked at BUF 20 for -7 yards (J.Doe).", "sack", "Sack: counts as no play, nobody scores"),
+    ("J.Allen sacked at BUF 20 for a loss of 7 yards (J.Doe).", "sack", "Sack: counts as no play, nobody scores"),
+    ("J.Allen sacked at BUF 20 for 0 yards (J.Doe). FUMBLES (J.Doe), recovered by BUF-Y.Zed.", "sack", "Sack: counts as no play, nobody scores"),
+    ("J.Allen scrambles to BUF 30 for 6 yards (D.Wise).", "scramble", "QB scramble: counts as no play, nobody scores"),
+    ("J.Allen scrambles up the middle to BUF 30 for 4 yards (D.Wise).", "scramble", "QB scramble: counts as no play, nobody scores"),
+    ("J.Allen scrambles right end ran ob at BUF 30 for 14 yards.", "scramble", "QB scramble: counts as no play, nobody scores"),
+    ("J.Allen scrambled left end to BUF 31 for 7 yards.", "scramble", "QB scramble: counts as no play, nobody scores"),
+])
+def test_a_sack_or_a_qb_scramble_is_no_play(text, reason, flag):
+    """Nobody could have called a throw that never happened (a sack) or a quarterback run (a scramble): the play is
+    voided, nobody scores, and the feed treats it like a penalty's no play (it voids itself when the down matches)."""
+    p = classify(entry(text))
+    assert (p.kind, p.reason) == ("void", reason)
+    assert p.flags == [flag]
+    assert (p.play_type, p.direction, p.yards, p.yardage) == (None, None, None, None)
+    assert classify(entry(text, dd=None)).kind == "void"
+
+
+@pytest.mark.parametrize("text, kind", [
+    ("J.Allen pass short left to S.Diggs to BUF 40 for 8 yards (J.Doe).", "play"),
+    ("J.Allen sneaks up the middle for 1 yard (X.Y).", "play"),             # a QB sneak is a run, not a scramble
+    ("J.Allen scrambles, pass short left to S.Diggs to BUF 40 for 8 yards.", "review"),   # ends in a pass: odd, host checks
+    ("J.Allen pass incomplete short right to S.Diggs, thrown away to avoid a sack.", "review"),
+])
+def test_only_real_sacks_and_scrambles_are_voided(text, kind):
+    assert classify(entry(text)).kind == kind
 
 
 @pytest.mark.parametrize("text", [
