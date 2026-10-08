@@ -70,6 +70,13 @@ struct OnboardingView: View {
                 if let error {
                     Text(error).font(.system(size: 14, weight: .semibold)).foregroundStyle(Theme.danger)
                 }
+                if state.waking {
+                    HStack(spacing: 10) {
+                        ProgressView()
+                        Text("Connecting to the game server… the first time can take up to a minute.")
+                    }
+                    .font(.system(size: 14, weight: .semibold)).foregroundStyle(Theme.muted)
+                }
 
                 Button {
                     Task { await signUp() }

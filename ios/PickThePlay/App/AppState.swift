@@ -30,6 +30,8 @@ final class AppState: ObservableObject {
     @Published private(set) var pickYardage: Yardage?
     @Published private(set) var savedPick: String?
     @Published private(set) var saving = false
+    /// True while the welcome screen is waiting for the game server to answer.
+    @Published private(set) var waking = false
     @Published private(set) var rankMoves: [String: [Int: Int]] = [:]
     @Published var notice: Notice?
     @Published var tab: Tab = .live
@@ -68,10 +70,31 @@ final class AppState: ObservableObject {
         live.stop()
     }
 
+    /// Waits up to `seconds` for the game server to answer. The free hosting plan puts an idle server to sleep and
+    /// waking it takes up to a minute, longer than a normal request waits, so the first sign-up after a quiet
+    /// spell used to fail with "Can't reach the game server".
+    @discardableResult
+    func wakeServer(seconds: TimeInterval = 90, announce: Bool = false) async -> Bool {
+        guard ScreenshotMode.screen == nil, let server else { return false }
+        let api = APIClient(server: server)
+        let deadline = Date().addingTimeInterval(seconds)
+        defer { if announce { waking = false } }
+        while !Task.isCancelled {
+            if await api.isAwake() { return true }
+            if Date() >= deadline { return false }
+            if announce { waking = true }
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+        }
+        return false
+    }
+
     // MARK: - Account
 
     func signUp(username: String) async throws {
         guard let server else { throw APIError(status: 0, message: "Enter the game server address first.") }
+        guard await wakeServer(announce: true) else {
+            throw APIError(status: 0, message: "Can't reach the game server. Check your connection and try again in a minute.")
+        }
         let account = try await APIClient(server: server).createUser(username: username)
         token = account.token
         self.username = account.username

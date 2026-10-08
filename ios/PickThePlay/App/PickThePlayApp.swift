@@ -18,7 +18,11 @@ struct PickThePlayApp: App {
             switch newPhase {
             case .active:
                 state.connect()
-                Task { await state.refreshLounges() }
+                // A sleeping server needs up to a minute to answer, so wake it before the first real request.
+                Task {
+                    await state.wakeServer()
+                    await state.refreshLounges()
+                }
             case .background:
                 state.disconnect()
             default:

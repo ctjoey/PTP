@@ -81,6 +81,16 @@ struct APIClient {
         _ = try await send("DELETE", "/api/me", body: nil)
     }
 
+    /// True when the server answers its health check. A server that has been idle can take up to a minute to
+    /// wake (the free hosting plan sleeps it), so callers poll this instead of expecting a quick answer.
+    func isAwake() async -> Bool {
+        guard let url = URL(string: "/healthz", relativeTo: server) else { return false }
+        var req = URLRequest(url: url, timeoutInterval: 10)
+        req.httpMethod = "GET"
+        guard let (_, response) = try? await session.data(for: req) else { return false }
+        return (response as? HTTPURLResponse)?.statusCode == 200
+    }
+
     // MARK: - Plumbing
 
     private func request<T: Decodable>(_ method: String, _ path: String, body: [String: Any]? = nil) async throws -> T {
