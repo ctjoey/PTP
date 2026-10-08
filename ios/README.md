@@ -15,7 +15,7 @@ open PickThePlay.xcodeproj
 ```
 
 Set the game server for local runs in the scheme's build settings (`PTP_SERVER_URL`), or type it
-in the app's Settings tab (e.g. `192.168.1.20:8000` for `python app.py --phone` on your Wi-Fi).
+in the app's Settings tab (press and hold the version number under About to reveal the Game server box; e.g. `192.168.1.20:8000` for `python app.py --phone` on your Wi-Fi).
 
 ## The game in the app
 

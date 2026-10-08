@@ -1,7 +1,8 @@
 import Foundation
 
 /// Where the game server lives. The build bakes in `PTPServerURL` (from the PTP_SERVER_URL build
-/// setting); a player can override it in Settings, e.g. to join a game on a computer on their Wi-Fi.
+/// setting); a tester can override it in Settings (press and hold the version number under About), e.g. to join a
+/// game on a computer on their Wi-Fi.
 enum ServerConfig {
     static let overrideKey = "ptp.serverOverride"
 

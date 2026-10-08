@@ -139,7 +139,7 @@
         onPredictionSaved(msg.prediction);
         break;
       case "error":
-        if (msg.code === "bad_token") {
+        if (msg.code === "bad_token" || msg.code === "account_deleted") {
           forgetToken();
           location.reload();
           return;
@@ -502,7 +502,9 @@
   function renderMe(st, prev) {
     const box = $("#me-stats");
     box.hidden = !st.me;
+    $("#whoami").hidden = !st.me;
     if (!st.me) return;
+    $("#whoami-name").textContent = st.me.username;
     const set = (id, value, prevValue) => {
       const node = $(id);
       node.textContent = value;
@@ -608,7 +610,28 @@
     }
   }
 
+  /** Deleting the account is how a name is changed: a name is only ever tied to this browser's sign-in. */
+  async function changeName() {
+    if (!S.token) return;
+    const name = (S.user && S.user.username) || "your name";
+    if (!confirm(`Change your name? This deletes "${name}" along with its picks, scores and any lounges you host, then lets you pick a new name.`)) return;
+    const button = $("#change-name");
+    button.disabled = true;
+    try {
+      await api("/api/me", { method: "DELETE", token: S.token });
+    } catch (err) {
+      if (err.status !== 401) {  // 401: the account is already gone, so carry on to the sign-in
+        button.disabled = false;
+        toast(err.message, "error");
+        return;
+      }
+    }
+    forgetToken();
+    location.reload();
+  }
+
   function wireUI() {
+    $("#change-name").addEventListener("click", changeName);
     for (const b of $$("[data-type]")) b.addEventListener("click", () => choose("type", b.dataset.type));
     for (const b of $$("[data-dir]")) b.addEventListener("click", () => choose("dir", b.dataset.dir));
     for (const b of $$("[data-yard]")) b.addEventListener("click", () => choose("yard", b.dataset.yard));

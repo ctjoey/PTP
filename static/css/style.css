@@ -467,6 +467,9 @@ a { color: var(--blue); }
 .stat-label { font-size: 10px; font-weight: 800; letter-spacing: .14em; color: var(--muted); text-transform: uppercase; }
 .stat-value { font-size: 22px; font-weight: 900; font-variant-numeric: tabular-nums; }
 .stat-value.bump { animation: bump .6s ease; }
+.whoami { margin: -6px 0 0; text-align: center; font-size: 13px; color: var(--muted); }
+.whoami b { color: var(--text); overflow-wrap: anywhere; }
+.whoami .link-btn { font-size: 13px; }
 
 .tabs { display: flex; gap: 6px; padding: 4px; border-radius: 12px; background: var(--surface-2); margin-bottom: 10px; }
 .tab {

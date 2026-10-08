@@ -59,7 +59,8 @@ again.
    | `PTP_SERVER_URL` | Your game server's address from Step 2, e.g. `https://pick-the-play.onrender.com`. It must start with `https://` and have **no `/` at the end**. |
 
 The server address is built into the app. If it ever changes, update the variable and run Step 4
-again (testers can also type the new address in the app's Settings).
+again (for testing, the address can also be typed in the app: Settings, then press and hold the
+version number until a **Game server** box appears).
 
 ### Step 2. Put the game server online (10 min)
 
@@ -67,7 +68,7 @@ The app talks to your Pick the Play server, so the server has to be on the inter
 
 1. Follow **[IPHONE_GUIDE.md → Route B: Cloud hosting on Render](IPHONE_GUIDE.md#route-b-cloud-hosting-on-render-no-computer-needed)**.
    Your address looks like `https://pick-the-play.onrender.com`. Copy it into `PTP_SERVER_URL`.
-   Players can switch to another server in the app's **Settings**, including a home Wi-Fi one like
+   For testing, the app can use another server, including a home Wi-Fi one like
    `http://192.168.1.20:8000`, but the built-in address should be the https one.
 2. **For real testers, use the paid setup.** The Free server falls asleep and **wipes all accounts
    and scores** whenever it restarts. In Render, open your service:
@@ -140,7 +141,7 @@ TestFlight builds expire after 90 days. Run Step 4 again for a fresh one.
 | "Cloud signing permission error" at Export IPA | The API key isn't **Admin**. Make a new Admin key (Step 1) and replace `ASC_KEY_ID` and `ASC_KEY_P8`. |
 | Upload fails with "no suitable application records" | The app isn't created in App Store Connect yet, or its bundle ID doesn't match `BUNDLE_ID_PREFIX` + `.PickThePlay` (Step 3). |
 | Build + test is red | Ask Claude. It reads the logs from the run's `ios-build-N` download and fixes the code. Each round trip is about 10 minutes. |
-| The app's Live tab can't connect | Open the server address in Safari to wake it. Check the address in the app's Settings and in `PTP_SERVER_URL`: it needs `https://` and no trailing `/`. |
+| The app's Live tab can't connect | Open the server address in Safari to wake it. Check the address in `PTP_SERVER_URL` (and, if you changed it in the app, the **Game server** box in Settings: press and hold the version number to see it): it needs `https://` and no trailing `/`. |
 | Accounts or scores disappeared | The Free Render server reset. Switch to Starter + Disk (Step 2). |
 
 ## Before the App Store (not needed for TestFlight)
