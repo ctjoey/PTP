@@ -6,7 +6,7 @@ import Foundation
 /// can't reach this path: the variable only exists when a simulator launch sets it.
 enum ScreenshotMode {
     enum Screen: String {
-        case open, locked, result, board, lounges, rules
+        case open, locked, result, board, lounges, rules, points, directions
     }
 
     static var screen: Screen? {
@@ -14,6 +14,15 @@ enum ScreenshotMode {
         let args = ProcessInfo.processInfo.arguments
         if let i = args.firstIndex(of: "-screenshot"), i + 1 < args.count { return Screen(rawValue: args[i + 1]) }
         return nil
+    }
+
+    /// Which part of the Rules tab a store screenshot scrolls to.
+    static var rulesAnchor: String? {
+        switch screen {
+        case .points: return "points"
+        case .directions: return "directions"
+        default: return nil
+        }
     }
 
     struct Sample {
@@ -53,7 +62,7 @@ enum ScreenshotMode {
             crowd = Crowd(total: 48, run: 19, pass: 29, left: 22, middle: 9, right: 17, short: 20, medium: 18, long: 10,
                           exact: 0, scored: 0)
             event = "play_locked"
-        case .result, .board, .lounges, .rules:
+        case .result, .board, .lounges, .rules, .points, .directions:
             // An 8-yard completion to the left: PASS · LEFT · MEDIUM, a perfect call for JoeyC
             // (10 + 10 + 10 + the 10 bonus = 40).
             play.state = .resolved
@@ -100,7 +109,7 @@ enum ScreenshotMode {
             switch screen {
             case .board: return .board
             case .lounges: return .lounges
-            case .rules: return .rules
+            case .rules, .points, .directions: return .rules
             case .open, .locked, .result: return .live
             }
         }()

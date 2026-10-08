@@ -45,7 +45,6 @@ struct LeaderboardView: View {
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle("Leaderboard")
             .toolbarBackground(Theme.bg, for: .navigationBar)
-            .onAppear { if ScreenshotMode.screen == .board, state.snapshot?.lounge != nil { board = .lounge } }
         }
     }
 

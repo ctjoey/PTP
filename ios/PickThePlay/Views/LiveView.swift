@@ -213,7 +213,7 @@ struct OpenStage: View {
             if remaining <= 0 { return ("Time! Locking predictions…", Theme.muted) }
             if state.saving { return ("Sending your pick…", Theme.muted) }
             if state.pickIsSaved, let t = state.pickType, let d = state.pickDirection, let y = state.pickYardage {
-                return ("✓ Locked in: \(t.rawValue) · \(d.rawValue) · \(y.rawValue). Change it before 0.", Theme.accent)
+                return ("✓ Locked in: \(t.rawValue) · \(d.rawValue) · \(y.rawValue). Change it until the clock hits 0.", Theme.accent)
             }
             return (Football.pickPrompt(type: state.pickType, direction: state.pickDirection, yardage: state.pickYardage),
                     Theme.muted)

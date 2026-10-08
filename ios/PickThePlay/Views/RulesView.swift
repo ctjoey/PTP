@@ -9,14 +9,22 @@ struct RulesView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    howItWorks
-                    points
-                    directions
-                    officialCalls
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        howItWorks
+                        points.id("points")
+                        directions.id("directions")
+                        officialCalls
+                    }
+                    .padding(16)
                 }
-                .padding(16)
+                // Store screenshots only: jump to the Points or the Left/Middle/Right section.
+                .task {
+                    guard let anchor = ScreenshotMode.rulesAnchor else { return }
+                    try? await Task.sleep(nanoseconds: 600_000_000)
+                    proxy.scrollTo(anchor, anchor: .top)
+                }
             }
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle("Rules of the Game")

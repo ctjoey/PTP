@@ -117,11 +117,12 @@ jobs:
           shoot locked  03-locked
           shoot board   04-leaderboard
           shoot lounges 05-lounges
-          shoot rules   06-rules
+          shoot points     06-points
+          shoot directions 07-directions
           # Light mode (the same -key value launch argument the Settings picker's storage key answers to).
-          shoot open    07-light-call-the-play -ptp-appearance light
-          shoot result  08-light-result -ptp-appearance light
-          shoot rules   09-light-rules -ptp-appearance light
+          shoot open       08-light-call-the-play -ptp-appearance light
+          shoot result     09-light-result -ptp-appearance light
+          shoot directions 10-light-directions -ptp-appearance light
           xcrun simctl shutdown "$UDID" || true
           xcrun simctl delete "$UDID" || true
           ls -l screenshots/raw
