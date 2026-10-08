@@ -1,0 +1,151 @@
+{
+  "admins_online": 1,
+  "announcement": {
+    "id": 1791478390412,
+    "sent_at": 1791478392.2619226,
+    "text": "Halftime! Back in about 15 minutes."
+  },
+  "event": "feed",
+  "feed": {
+    "auto_open": false,
+    "auto_open_at": null,
+    "auto_score": true,
+    "available": false,
+    "disagreement": null,
+    "game_id": "demo",
+    "lag": {
+      "last": 1.0,
+      "median": 1.0,
+      "samples": 1
+    },
+    "last_scored": {
+      "at": 1791478392.2523835,
+      "auto": false,
+      "by": "feed",
+      "play_id": 1,
+      "summary": "PASS - RIGHT - MEDIUM (7 yds)",
+      "voided": false
+    },
+    "linked": true,
+    "message": "Paused. Tap Resume when play restarts.",
+    "next_down": null,
+    "paused": true,
+    "requests": {
+      "day_cap": 1000,
+      "game": 1,
+      "game_cap": 900,
+      "plan_limit": null,
+      "plan_remaining": null,
+      "today": 0
+    },
+    "source": "demo",
+    "state": "paused",
+    "suggestion": null,
+    "waiting": null
+  },
+  "game": {
+    "away_name": "Carolina",
+    "away_primary": "#0085CA",
+    "away_secondary": "#101820",
+    "created_at": 1791478390.5143154,
+    "feed_auto_open": 0,
+    "feed_auto_score": 1,
+    "feed_cap_extra": 0,
+    "feed_cursor": 2,
+    "feed_game_id": "demo",
+    "feed_paused": 1,
+    "feed_requests": 1,
+    "home_name": "Washington",
+    "home_primary": "#5A1414",
+    "home_secondary": "#FFB612",
+    "id": 1,
+    "status": "LIVE"
+  },
+  "history": [
+    {
+      "correct_direction": null,
+      "correct_play_type": null,
+      "correct_yardage": null,
+      "distance": "3",
+      "down": 2,
+      "exact_hits": 0,
+      "feed_text": null,
+      "id": 2,
+      "picks": 0,
+      "play_number": 2,
+      "resolved_by": "void",
+      "state": "RESOLVED",
+      "voided": 1,
+      "yards_gained": null
+    },
+    {
+      "correct_direction": "RIGHT",
+      "correct_play_type": "PASS",
+      "correct_yardage": "MEDIUM",
+      "distance": "10",
+      "down": 1,
+      "exact_hits": 1,
+      "feed_text": "A.Dalton pass short right to J.Sanders to CAR 21 for 7 yards (B.St-Juste).",
+      "id": 1,
+      "picks": 2,
+      "play_number": 1,
+      "resolved_by": "feed",
+      "state": "RESOLVED",
+      "voided": 0,
+      "yards_gained": 7
+    }
+  ],
+  "leaderboard": [
+    {
+      "exact_hits": 1,
+      "picks": 1,
+      "rank": 1,
+      "score": 40,
+      "user_id": 2,
+      "username": "Sam"
+    },
+    {
+      "exact_hits": 0,
+      "picks": 1,
+      "rank": 2,
+      "score": 0,
+      "user_id": 1,
+      "username": "JoeyC"
+    }
+  ],
+  "pick_stats": {
+    "LEFT": 0,
+    "LONG": 0,
+    "MEDIUM": 0,
+    "MIDDLE": 0,
+    "PASS": 0,
+    "RIGHT": 0,
+    "RUN": 0,
+    "SHORT": 0,
+    "exact": 0,
+    "scored": 0,
+    "total": 0
+  },
+  "play": {
+    "correct_direction": null,
+    "correct_play_type": null,
+    "correct_yardage": null,
+    "distance": "3",
+    "down": 2,
+    "game_id": 1,
+    "id": 2,
+    "locks_at": 1791478407.25536,
+    "opened_at": 1791478392.25536,
+    "play_number": 2,
+    "state": "RESOLVED",
+    "voided": true,
+    "yards_gained": null
+  },
+  "players_online": 1,
+  "ranked_players": 2,
+  "registered_players": 2,
+  "server_time": 1791478392.266692,
+  "spectators_online": 0,
+  "type": "admin_state",
+  "window_seconds": 15.0
+}

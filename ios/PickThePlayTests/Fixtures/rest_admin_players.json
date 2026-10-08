@@ -1,0 +1,24 @@
+{
+  "blocked_names": [],
+  "count": 2,
+  "players": [
+    {
+      "created_at": 1791478390.4897764,
+      "game_score": 0,
+      "id": 2,
+      "online": false,
+      "picks": 0,
+      "total_score": 0,
+      "username": "Sam"
+    },
+    {
+      "created_at": 1791478390.4809458,
+      "game_score": 0,
+      "id": 1,
+      "online": false,
+      "picks": 0,
+      "total_score": 0,
+      "username": "JoeyC"
+    }
+  ]
+}

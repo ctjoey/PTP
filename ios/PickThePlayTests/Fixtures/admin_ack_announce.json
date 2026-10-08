@@ -1,0 +1,11 @@
+{
+  "action": "announce",
+  "ok": true,
+  "request_id": "announce",
+  "result": {
+    "id": 1791478390412,
+    "sent_to": 1,
+    "text": "Halftime! Back in about 15 minutes."
+  },
+  "type": "admin_ack"
+}

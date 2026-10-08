@@ -36,9 +36,18 @@ enum ServerConfig {
     }
 
     static func socketURL(for server: URL) -> URL? {
+        socketURL(for: server, path: "/ws")
+    }
+
+    /// The host console's socket.
+    static func adminSocketURL(for server: URL) -> URL? {
+        socketURL(for: server, path: "/ws/admin")
+    }
+
+    private static func socketURL(for server: URL, path: String) -> URL? {
         guard var parts = URLComponents(url: server, resolvingAgainstBaseURL: false) else { return nil }
         parts.scheme = parts.scheme == "https" ? "wss" : "ws"
-        parts.path = "/ws"
+        parts.path = path
         return parts.url
     }
 }
@@ -54,6 +63,8 @@ struct APIError: LocalizedError {
 struct APIClient {
     var server: URL
     var token: String?
+    /// The host's admin key (sent as `X-Admin-Key`); only the host console sets it.
+    var adminKey: String?
     var session: URLSession = .shared
 
     func createUser(username: String) async throws -> UserAccount {
@@ -91,6 +102,33 @@ struct APIClient {
         return (response as? HTTPURLResponse)?.statusCode == 200
     }
 
+    /// Polls `/healthz` until the server answers or `seconds` have passed.
+    func waitUntilAwake(seconds: TimeInterval = 90) async -> Bool {
+        let deadline = Date().addingTimeInterval(seconds)
+        while !Task.isCancelled {
+            if await isAwake() { return true }
+            if Date() >= deadline { return false }
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+        }
+        return false
+    }
+
+    // MARK: - Host console (needs `adminKey`)
+
+    /// The day's games for "Pick today's game". `date` is YYYYMMDD. One real request to the data provider, cached by
+    /// the server for a few minutes.
+    func adminFeedGames(date: String) async throws -> FeedGames {
+        let digits = date.filter(\.isNumber)
+        return try await request("GET", "/api/admin/feed/games?date=\(digits)")
+    }
+
+    /// Everyone signed up, newest first (narrowed to names containing `query`), plus the blocked names.
+    func adminPlayers(query: String) async throws -> HostPlayers {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let encoded = String(trimmed.prefix(40)).addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? ""
+        return try await request("GET", "/api/admin/players" + (encoded.isEmpty ? "" : "?q=\(encoded)"))
+    }
+
     // MARK: - Plumbing
 
     private func request<T: Decodable>(_ method: String, _ path: String, body: [String: Any]? = nil) async throws -> T {
@@ -106,6 +144,7 @@ struct APIClient {
         req.httpMethod = method
         req.setValue("application/json", forHTTPHeaderField: "Accept")
         if let token { req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
+        if let adminKey { req.setValue(adminKey, forHTTPHeaderField: "X-Admin-Key") }
         if let body {
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
             req.httpBody = try JSONSerialization.data(withJSONObject: body)

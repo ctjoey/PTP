@@ -1,0 +1,24 @@
+{
+  "action": "create_game",
+  "ok": true,
+  "request_id": "create_game",
+  "result": {
+    "away_name": "Carolina",
+    "away_primary": "#0085CA",
+    "away_secondary": "#101820",
+    "created_at": 1791478390.5143154,
+    "feed_auto_open": 0,
+    "feed_auto_score": 1,
+    "feed_cap_extra": 0,
+    "feed_cursor": 0,
+    "feed_game_id": "demo",
+    "feed_paused": 0,
+    "feed_requests": 0,
+    "home_name": "Washington",
+    "home_primary": "#5A1414",
+    "home_secondary": "#FFB612",
+    "id": 1,
+    "status": "SCHEDULED"
+  },
+  "type": "admin_ack"
+}

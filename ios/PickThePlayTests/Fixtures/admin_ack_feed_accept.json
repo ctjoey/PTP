@@ -1,0 +1,63 @@
+{
+  "action": "feed_accept",
+  "ok": true,
+  "request_id": "feed_accept",
+  "result": {
+    "feed": {
+      "auto_open": false,
+      "auto_open_at": null,
+      "auto_score": true,
+      "available": false,
+      "disagreement": null,
+      "game_id": "demo",
+      "lag": {
+        "last": 1.0,
+        "median": 1.0,
+        "samples": 1
+      },
+      "last_scored": {
+        "at": 1791478392.2523835,
+        "auto": false,
+        "by": "feed",
+        "play_id": 1,
+        "summary": "PASS - RIGHT - MEDIUM (7 yds)",
+        "voided": false
+      },
+      "linked": true,
+      "message": "Connected. It checks the feed only while a play is locked.",
+      "next_down": {
+        "distance": "3",
+        "down": 2
+      },
+      "paused": false,
+      "requests": {
+        "day_cap": 1000,
+        "game": 1,
+        "game_cap": 900,
+        "plan_limit": null,
+        "plan_remaining": null,
+        "today": 0
+      },
+      "source": "demo",
+      "state": "idle",
+      "suggestion": null,
+      "waiting": null
+    },
+    "play": {
+      "correct_direction": "RIGHT",
+      "correct_play_type": "PASS",
+      "correct_yardage": "MEDIUM",
+      "distance": "10",
+      "down": 1,
+      "game_id": 1,
+      "id": 1,
+      "locks_at": 1791478405.5242796,
+      "opened_at": 1791478390.5242796,
+      "play_number": 1,
+      "state": "RESOLVED",
+      "voided": false,
+      "yards_gained": 7
+    }
+  },
+  "type": "admin_ack"
+}

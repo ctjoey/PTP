@@ -1,0 +1,124 @@
+{
+  "admins_online": 1,
+  "announcement": null,
+  "event": "stats",
+  "feed": {
+    "auto_open": false,
+    "auto_open_at": null,
+    "auto_score": true,
+    "available": false,
+    "disagreement": null,
+    "game_id": "demo",
+    "lag": {
+      "last": null,
+      "median": null,
+      "samples": 0
+    },
+    "last_scored": null,
+    "linked": true,
+    "message": "Connected. It checks the feed only while a play is locked.",
+    "next_down": null,
+    "paused": false,
+    "requests": {
+      "day_cap": 1000,
+      "game": 0,
+      "game_cap": 900,
+      "plan_limit": null,
+      "plan_remaining": null,
+      "today": 0
+    },
+    "source": "demo",
+    "state": "idle",
+    "suggestion": null,
+    "waiting": null
+  },
+  "game": {
+    "away_name": "Carolina",
+    "away_primary": "#0085CA",
+    "away_secondary": "#101820",
+    "created_at": 1791478390.5143154,
+    "feed_auto_open": 0,
+    "feed_auto_score": 1,
+    "feed_cap_extra": 0,
+    "feed_cursor": 0,
+    "feed_game_id": "demo",
+    "feed_paused": 0,
+    "feed_requests": 0,
+    "home_name": "Washington",
+    "home_primary": "#5A1414",
+    "home_secondary": "#FFB612",
+    "id": 1,
+    "status": "LIVE"
+  },
+  "history": [
+    {
+      "correct_direction": null,
+      "correct_play_type": null,
+      "correct_yardage": null,
+      "distance": "10",
+      "down": 1,
+      "exact_hits": 0,
+      "feed_text": null,
+      "id": 1,
+      "picks": 2,
+      "play_number": 1,
+      "resolved_by": null,
+      "state": "OPEN",
+      "voided": 0,
+      "yards_gained": null
+    }
+  ],
+  "leaderboard": [
+    {
+      "exact_hits": 0,
+      "picks": 1,
+      "rank": 1,
+      "score": 0,
+      "user_id": 1,
+      "username": "JoeyC"
+    },
+    {
+      "exact_hits": 0,
+      "picks": 1,
+      "rank": 1,
+      "score": 0,
+      "user_id": 2,
+      "username": "Sam"
+    }
+  ],
+  "pick_stats": {
+    "LEFT": 1,
+    "LONG": 0,
+    "MEDIUM": 1,
+    "MIDDLE": 0,
+    "PASS": 1,
+    "RIGHT": 1,
+    "RUN": 1,
+    "SHORT": 1,
+    "exact": 0,
+    "scored": 0,
+    "total": 2
+  },
+  "play": {
+    "correct_direction": null,
+    "correct_play_type": null,
+    "correct_yardage": null,
+    "distance": "10",
+    "down": 1,
+    "game_id": 1,
+    "id": 1,
+    "locks_at": 1791478405.5242796,
+    "opened_at": 1791478390.5242796,
+    "play_number": 1,
+    "state": "OPEN",
+    "voided": false,
+    "yards_gained": null
+  },
+  "players_online": 1,
+  "ranked_players": 2,
+  "registered_players": 2,
+  "server_time": 1791478390.8243706,
+  "spectators_online": 0,
+  "type": "admin_state",
+  "window_seconds": 15.0
+}

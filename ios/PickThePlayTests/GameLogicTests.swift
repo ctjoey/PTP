@@ -503,3 +503,261 @@ final class GameLogicTests: XCTestCase {
         XCTAssertNil(Football.downAndDistance(down: nil, distance: "10"))
     }
 }
+
+// MARK: - Host console
+
+extension GameLogicTests {
+    private func suggestion(playId: Int = 7, status: String = "ready", playType: String? = "PASS", direction: String? = "LEFT",
+                            yards: Int? = 7, yardage: String? = nil, text: String = "pass short left for 7 yards",
+                            autoAt: Double? = 110) -> FeedSuggestion {
+        var json: [String: Any] = ["play_id": playId, "status": status, "text": text, "flags": [], "kind": "play"]
+        json["play_type"] = playType ?? NSNull()
+        json["direction"] = direction ?? NSNull()
+        json["yards"] = yards ?? NSNull()
+        json["yardage"] = yardage ?? NSNull()
+        json["auto_at"] = autoAt ?? NSNull()
+        // swiftlint:disable:next force_try
+        return try! JSON.decoder.decode(FeedSuggestion.self, from: JSONSerialization.data(withJSONObject: json))
+    }
+
+    func testResultDraftTypingYardsPicksTheBucketAndPickingABucketClearsAMismatch() {
+        var draft = ResultDraft()
+        XCTAssertTrue(draft.isEmpty)
+        XCTAssertFalse(draft.isComplete)
+        draft.choose(.pass)
+        draft.choose(.left)
+        draft.typeYards("7")
+        XCTAssertEqual(draft.yardage, .medium, "typing 7 picks Medium")
+        XCTAssertTrue(draft.isComplete)
+        draft.choose(YardageOutcome.short)
+        XCTAssertEqual(draft.yardsText, "", "7 yards isn't Short, so the typed yards are dropped")
+        draft.typeYards("-4")
+        XCTAssertEqual(draft.yardage, .loss)
+        draft.choose(YardageOutcome.loss)
+        XCTAssertEqual(draft.yards, -4, "-4 fits Loss, so it stays")
+        draft.typeYards("")
+        XCTAssertEqual(draft.yardage, .loss, "clearing the box leaves the bucket")
+        XCTAssertTrue(draft.isComplete)
+    }
+
+    func testResultDraftRejectsNonsenseYardsAndBuildsTheServersFields() {
+        var draft = ResultDraft(playType: .run, direction: .middle, yardage: .short)
+        draft.typeYards("abc")
+        XCTAssertTrue(draft.yardsAreInvalid)
+        XCTAssertFalse(draft.isComplete)
+        draft.typeYards("100")
+        XCTAssertTrue(draft.yardsAreInvalid, "99 is the most the server accepts")
+        draft.typeYards("2.5")
+        XCTAssertTrue(draft.yardsAreInvalid)
+        draft.typeYards(" 3 ")
+        XCTAssertEqual(draft.yards, 3)
+        XCTAssertEqual(draft.fields["play_type"] as? String, "RUN")
+        XCTAssertEqual(draft.fields["direction"] as? String, "MIDDLE")
+        XCTAssertEqual(draft.fields["yardage"] as? String, "SHORT")
+        XCTAssertEqual(draft.fields["yards"] as? Int, 3)
+        draft.typeYards("")
+        XCTAssertNil(draft.fields["yards"], "yards are only sent when typed")
+        XCTAssertEqual(draft.summary, "Run · Middle · Short")
+        draft.typeYards("-4")
+        XCTAssertEqual(draft.summary, "Run · Middle · Loss (-4 yds)")
+        draft.clear()
+        XCTAssertTrue(draft.isEmpty)
+    }
+
+    func testFeedSuggestionFillsGapsWithTheHostsChoicesOnlyForThatPlay() {
+        let sack = suggestion(status: "review", playType: "PASS", direction: nil, yards: -7, yardage: "LOSS")
+        XCTAssertEqual(sack.missingParts, [.direction])
+        var choices = SuggestionChoices()
+        choices.sync(to: sack)
+        XCTAssertFalse(choices.canScore(sack))
+        XCTAssertEqual(choices.missing(sack), [.direction])
+        choices.direction = .left
+        XCTAssertTrue(choices.canScore(sack))
+        XCTAssertEqual(choices.merged(with: sack), ResultDraft(playType: .pass, direction: .left, yardage: .loss, yards: -7))
+        let fields = choices.acceptFields(sack)
+        XCTAssertEqual(fields["play_id"] as? Int, 7)
+        XCTAssertEqual(fields["direction"] as? String, "LEFT")
+        XCTAssertNil(fields["play_type"], "only the parts the feed lacked are sent")
+        XCTAssertNil(fields["void"])
+
+        // The next play's suggestion starts clean.
+        let next = suggestion(playId: 8, status: "review", playType: nil, direction: nil, yards: nil)
+        choices.sync(to: next)
+        XCTAssertNil(choices.direction)
+        XCTAssertEqual(choices.missing(next), [.playType, .direction, .yardage])
+        XCTAssertFalse(choices.canScore(next))
+        // A suggestion is clean when the feed read everything.
+        let clean = suggestion(playId: 9)
+        choices.sync(to: clean)
+        XCTAssertTrue(choices.canScore(clean))
+        XCTAssertEqual(choices.acceptFields(clean).count, 1, "just the play id")
+    }
+
+    func testNoPlaySuggestionVoidsAndNeedsNoChoices() {
+        let flag = suggestion(playType: nil, direction: nil, yards: nil, text: "No Play. Holding on the offense.")
+        let void = suggestion(status: "void", playType: nil, direction: nil, yards: nil, text: "NO PLAY")
+        let held = suggestion(status: "held", playType: nil, direction: nil, yards: nil, text: "No Play (penalty)")
+        XCTAssertFalse(flag.isVoid, "a ready suggestion without a type is just incomplete")
+        XCTAssertTrue(void.isVoid)
+        XCTAssertTrue(held.isVoid, "a held 'no play' is still a void")
+        let choices = SuggestionChoices()
+        XCTAssertTrue(choices.canScore(void))
+        XCTAssertEqual(choices.acceptFields(void)["void"] as? Bool, true)
+        XCTAssertTrue(void.missingParts.isEmpty)
+        XCTAssertEqual(held.note(missing: [], paused: false), "On hold. Tap Void play to confirm it, or score it yourself with Change.")
+    }
+
+    func testSuggestionNotesExplainWhatHappensNext() {
+        let ready = suggestion(autoAt: nil)
+        XCTAssertEqual(ready.note(missing: [], paused: false), "Auto-score is off. Tap Score now when you're happy with it.")
+        XCTAssertEqual(ready.note(missing: [], paused: true), "Live data is paused, so this won't score by itself. Tap Score now, or Resume.")
+        let review = suggestion(status: "review", autoAt: nil)
+        XCTAssertEqual(review.note(missing: [], paused: false), "An unusual play, so it won't score by itself. Check it, then tap Score.")
+        XCTAssertEqual(suggestion(autoAt: 110).secondsUntilAuto(at: 100), 10)
+        XCTAssertEqual(suggestion(autoAt: 110).secondsUntilAuto(at: 120), 0, "never negative")
+    }
+
+    func testDownDraftFillsFromTheFeedUntilTheHostEdits() {
+        var dd = DownDraft()
+        XCTAssertEqual(dd.down, 1)
+        XCTAssertEqual(dd.distance, "10")
+        // Between plays the feed says 2nd & 3.
+        dd.prefill(from: NextDown(down: 2, distance: "3"), gameID: 1, lastPlayID: 5, hasActivePlay: false)
+        XCTAssertEqual(dd.down, 2)
+        XCTAssertEqual(dd.distance, "3")
+        XCTAssertTrue(dd.showsFeedHint(hasActivePlay: false))
+        // The host corrects it; later updates for the same play must not overwrite that.
+        dd.setDistance("4")
+        XCTAssertFalse(dd.showsFeedHint(hasActivePlay: false))
+        dd.prefill(from: NextDown(down: 2, distance: "3"), gameID: 1, lastPlayID: 5, hasActivePlay: false)
+        XCTAssertEqual(dd.distance, "4")
+        // A new play opens, then resolves: the feed's next down applies again.
+        dd.prefill(from: NextDown(down: 2, distance: "3"), gameID: 1, lastPlayID: 5, hasActivePlay: true)
+        dd.prefill(from: NextDown(down: 3, distance: "Goal"), gameID: 1, lastPlayID: 6, hasActivePlay: false)
+        XCTAssertEqual(dd.down, 3)
+        XCTAssertEqual(dd.distance, "Goal")
+        XCTAssertEqual(dd.distanceToSend, "Goal")
+        dd.setDown(9)
+        XCTAssertEqual(dd.down, 4, "only 1st to 4th down")
+        dd.setDistance("   ")
+        XCTAssertNil(dd.distanceToSend)
+        dd.reset()
+        XCTAssertEqual(dd, DownDraft())
+    }
+
+    func testTeamPresetsAreUsable() {
+        XCTAssertGreaterThanOrEqual(TeamPreset.all.count, 32)
+        XCTAssertEqual(Set(TeamPreset.all.map(\.label)).count, TeamPreset.all.count, "labels are unique")
+        for team in TeamPreset.all {
+            XCTAssertTrue(team.primary.range(of: "^#[0-9A-Fa-f]{6}$", options: .regularExpression) != nil, team.label)
+            XCTAssertTrue(team.secondary.range(of: "^#[0-9A-Fa-f]{6}$", options: .regularExpression) != nil, team.label)
+            XCTAssertLessThanOrEqual(team.name.count, 40)
+        }
+        let tb = TeamPreset.all.first { $0.name == "Tampa Bay" }
+        XCTAssertEqual(tb?.choice, TeamChoice(name: "Tampa Bay", primary: "#D50A0A", secondary: "#FF7900"))
+        XCTAssertEqual(tb?.choice.primary, "#d50a0a", "colours go to the server in lower case, like the website")
+    }
+
+    func testHostTextHelpers() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/New_York")!
+        let date = calendar.date(from: DateComponents(year: 2026, month: 10, day: 8, hour: 19))!
+        XCTAssertEqual(HostText.scheduleDate(date, calendar: calendar), "20261008")
+        XCTAssertEqual(HostText.count(1, "pick"), "1 pick")
+        XCTAssertEqual(HostText.count(2, "pick"), "2 picks")
+        XCTAssertEqual(HostText.quickMessages.map(\.title), ["Delayed", "Halftime", "Paused", "Game over"])
+        for message in HostText.quickMessages { XCTAssertLessThanOrEqual(message.text.count, HostText.maxMessage) }
+    }
+
+    // MARK: HostState
+
+    @MainActor
+    func testHostKeyIsSavedOnlyAfterTheServerAcceptsIt() throws {
+        UserDefaults.standard.set("http://127.0.0.1:9", forKey: ServerConfig.overrideKey)
+        defer { UserDefaults.standard.removeObject(forKey: ServerConfig.overrideKey) }
+        let store = MemoryKeyStore()
+        let host = HostState(keys: store)
+        XCTAssertFalse(host.hasSavedKey)
+        XCTAssertFalse(host.beginSignIn(key: "   ", remember: true))
+        XCTAssertEqual(host.authError, "Enter the admin key.")
+        XCTAssertTrue(host.beginSignIn(key: "  secret  ", remember: true))
+        XCTAssertTrue(host.signingIn)
+        XCTAssertNil(store.read(), "nothing is kept until the server says the key is right")
+        let state = try XCTUnwrap(adminStateFromFixtureJSON())
+        host.handle(.state(state))
+        XCTAssertFalse(host.signingIn)
+        XCTAssertTrue(host.isSignedIn)
+        XCTAssertEqual(store.read(), "secret", "spaces around the key are ignored")
+        XCTAssertTrue(host.hasSavedKey)
+        XCTAssertNil(host.authError)
+        host.signOut()
+        XCTAssertNil(store.read())
+        XCTAssertFalse(host.hasSavedKey)
+        XCTAssertFalse(host.isSignedIn)
+        XCTAssertFalse(host.isPresented)
+    }
+
+    @MainActor
+    func testHostKeyIsNotSavedWhenTheHostDoesNotWantItRemembered() throws {
+        UserDefaults.standard.set("http://127.0.0.1:9", forKey: ServerConfig.overrideKey)
+        defer { UserDefaults.standard.removeObject(forKey: ServerConfig.overrideKey) }
+        let store = MemoryKeyStore()
+        let host = HostState(keys: store)
+        XCTAssertTrue(host.beginSignIn(key: "secret", remember: false))
+        host.handle(.state(try XCTUnwrap(adminStateFromFixtureJSON())))
+        XCTAssertTrue(host.isSignedIn)
+        XCTAssertNil(store.read())
+        XCTAssertFalse(host.hasSavedKey)
+    }
+
+    @MainActor
+    func testARefusedKeyIsForgottenAndExplained() {
+        UserDefaults.standard.set("http://127.0.0.1:9", forKey: ServerConfig.overrideKey)
+        defer { UserDefaults.standard.removeObject(forKey: ServerConfig.overrideKey) }
+        let store = MemoryKeyStore("old-key")
+        let host = HostState(keys: store)
+        XCTAssertTrue(host.hasSavedKey, "a key from last time")
+        host.handle(.authError("Invalid admin key."))
+        XCTAssertNil(store.read())
+        XCTAssertFalse(host.hasSavedKey)
+        XCTAssertEqual(host.authError, "Invalid admin key.")
+        XCTAssertFalse(host.signingIn)
+        XCTAssertFalse(host.isSignedIn)
+        XCTAssertTrue(host.beginSignIn(key: "again", remember: true))
+        XCTAssertNil(host.authError, "a fresh attempt clears the old message")
+    }
+
+    func testAnActionWithoutAConnectionSaysSoAndSendsNothing() async {
+        let host = await MainActor.run { HostState(keys: MemoryKeyStore()) }
+        let ack = await host.act("lock_play")
+        XCTAssertNil(ack)
+        let notice = await MainActor.run { host.notice }
+        XCTAssertEqual(notice?.text, "Not connected to the server.")
+        XCTAssertEqual(notice?.isError, true)
+        let pending = await MainActor.run { host.pending }
+        XCTAssertEqual(pending, 0)
+        let done = await host.lockPlay()
+        XCTAssertFalse(done)
+        let incomplete = await host.resolvePlay(ResultDraft(playType: .run))
+        XCTAssertFalse(incomplete, "an unfinished result is never sent")
+    }
+
+    @MainActor
+    func testHostAcksAreMatchedByRequestId() {
+        let host = HostState(keys: MemoryKeyStore())
+        // An answer nobody is waiting for is ignored.
+        host.handle(.ack(AdminAck(requestId: 99, action: "lock_play", ok: true, error: nil, sentTo: nil)))
+        XCTAssertEqual(host.pending, 0)
+    }
+
+    @MainActor
+    private func adminStateFromFixtureJSON() -> AdminState? {
+        let json = """
+        {"type": "admin_state", "event": "sync", "server_time": 1000.0, "game": null, "play": null,
+         "players_online": 0, "spectators_online": 0, "admins_online": 1, "leaderboard": [], "ranked_players": 0,
+         "history": [], "window_seconds": 15, "announcement": null, "registered_players": 0}
+        """
+        guard case .state(let state)? = try? AdminServerMessage.decode(Data(json.utf8)) else { return nil }
+        return state
+    }
+}

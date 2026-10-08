@@ -1,0 +1,47 @@
+{
+  "admins_online": 1,
+  "announcement": null,
+  "event": "sync",
+  "feed": {
+    "auto_open": false,
+    "auto_open_at": null,
+    "auto_score": true,
+    "available": false,
+    "disagreement": null,
+    "game_id": null,
+    "lag": {
+      "last": null,
+      "median": null,
+      "samples": 0
+    },
+    "last_scored": null,
+    "linked": false,
+    "message": "Live data is off (no Tank01 key). The practice game still works.",
+    "next_down": null,
+    "paused": false,
+    "requests": {
+      "day_cap": 1000,
+      "game": 0,
+      "game_cap": 900,
+      "plan_limit": null,
+      "plan_remaining": null,
+      "today": 0
+    },
+    "source": null,
+    "state": "off",
+    "suggestion": null,
+    "waiting": null
+  },
+  "game": null,
+  "history": [],
+  "leaderboard": [],
+  "pick_stats": null,
+  "play": null,
+  "players_online": 0,
+  "ranked_players": 0,
+  "registered_players": 2,
+  "server_time": 1791478390.5000756,
+  "spectators_online": 0,
+  "type": "admin_state",
+  "window_seconds": 15.0
+}

@@ -1,0 +1,27 @@
+{
+  "available": false,
+  "cached": false,
+  "date": "20261008",
+  "demo": {
+    "away": {
+      "abbr": "CAR",
+      "label": "Carolina",
+      "name": "Carolina",
+      "primary": "#0085CA",
+      "secondary": "#101820"
+    },
+    "feed_game_id": "demo",
+    "home": {
+      "abbr": "WSH",
+      "label": "Washington",
+      "name": "Washington",
+      "primary": "#5A1414",
+      "secondary": "#FFB612"
+    },
+    "status": "Practice game (no requests used)",
+    "status_code": "demo",
+    "time": "Anytime"
+  },
+  "error": "Live data is not set up on this server (no Tank01 key), so only the practice game is offered.",
+  "games": []
+}
