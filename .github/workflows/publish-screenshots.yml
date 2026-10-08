@@ -1,0 +1,49 @@
+# Puts the App Store screenshots from a finished iOS run on a branch of their own (app-store-screenshots), so
+# they can be browsed and downloaded one by one from GitHub, instead of unzipping the run's artifact.
+# It runs by itself after every successful iOS run. To publish an older run, use Actions -> Publish screenshots
+# -> Run workflow and enter that run's number (the long number at the end of its address).
+name: Publish screenshots
+
+on:
+  workflow_run:
+    workflows: [iOS]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'iOS run to publish (the long number at the end of its address)'
+        required: true
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: publish-screenshots
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id }}
+    steps:
+      - name: Download the screenshots from the run
+        run: |
+          set -euo pipefail
+          N=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" --jq .run_number)
+          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name "app-store-screenshots-$N" --dir shots
+          echo "$N" > shots/RUN_NUMBER
+          find shots -type f | sort
+      - name: Publish them on the app-store-screenshots branch
+        run: |
+          set -euo pipefail
+          cd shots
+          git init -q -b app-store-screenshots
+          git add -A
+          git -c user.name="github-actions" -c user.email="actions@users.noreply.github.com" \
+            commit -q -m "App Store screenshots from iOS run $(cat RUN_NUMBER)"
+          git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" app-store-screenshots
