@@ -436,6 +436,48 @@ final class GameLogicTests: XCTestCase {
         XCTAssertFalse(state.pickIsSaved)
     }
 
+    // MARK: - Messages from the host
+
+    @MainActor
+    func testHostBannerShowsClearsAndStaysDismissed() {
+        let key = "ptp.dismissedAnnouncement"
+        UserDefaults.standard.removeObject(forKey: key)
+        defer { UserDefaults.standard.removeObject(forKey: key) }
+        let state = AppState()
+        XCTAssertNil(state.announcement)
+        state.handle(.announcement(id: 5, text: "  Halftime!  "))
+        XCTAssertEqual(state.announcement, AppState.Announcement(id: 5, text: "Halftime!"))
+        state.handle(.announcement(id: 6, text: ""))                 // the host cleared it
+        XCTAssertNil(state.announcement)
+        state.handle(.announcement(id: 7, text: "Back soon"))
+        state.dismissAnnouncement()
+        XCTAssertNil(state.announcement)
+        state.handle(.announcement(id: 7, text: "Back soon"))        // a reconnect repeats it: it stays dismissed
+        XCTAssertNil(state.announcement)
+        state.handle(.announcement(id: 8, text: "Second half"))      // a new message shows again
+        XCTAssertEqual(state.announcement?.text, "Second half")
+        state.dismissAnnouncement()
+        state.dismissAnnouncement()                                  // nothing showing: harmless
+        XCTAssertNil(state.announcement)
+    }
+
+    @MainActor
+    func testBeingRemovedByTheHostShowsTheReasonAndSignsOut() {
+        let state = AppState()
+        state.handle(.announcement(id: 9, text: "Hi"))
+        state.handle(.error(code: "account_deleted", message: "You were removed by the host."))
+        XCTAssertFalse(state.isSignedIn)
+        XCTAssertNil(state.announcement, "signed out: the banner goes too")
+        XCTAssertEqual(state.notice?.text, "You were removed by the host.")
+        XCTAssertEqual(state.notice?.isError, true)
+        XCTAssertEqual(state.notice?.seconds, 8, "long enough to read")
+        state.handle(.error(code: "account_deleted", message: ""))
+        XCTAssertEqual(state.notice?.text, "Your account was deleted.")
+        state.handle(.error(code: "bad_token", message: "Session expired. Sign in again."))
+        XCTAssertEqual(state.notice?.text, "Please pick a username again.")
+        XCTAssertEqual(state.notice?.seconds, 3.5)
+    }
+
     // MARK: - Plumbing
 
     func testServerAddressNormalisation() {

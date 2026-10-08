@@ -391,6 +391,8 @@ enum ServerMessage {
     case predictionSaved(Prediction)
     case error(code: String?, message: String)
     case pong(serverTime: Double)
+    /// The host's banner. `text` is empty when the host cleared it (or nothing is showing).
+    case announcement(id: Int, text: String)
     case other
 
     private struct Envelope: Decodable {
@@ -398,6 +400,8 @@ enum ServerMessage {
         var code: String?
         var message: String?
         var serverTime: Double?
+        var id: Int?
+        var text: String?
     }
 
     private struct Saved: Decodable { var prediction: Prediction }
@@ -409,6 +413,7 @@ enum ServerMessage {
         case "prediction_saved": return .predictionSaved(try JSON.decoder.decode(Saved.self, from: data).prediction)
         case "error": return .error(code: envelope.code, message: envelope.message ?? "Something went wrong.")
         case "pong": return .pong(serverTime: envelope.serverTime ?? 0)
+        case "announcement": return .announcement(id: envelope.id ?? 0, text: envelope.text ?? "")
         default: return .other
         }
     }

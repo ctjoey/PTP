@@ -198,6 +198,30 @@ final class ContractTests: XCTestCase {
         XCTAssertGreaterThan(t, 0)
     }
 
+    /// The host's banner and removal, as the real server sends them.
+    func testHostMessagesDecode() throws {
+        guard case .announcement(let id, let text) = try ServerMessage.decode(fixture("msg_announcement")) else {
+            return XCTFail("announcement")
+        }
+        XCTAssertGreaterThan(id, 0)
+        XCTAssertEqual(text, "Halftime! Back in about 15 minutes.")
+        // Told on connect when nothing is showing, and when the host clears it: empty text.
+        guard case .announcement(_, let none) = try ServerMessage.decode(fixture("msg_announcement_none")) else {
+            return XCTFail("announcement_none")
+        }
+        XCTAssertEqual(none, "")
+        guard case .announcement(let clearedID, let cleared) = try ServerMessage.decode(fixture("msg_announcement_cleared")) else {
+            return XCTFail("announcement_cleared")
+        }
+        XCTAssertEqual(cleared, "")
+        XCTAssertGreaterThan(clearedID, id)
+        guard case .error(let code, let message) = try ServerMessage.decode(fixture("msg_account_removed")) else {
+            return XCTFail("account_removed")
+        }
+        XCTAssertEqual(code, "account_deleted")
+        XCTAssertEqual(message, "You were removed by the host.")
+    }
+
     func testRestPayloads() throws {
         let user = try JSON.decoder.decode(UserAccount.self, from: fixture("rest_create_user"))
         XCTAssertEqual(user.username, "JoeyC")

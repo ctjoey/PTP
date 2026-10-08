@@ -970,6 +970,7 @@ a { color: var(--blue); }
 .blocked-names:empty { display: none; }
 .blocked-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 10px; border-radius: 99px; background: var(--surface-3); font-weight: 700; }
 .blocked-chip .link-btn { font-size: 12px; min-height: 26px; }
+.lounge-how { margin: 8px 0 0; }
 .online-dot { display: inline-block; width: 8px; height: 8px; margin-left: 6px; border-radius: 50%; background: var(--accent); vertical-align: middle; }
 
 /* --------------------------------------------------------------- message from the host */

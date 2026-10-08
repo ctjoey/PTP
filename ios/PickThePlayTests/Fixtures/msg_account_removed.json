@@ -1,0 +1,5 @@
+{
+  "code": "account_deleted",
+  "message": "You were removed by the host.",
+  "type": "error"
+}

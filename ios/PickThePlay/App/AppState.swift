@@ -10,12 +10,21 @@ final class AppState: ObservableObject {
         let id = UUID()
         var text: String
         var isError: Bool
+        /// How long the banner stays up.
+        var seconds: Double = 3.5
+    }
+
+    /// A message from the host, shown as a banner to everyone until they dismiss it or the host clears it.
+    struct Announcement: Equatable {
+        var id: Int
+        var text: String
     }
 
     private enum Key {
         static let token = "ptp.token"
         static let username = "ptp.username"
         static let lounge = "ptp.activeLounge"
+        static let dismissedAnnouncement = "ptp.dismissedAnnouncement"
     }
 
     @Published private(set) var server: URL? = ServerConfig.current
@@ -30,6 +39,8 @@ final class AppState: ObservableObject {
     @Published private(set) var pickYardage: Yardage?
     @Published private(set) var savedPick: String?
     @Published private(set) var saving = false
+    /// The host's banner, or nil when none is showing (cleared, or this player dismissed it).
+    @Published private(set) var announcement: Announcement?
     /// True while the welcome screen is waiting for the game server to answer.
     @Published private(set) var waking = false
     @Published private(set) var rankMoves: [String: [Int: Int]] = [:]
@@ -51,7 +62,11 @@ final class AppState: ObservableObject {
     init() {
         live.onMessage = { [weak self] message in self?.handle(message) }
         live.onStatus = { [weak self] status in self?.connection = status }
-        live.onRejected = { [weak self] _ in self?.forgetAccount(message: "Please pick a username again.") }
+        live.onRejected = { [weak self] _ in
+            // (The server sends the reason, then closes the socket; don't replace the reason with a generic line.)
+            guard let self, self.isSignedIn else { return }
+            self.forgetAccount(message: "Please pick a username again.")
+        }
         if let screen = ScreenshotMode.screen { stage(screen) }
     }
 
@@ -110,8 +125,9 @@ final class AppState: ObservableObject {
     }
 
     /// Back to the welcome screen (account deleted, or the server no longer knows this device).
-    func forgetAccount(message: String?) {
+    func forgetAccount(message: String?, isError: Bool = false, seconds: Double = 3.5) {
         live.stop()
+        announcement = nil
         token = nil
         username = nil
         lounges = []
@@ -124,7 +140,7 @@ final class AppState: ObservableObject {
         pickPlayID = nil
         tab = .live
         persist()
-        if let message { notice = Notice(text: message, isError: false) }
+        if let message { notice = Notice(text: message, isError: isError, seconds: seconds) }
     }
 
     /// Returns false if the address can't be understood. An empty string restores the built-in server.
@@ -272,15 +288,22 @@ final class AppState: ObservableObject {
 
     // MARK: - Server messages
 
-    private func handle(_ message: ServerMessage) {
+    func handle(_ message: ServerMessage) {
         switch message {
         case .state(let snapshot):
             apply(snapshot)
         case .predictionSaved(let prediction):
             onSaved(prediction)
+        case .announcement(let id, let text):
+            showAnnouncement(id: id, text: text)
         case .error(let code, let text):
-            if code == "bad_token" || code == "account_deleted" {
-                forgetAccount(message: code == "account_deleted" ? "Your account was deleted." : "Please pick a username again.")
+            if code == "bad_token" {
+                forgetAccount(message: "Please pick a username again.")
+                return
+            }
+            if code == "account_deleted" {
+                // The server says why: "Your account was deleted." or "You were removed by the host."
+                forgetAccount(message: text.isEmpty ? "Your account was deleted." : text, isError: true, seconds: 8)
                 return
             }
             saving = false
@@ -290,6 +313,24 @@ final class AppState: ObservableObject {
         case .other:
             break
         }
+    }
+
+    // MARK: - Message from the host
+
+    /// Show the host's banner; empty text clears it, and a banner this player already dismissed stays hidden.
+    func showAnnouncement(id: Int, text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty || id == UserDefaults.standard.integer(forKey: Key.dismissedAnnouncement) {
+            announcement = nil
+        } else {
+            announcement = Announcement(id: id, text: trimmed)
+        }
+    }
+
+    func dismissAnnouncement() {
+        guard let current = announcement else { return }
+        UserDefaults.standard.set(current.id, forKey: Key.dismissedAnnouncement)
+        announcement = nil
     }
 
     func apply(_ snapshot: StateSnapshot) {

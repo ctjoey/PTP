@@ -13,6 +13,7 @@ whenever the protocol changes, then update the Swift tests to match.
   Play 2, 2nd & 10: JoeyC Pass/Right/Short, Sam Run/Right/Short -> sacked for -4 (Loss):
                     JoeyC 20 (no distance points for a loss), Sam 10
   Play 3, 1st & 10: voided; then the game goes FINAL.
+  Host tools: a banner is sent and cleared, and a removed player is signed out (msg_announcement*, msg_account_removed).
 """
 import json
 import os
@@ -104,6 +105,7 @@ try:
     with connect(WS + "/ws") as j, connect(WS + "/ws/admin") as admin:
         j.send(json.dumps({"type": "hello", "token": joey["token"], "lounge": lounge["id"]}))
         save("state_sync_nogame", recv(j, state("sync")))
+        save("msg_announcement_none", recv(j, lambda m: m["type"] == "announcement"))   # told on connect: nothing showing
         admin.send(json.dumps({"type": "auth", "key": ADMIN_KEY}))
         recv(admin, lambda m: m["type"] == "admin_state")
 
@@ -116,6 +118,20 @@ try:
         act("create_game", away_name="Chicago", away_primary="#0B162A", away_secondary="#C83803",
             home_name="Detroit", home_primary="#0076B6", home_secondary="#B0B7BC")
         save("state_game_created", recv(j, state("game_created")))
+
+        # The host's banner: every connection is told what it is on connect (msg_announcement_none, above), then the
+        # host sends one, then clears it. A removed player's socket gets the reason and closes.
+        act("announce", text="Halftime! Back in about 15 minutes.")
+        save("msg_announcement", recv(j, lambda m: m["type"] == "announcement" and m["text"]))
+        act("announce", text="")
+        save("msg_announcement_cleared", recv(j, lambda m: m["type"] == "announcement" and not m["text"]))
+        troll = http("POST", "/api/users", {"username": "Troll"}, expect=201)
+        with connect(WS + "/ws") as t:
+            t.send(json.dumps({"type": "hello", "token": troll["token"]}))
+            recv(t, state("sync"))
+            act("remove_player", user_id=troll["id"], block=True)
+            save("msg_account_removed", recv(t, lambda m: m.get("type") == "error"))
+        recv(j, state("leaderboard_updated"))
 
         # Play 1, 3rd & 7: JoeyC Pass/Middle/Medium, Sam Run/Middle/Medium (an older app's "CENTER").
         # Pass over the middle for 7 yards: JoeyC's perfect call is 40.
