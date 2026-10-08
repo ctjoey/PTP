@@ -35,6 +35,7 @@
 
   async function init() {
     wireUI();
+    showRememberedNotice();
     const params = new URLSearchParams(location.search);
     if (params.has("missing_lounge")) {
       const code = params.get("missing_lounge");
@@ -138,8 +139,13 @@
       case "prediction_saved":
         onPredictionSaved(msg.prediction);
         break;
+      case "announcement":
+        showAnnouncement(msg);
+        break;
       case "error":
         if (msg.code === "bad_token" || msg.code === "account_deleted") {
+          // Removed by the host: say why once the page comes back to the sign-in.
+          if (msg.code === "account_deleted" && msg.message && msg.message !== "Your account was deleted.") rememberNotice(msg.message);
           forgetToken();
           location.reload();
           return;
@@ -151,6 +157,45 @@
       default:
         break;
     }
+  }
+
+  // ------------------------------------------------------------------ messages from the host
+
+  const DISMISSED_KEY = "ptp_announce_dismissed";
+  const NOTICE_KEY = "ptp_notice";
+
+  /** The host's banner. Empty text hides it; a player's ✕ hides that one message until the host sends another. */
+  function showAnnouncement(msg) {
+    const box = $("#announce");
+    const text = String(msg.text || "");
+    let dismissed = null;
+    try { dismissed = sessionStorage.getItem(DISMISSED_KEY); } catch { /* private mode */ }
+    if (!text || String(msg.id) === dismissed) {
+      box.hidden = true;
+      return;
+    }
+    $("#announce-text").textContent = text;
+    box.dataset.id = String(msg.id);
+    box.hidden = false;
+  }
+
+  function dismissAnnouncement() {
+    const box = $("#announce");
+    box.hidden = true;
+    try { sessionStorage.setItem(DISMISSED_KEY, box.dataset.id || ""); } catch { /* private mode */ }
+  }
+
+  function rememberNotice(text) {
+    try { sessionStorage.setItem(NOTICE_KEY, text); } catch { /* private mode */ }
+  }
+
+  function showRememberedNotice() {
+    let text = null;
+    try {
+      text = sessionStorage.getItem(NOTICE_KEY);
+      sessionStorage.removeItem(NOTICE_KEY);
+    } catch { /* private mode */ }
+    if (text) toast(text, "error", 8000);
   }
 
   // ------------------------------------------------------------------ state
@@ -632,6 +677,7 @@
 
   function wireUI() {
     $("#change-name").addEventListener("click", changeName);
+    $("#announce-close").addEventListener("click", dismissAnnouncement);
     for (const b of $$("[data-type]")) b.addEventListener("click", () => choose("type", b.dataset.type));
     for (const b of $$("[data-dir]")) b.addEventListener("click", () => choose("dir", b.dataset.dir));
     for (const b of $$("[data-yard]")) b.addEventListener("click", () => choose("yard", b.dataset.yard));

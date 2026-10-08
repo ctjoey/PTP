@@ -69,6 +69,7 @@ from teams import DEFAULT_AWAY, DEFAULT_HOME, TEAM_PRESETS
 BASE_DIR = Path(__file__).resolve().parent
 ASSET_VERSION = str(int(time.time()))
 LEADERBOARD_SIZE = 25
+ANNOUNCEMENT_MAX = 200  # characters in a host message to the players
 HELLO_TIMEOUT = 10.0
 SEND_TIMEOUT = 5.0
 ADMIN_PUSH_THROTTLE = 0.3
@@ -188,6 +189,19 @@ class ResolveIn(BaseModel):
 
 class EmptyIn(BaseModel):
     pass
+
+
+class RemovePlayerIn(BaseModel):
+    """Remove a player (a name that should not be on the leaderboard); ``block`` also stops the name being used again."""
+
+    user_id: int
+    block: bool = False
+
+
+class AnnounceIn(BaseModel):
+    """A short banner for every player. Empty text clears the banner."""
+
+    text: str = Field(default="", max_length=ANNOUNCEMENT_MAX)
 
 
 class FeedLinkIn(BaseModel):
@@ -347,6 +361,9 @@ class GameController:
         self._admin_push_pending = False
         self._feed_push_pending = False
         self._background: set[asyncio.Task] = set()
+        # The host's banner for the players (kept in memory: a restart clears it). ``None`` when nothing is showing.
+        self.announcement: dict[str, Any] | None = None
+        self._announcement_seq = 0
         self.feed = LiveFeed(store, self, settings)
 
     # -- lifecycle -------------------------------------------------------- #
@@ -568,12 +585,48 @@ class GameController:
     async def delete_account(self, user: dict[str, Any]) -> None:
         """Delete the account, sign out its open sockets and refresh everyone's boards."""
         self.store.delete_user(user["id"])
-        doomed = [c for c in self.hub.players if c.user and c.user["id"] == user["id"]]
+        await self._sign_out_deleted(user["id"], "Your account was deleted.")
+
+    async def _sign_out_deleted(self, user_id: int, message: str) -> None:
+        doomed = [c for c in self.hub.players if c.user and c.user["id"] == user_id]
         self.hub.players.difference_update(doomed)
-        notice = {"type": "error", "code": "account_deleted", "message": "Your account was deleted."}
+        notice = {"type": "error", "code": "account_deleted", "message": message}
         await self.hub.send_many([(c.ws, notice) for c in doomed])
         await asyncio.gather(*(self._close(c.ws, 4401) for c in doomed))
         await self.broadcast("leaderboard_updated")
+
+    # -- host tools: remove a player, message the players ------------------- #
+
+    async def remove_player(self, data: RemovePlayerIn) -> dict[str, Any]:
+        """Remove a player (and with ``block`` their name too): the same deletion as Settings > Delete account, done by
+        the host. Their picks and points go, they are signed out where they are, and the boards refresh."""
+        user = self.store.get_user(data.user_id)
+        if not user:
+            raise GameError("That player is already gone.", 404)
+        if data.block:
+            self.store.block_name(user["username"])
+        self.store.delete_user(user["id"])
+        await self._sign_out_deleted(user["id"], "You were removed by the host.")
+        log.info("Host removed player %r (blocked=%s)", user["username"], data.block)
+        return {"removed": user["username"], "blocked": data.block}
+
+    async def announce(self, data: AnnounceIn) -> dict[str, Any]:
+        """Show ``text`` as a banner to every player (empty text clears it). New connections get the current banner."""
+        text = " ".join(data.text.split())
+        self._announcement_seq += 1
+        self.announcement = {"id": self._announcement_seq, "text": text, "sent_at": time.time()} if text else None
+        message = self.announcement_message()
+        conns = list(self.hub.players)
+        dead = await self.hub.send_many([(c.ws, message) for c in conns])
+        self.hub.prune(dead)
+        await self.push_admin("announcement")
+        return {"id": message["id"], "text": text, "sent_to": len(conns) - len(dead)}
+
+    def announcement_message(self) -> dict[str, Any]:
+        """The ``announcement`` socket message: the banner, or an empty text when there is none."""
+        current = self.announcement
+        return {"type": "announcement", "id": current["id"] if current else self._announcement_seq,
+                "text": current["text"] if current else "", "sent_at": current["sent_at"] if current else time.time()}
 
     @staticmethod
     async def _close(ws: WebSocket, code: int) -> None:
@@ -674,6 +727,8 @@ class GameController:
             "history": self.store.play_history(game["id"]) if game else [],
             "window_seconds": self.settings.window_seconds,
             "feed": self._feed_state(),
+            "announcement": self.announcement,
+            "registered_players": self.store.count_users(),
         }
 
     # -- broadcasting ----------------------------------------------------- #
@@ -732,6 +787,8 @@ ADMIN_ACTIONS: dict[str, tuple[type[BaseModel], Callable[[GameController, Any], 
     "feed_skip": (FeedSkipIn, GameController.feed_skip),
     "feed_dismiss": (EmptyIn, GameController.feed_dismiss),
     "feed_allow_more": (FeedMoreIn, GameController.feed_allow_more),
+    "remove_player": (RemovePlayerIn, GameController.remove_player),
+    "announce": (AnnounceIn, GameController.announce),
 }
 
 
@@ -908,6 +965,27 @@ async def admin_correct_play(body: CorrectPlayIn, ctrl: GameController = Depends
     return await ctrl.correct_play(body)
 
 
+@admin_api.get("/players")
+async def admin_players(ctrl: GameController = Depends(get_ctrl)) -> dict[str, Any]:
+    """Everyone signed up, newest first, with their points in the current game (for the Players list)."""
+    game = ctrl.store.current_game()
+    online = {c.user["id"] for c in ctrl.hub.players if c.user}
+    rows = ctrl.store.list_players(game["id"] if game else None)
+    for row in rows:
+        row["online"] = row["id"] in online
+    return {"count": ctrl.store.count_users(), "players": rows, "blocked_names": ctrl.store.blocked_names()}
+
+
+@admin_api.post("/player/remove")
+async def admin_remove_player(body: RemovePlayerIn, ctrl: GameController = Depends(get_ctrl)) -> dict[str, Any]:
+    return await ctrl.remove_player(body)
+
+
+@admin_api.post("/announce")
+async def admin_announce(body: AnnounceIn, ctrl: GameController = Depends(get_ctrl)) -> dict[str, Any]:
+    return await ctrl.announce(body)
+
+
 @admin_api.get("/feed/games")
 async def admin_feed_games(date: str | None = None, ctrl: GameController = Depends(get_ctrl)) -> dict[str, Any]:
     """Games on a day (``date`` = YYYYMMDD) for the "Pick today's game" list: one real request, cached for minutes."""
@@ -997,6 +1075,8 @@ async def player_socket(ws: WebSocket) -> None:
     ctrl.request_admin_push()
     try:
         await ctrl.send_state(conn, "sync")
+        if ctrl.announcement:
+            await Hub.send(ws, ctrl.announcement_message())
         while True:
             msg = await _receive_json(ws)
             kind = msg.get("type") if msg else None

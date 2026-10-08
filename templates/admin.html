@@ -282,6 +282,26 @@
 
     <!-- Results -->
     <div class="admin-col">
+      <section class="card" id="message-card">
+        <h2 class="card-title">Message to Players</h2>
+        <p class="small muted host-note">Shows as a banner at the top of every player's screen. On the iPhone app it appears after its next update.</p>
+        <div class="msg-presets" role="group" aria-label="Quick messages">
+          <button class="btn btn-sm" type="button" data-msg="Kickoff is delayed. Hang tight!">Delayed</button>
+          <button class="btn btn-sm" type="button" data-msg="Halftime! Back in about 15 minutes.">Halftime</button>
+          <button class="btn btn-sm" type="button" data-msg="Picks are paused for a moment. Hang tight!">Paused</button>
+          <button class="btn btn-sm" type="button" data-msg="That's the game. Thanks for playing!">Game over</button>
+        </div>
+        <label class="visually-hidden" for="msg-text">Message to every player</label>
+        <textarea class="input msg-text" id="msg-text" rows="2" maxlength="200" placeholder="Type a short message for every player…"></textarea>
+        <div class="msg-actions">
+          <span class="small muted" id="msg-count">0 / 200</span>
+          <span class="msg-buttons">
+            <button class="btn btn-sm" type="button" id="msg-clear">Clear banner</button>
+            <button class="btn btn-sm btn-primary" type="button" id="msg-send">Send to everyone</button>
+          </span>
+        </div>
+        <p class="small msg-status" id="msg-status" role="status"></p>
+      </section>
       <section class="card">
         <h2 class="card-title">Live Leaderboard</h2>
         <ol class="board" id="board"></ol>
@@ -308,10 +328,24 @@
           </div>
         </div>
       </section>
+      <section class="card" id="players-card">
+        <details id="players-details">
+          <summary class="players-summary">Players <span class="muted" id="players-count"></span></summary>
+          <p class="small muted host-note">Newest sign-ups first. Remove takes someone off the leaderboard for good: their picks and points are deleted and they are signed out. Block stops anyone using that name again.</p>
+          <div class="players-tools">
+            <label class="visually-hidden" for="players-search">Find a player</label>
+            <input class="input" id="players-search" type="search" placeholder="Find a name" autocomplete="off" maxlength="40">
+            <button class="btn btn-sm" type="button" id="players-refresh">Refresh</button>
+          </div>
+          <ul class="players" id="players-list"></ul>
+          <p class="small muted" id="players-blocked"></p>
+        </details>
+      </section>
     </div>
   </div>
 </main>
 {% endblock %}
 {% block scripts %}<script type="application/json" id="team-presets">{{ teams|tojson }}</script>
 <script src="/static/js/admin-feed.js?v={{ v }}"></script>
+<script src="/static/js/admin-players.js?v={{ v }}"></script>
 <script src="/static/js/admin.js?v={{ v }}"></script>{% endblock %}

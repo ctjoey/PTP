@@ -120,6 +120,23 @@ Keyboard shortcuts in the console:
 
 Only one play per game can be OPEN or LOCKED at a time (enforced by a partial unique index).
 
+### Message to players, and removing a player
+
+Two cards in the right-hand column of the admin console:
+
+- **Message to Players.** Type a short message (200 characters at most) or tap a quick one (*Delayed*,
+  *Halftime*, *Paused*, *Game over*) and **Send to everyone**: it appears as a banner at the top of every player's
+  screen on the website, including lounge pages and people who haven't signed in. Anyone can dismiss it with the ✕
+  (it stays dismissed until you send a different message). **Clear banner** takes it down for everyone. People who open
+  the page later get the banner while it is showing. It lives in memory, so a server restart clears it. The iPhone app
+  ignores it until its next update.
+- **Players.** Open the list to see everyone who signed up (newest first, with their picks and points in the current
+  game, and a dot for who is online); type a name to narrow it. **Remove** asks first: **Remove and block name** deletes
+  the account (picks, points and any lounges they host) and stops anyone signing up with that name again;
+  **Remove only** deletes it but leaves the name free. The removed player is signed out where they are (the website says
+  "You were removed by the host."; the iPhone app returns to its welcome screen) and every leaderboard refreshes.
+  Blocked names are listed under the players; they are stored in the `blocked_names` table.
+
 ## Live data (Tank01)
 
 Optional. Connect a game to [Tank01's](https://rapidapi.com/tank01/api/tank01-nfl-live-in-game-real-time-statistics-nfl)
@@ -419,6 +436,8 @@ Inside a lounge you play the same live game, with a private leaderboard tab of e
 | → | `{"type":"sync"}` · `{"type":"ping"}` |
 | ← | `{"type":"state","event":"play_opened"\|"play_locked"\|"play_resolved"\|"play_voided"\|"play_corrected"\|"game_created"\|"game_status"\|"lounge_updated"\|"sync", …snapshot}` |
 | ← | `{"type":"prediction_saved","prediction":{"play_id":7,"play_type":"PASS","direction":"LEFT","yardage":"SHORT","points_earned":null}}` · `{"type":"error","message":"…"}` |
+| ← | `{"type":"announcement","id":3,"text":"Halftime! Back in about 15 minutes.","sent_at":1760000000.0}`: the host's banner (`text` is empty when it has been cleared); also sent once to every new connection while a banner is showing. Clients that don't know the type ignore it |
+| ← | `{"type":"error","code":"account_deleted","message":"Your account was deleted."\|"You were removed by the host."}` then the socket closes with `4401` |
 
 **Admin — `/ws/admin`**
 
@@ -427,7 +446,8 @@ Inside a lounge you play the same live game, with a private leaderboard tab of e
 | → | `{"type":"auth","key":"…"}` first |
 | → | `{"action":"create_game"\|"set_status"\|"open_play"\|"lock_play"\|"resolve_play"\|"void_play"\|"correct_play","request_id":1, …payload}` and the `feed_*` live-data actions ([protocol](#live-data-protocol)) |
 | → | e.g. `{"action":"resolve_play","request_id":2,"play_type":"RUN","direction":"LEFT","yardage":"MEDIUM","yards":7}` |
-| ← | `{"type":"admin_state", …}` with live pick stats, players online, leaderboard, play log and the `feed` object |
+| → | Host tools: `{"action":"announce","text":"…"}` (empty text clears the banner) · `{"action":"remove_player","user_id":12,"block":true}` |
+| ← | `{"type":"admin_state", …}` with live pick stats, players online, leaderboard, play log, the `feed` object, `announcement` (what is showing, or `null`) and `registered_players` |
 | ← | `{"type":"admin_ack","request_id":1,"ok":true\|false,"error":"…"}` |
 
 **Picks, results and the fields that carry them**
@@ -479,6 +499,9 @@ handy for scripting.
 | `POST /api/admin/play/lock` · `/resolve` `{play_type, direction, yardage?, yards?}` · `/void` | Drive the play (resolve needs `yardage`, `yards` or both) |
 | `POST /api/admin/play/correct` `{play_id, play_type, direction, yardage?, yards?}` | Fix a scored play: re-scores every pick, moves each total by the difference, broadcasts `play_corrected` |
 | `POST /api/admin/feed/<action>` · `GET /api/admin/feed/games?date=` · `GET /api/admin/feed/log` | Live data (see [Live data protocol](#live-data-protocol)) |
+| `GET /api/admin/players` | Everyone signed up, newest first: `{count, players:[{id, username, total_score, game_score, picks, online, created_at}], blocked_names}` |
+| `POST /api/admin/player/remove` `{user_id, block?}` | Remove a player (and with `block` their name) → `{removed, blocked}`; `404` if they are already gone |
+| `POST /api/admin/announce` `{text}` | Show a banner to every player (≤ 200 chars; empty clears it) → `{id, text, sent_to}` |
 | `GET /rules` | Rules of the Game (HTML) |
 | `GET /privacy` · `GET /support` | Privacy policy and support pages (HTML; use as the App Store privacy policy and support URLs) |
 
@@ -506,6 +529,7 @@ offensive usernames and lounge names are rejected with "Please choose a differen
 | `users` | id, username (unique, case-insensitive), token, total_score |
 | `predictions` | user_id, play_id (unique together), play_type, direction, yardage (`SHORT`/`MEDIUM`/`LONG`; NULL for older picks), points_earned |
 | `lounges` / `lounge_members` | id (= 4-digit code), name, host_user_id; membership join table |
+| `blocked_names` | name (case-insensitive), created_at: names the host removed and blocked; `create_user` refuses them |
 | `feed_log` | Live-data recorder: id, game_id, ts, kind, play_id, feed_index, data (JSON); the last 5,000 rows per game |
 | `feed_usage` | Live-data requests per UTC day and the plan's last-seen allowance, so caps survive restarts |
 

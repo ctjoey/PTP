@@ -39,6 +39,13 @@
     refreshHistory: () => renderHistory((A.state && A.state.history) || []),
   });
 
+  // Remove players and the message to the players live in admin-players.js.
+  const hostTools = PTPHost.create({
+    act: (action, payload) => act(action, payload),
+    getKey: () => A.key,
+    getState: () => A.state,
+  });
+
   // ------------------------------------------------------------------ auth
 
   function showAuth(message = "") {
@@ -184,6 +191,7 @@
     renderBoard(st.leaderboard);
     renderHistory(st.history);
     feed.render(st);
+    hostTools.render(st);
   }
 
   function syncTimer() {
@@ -459,7 +467,7 @@
 
     document.addEventListener("keydown", (ev) => {
       if ($("#console").hidden || ev.metaKey || ev.ctrlKey || ev.altKey) return;
-      if (ev.target.closest("input, textarea, select, #fix-editor, summary")) return;
+      if (ev.target.closest("input, textarea, select, #fix-editor, summary, #message-card, #players-card")) return;
       // Enter on a focused Live data button (Score now, Pause...) presses that button, as keyboard users expect.
       if (ev.key === "Enter" && ev.target.closest("#feed-panel")) return;
       if (feed.handleKey(ev)) {

@@ -444,6 +444,12 @@ CREATE TABLE IF NOT EXISTS feed_log (
 );
 CREATE INDEX IF NOT EXISTS ix_feed_log_game ON feed_log(game_id, id);
 
+-- Names the host removed and blocked: nobody can sign up with one again (case-insensitive).
+CREATE TABLE IF NOT EXISTS blocked_names (
+    name        TEXT PRIMARY KEY COLLATE NOCASE,
+    created_at  REAL NOT NULL
+);
+
 -- Real requests per UTC day (and the plan's last-seen allowance), so restarts cannot reset the caps.
 CREATE TABLE IF NOT EXISTS feed_usage (
     day             TEXT PRIMARY KEY,
@@ -637,6 +643,8 @@ class Store:
 
     def create_user(self, username: str) -> dict[str, Any]:
         username = validate_username(username)
+        if self.is_name_blocked(username):
+            raise GameError("Please choose a different name.")
         token = secrets.token_urlsafe(32)
         try:
             with self._tx() as c:
@@ -657,6 +665,41 @@ class Store:
 
     def get_user(self, user_id: int) -> dict[str, Any] | None:
         return self._one("SELECT id, username, total_score FROM users WHERE id = ?", (user_id,))
+
+    def count_users(self) -> int:
+        return self._one("SELECT COUNT(*) AS n FROM users")["n"]  # type: ignore[index]
+
+    def list_players(self, game_id: int | None, limit: int = 500) -> list[dict[str, Any]]:
+        """Newest sign-ups first, with their points in ``game_id`` (the current game): for the host's Players list."""
+        return self._all(
+            """SELECT u.id, u.username, u.total_score, u.created_at,
+                      COALESCE(g.picks, 0) AS picks, COALESCE(g.score, 0) AS game_score
+               FROM users u
+               LEFT JOIN (
+                   SELECT pr.user_id, COUNT(*) AS picks, SUM(COALESCE(pr.points_earned, 0)) AS score
+                   FROM predictions pr JOIN plays pl ON pl.id = pr.play_id
+                   WHERE pl.game_id = ?
+                   GROUP BY pr.user_id
+               ) g ON g.user_id = u.id
+               ORDER BY u.id DESC LIMIT ?""",
+            (game_id if game_id is not None else -1, limit),
+        )
+
+    def is_name_blocked(self, name: str) -> bool:
+        return self._one("SELECT 1 AS hit FROM blocked_names WHERE name = ?", (" ".join(name.split()),)) is not None
+
+    def block_name(self, name: str) -> None:
+        with self._tx() as c:
+            c.execute("INSERT OR IGNORE INTO blocked_names (name, created_at) VALUES (?, ?)",
+                      (" ".join(name.split()), time.time()))
+
+    def unblock_name(self, name: str) -> bool:
+        with self._tx() as c:
+            cur = c.execute("DELETE FROM blocked_names WHERE name = ?", (" ".join(name.split()),))
+        return cur.rowcount > 0
+
+    def blocked_names(self) -> list[str]:
+        return [r["name"] for r in self._all("SELECT name FROM blocked_names ORDER BY created_at")]
 
     def delete_user(self, user_id: int) -> bool:
         """Permanently delete an account (App Store Guideline 5.1.1(v)).
