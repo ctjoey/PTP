@@ -42,7 +42,7 @@ struct RootView: View {
                         .tabItem { Label("Leaderboard", systemImage: "list.number") }
                         .tag(AppState.Tab.board)
                     LoungesView()
-                        .tabItem { Label("Lounges", systemImage: "person.3.fill") }
+                        .tabItem { Label("Head to Head", systemImage: "person.3.fill") }
                         .tag(AppState.Tab.lounges)
                     RulesView()
                         .tabItem { Label("Rules", systemImage: "book.fill") }

@@ -25,6 +25,7 @@ struct LoungesView: View {
                             }
                         }
                         .card()
+                        howTo("Tap a lounge to show its leaderboard. Tap the share arrow to invite more friends.")
                     }
 
                     VStack(alignment: .leading, spacing: 10) {
@@ -46,6 +47,7 @@ struct LoungesView: View {
                         }
                     }
                     .card()
+                    howTo("Got a code from a friend? Type it in and tap Join. Your group's leaderboard opens.")
 
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Create a lounge").kicker()
@@ -74,6 +76,7 @@ struct LoungesView: View {
                         }
                     }
                     .card()
+                    howTo("Name your group and tap Create, then send the code to friends. They enter it above to join.")
 
                     if let error {
                         Text(error).font(.system(size: 13, weight: .semibold)).foregroundStyle(Theme.danger)
@@ -82,11 +85,22 @@ struct LoungesView: View {
                 .padding(16)
             }
             .background(Theme.bg.ignoresSafeArea())
-            .navigationTitle("H2H Lounges")
+            .navigationTitle("Head to Head Lounge")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(Theme.bg, for: .navigationBar)
             .refreshable { await state.refreshLounges() }
             .task { await state.refreshLounges() }
         }
+    }
+
+    /// One short line of instructions under a box.
+    private func howTo(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 13))
+            .foregroundStyle(Theme.muted)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 6)
+            .padding(.top, -8)
     }
 
     private func loungeRow(_ lounge: Lounge) -> some View {

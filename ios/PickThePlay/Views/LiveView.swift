@@ -9,6 +9,14 @@ struct LiveView: View {
                 let compact = geo.size.height < Theme.compactBelow
                 ScrollView {
                     VStack(spacing: compact ? 12 : 14) {
+                        // In the page, not the navigation bar: the newest iOS squeezes toolbar items into a small
+                        // bubble and cut the logo down to "P…".
+                        HStack(alignment: .center, spacing: 8) {
+                            BrandMark()
+                            Spacer(minLength: 8)
+                            ConnectionDot(status: state.connection)
+                        }
+                        .padding(.horizontal, 2)
                         if let game = state.snapshot?.game {
                             ScorebugView(game: game, play: state.snapshot?.play)
                         }
@@ -36,11 +44,7 @@ struct LiveView: View {
                 .environment(\.compactLayout, compact)
             }
             .background(Theme.bg.ignoresSafeArea())
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) { BrandMark() }
-                ToolbarItem(placement: .topBarTrailing) { ConnectionDot(status: state.connection) }
-            }
-            .toolbarBackground(Theme.bg, for: .navigationBar)
+            .toolbar(.hidden, for: .navigationBar)
         }
     }
 }
