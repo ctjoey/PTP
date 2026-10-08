@@ -123,6 +123,11 @@ jobs:
           shoot open       08-light-call-the-play -ptp-appearance light
           shoot result     09-light-result -ptp-appearance light
           shoot directions 10-light-directions -ptp-appearance light
+          # The host console on sample data (for checking the layout; not for the store listing).
+          shoot hostSignIn h1-host-signin
+          shoot hostRun    h2-host-play-open
+          shoot hostLive   h3-host-suggestion
+          shoot hostLog    h4-host-log
           xcrun simctl shutdown "$UDID" || true
           xcrun simctl delete "$UDID" || true
           ls -l screenshots/raw

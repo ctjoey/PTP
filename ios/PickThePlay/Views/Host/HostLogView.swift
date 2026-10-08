@@ -5,3 +5,7 @@ import SwiftUI
 struct HostLogView: View {
     var body: some View { EmptyView() }
 }
+
+struct FixResultSheet: View {
+    var body: some View { EmptyView() }
+}

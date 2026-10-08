@@ -159,7 +159,8 @@ TestFlight builds expire after 90 days. Run Step 4 again for a fresh one.
       downfield) and short/medium/long: +10 play type, +10 direction, +10 distance, +10 bonus for all
       three = 40. The Rules tab explains everything. Teams are shown by city name only. To try it without a live game, use **Practice**. To see a live game, open
       *your server*`/admin`, enter the key `<the key you give them>`, create a game and run a few
-      plays while the app is open."
+      plays while the app is open. The same controls are inside the app for whoever runs the game:
+      **Settings → Open the host console**, enter the same key `<the key you give them>`."
 - [ ] **Export compliance**: the app only uses standard HTTPS, so the answer is **No**. The build
       already declares `ITSAppUsesNonExemptEncryption = false`, so TestFlight doesn't ask each time.
 - [ ] **Screenshots**: open any green run in **Actions**, scroll to **Artifacts**, and download

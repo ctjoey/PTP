@@ -335,3 +335,12 @@ enum HostText {
 extension FixDraft: Identifiable {
     var id: Int { playID }
 }
+
+extension FeedGame {
+    /// The recorded practice game (no data-provider requests): Carolina at Washington. The server sends the same one.
+    static let practice = FeedGame(
+        feedGameId: FeedGame.demoID,
+        away: FeedTeam(abbr: "CAR", name: "Carolina", primary: "#0085CA", secondary: "#101820"),
+        home: FeedTeam(abbr: "WSH", name: "Washington", primary: "#5A1414", secondary: "#FFB612"),
+        time: "Anytime", status: "Practice game (no requests used)")
+}

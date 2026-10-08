@@ -73,13 +73,18 @@ get the roomier default.
 project.yml              XcodeGen spec (app + unit tests). iPhone only, iOS 17+.
 PickThePlay/
   App/       PickThePlayApp (entry, tabs, reconnect on foreground), AppState (source of truth),
-             ScreenshotMode (sample data for CI store screenshots)
-  Models/    Codable wire models matching the server's JSON
+             HostState + HostDrafts (the host console's socket/state and half-finished entries),
+             ScreenshotMode (sample data for CI store screenshots, incl. the host console)
+  Models/    Codable wire models matching the server's JSON; AdminModels (host console, decoded
+             leniently), HostLogic (result entry, suggestion choices, next down, fix: pure and
+             tested), TeamPresets (generated from teams.py)
   Services/  APIClient + ServerConfig (REST, server address), LiveConnection (WebSocket with
-             hello/ping/backoff), Practice (scoring rules + offline practice game)
+             hello/ping/backoff), AdminConnection (the host console's /ws/admin), Keychain (the
+             admin key), Practice (scoring rules + offline practice game)
   Views/     Live (scorebug + open/locked/result/final stages), Leaderboard, Lounges, Rules (rules
              of the game, points table, run/pass direction diagrams), Settings (server, points,
-             privacy, delete account), Onboarding, Practice, shared Components, Theme
+             privacy, delete account), Onboarding, Practice, shared Components, Theme,
+             Host/ (the host console: key screen, Run, Log, Players, Message)
 PickThePlayTests/
   Fixtures/  Real messages captured from the Python server; ContractTests decode every one
              (incl. state_play_resolved_loss: a sack that scores type + direction only)
@@ -94,3 +99,16 @@ The fixtures are generated from the running backend. If you change the server's 
 them with `venv/bin/python tests/capture_ios_fixtures.py` (from the repo root; it starts a throwaway
 server and plays a short scripted game) and the contract tests will tell you what the app must change.
 Tokens, lounge codes and timestamps change on every capture, so the tests never pin them.
+
+## Host console
+
+Whoever runs the game can do it from the app: **Settings → Open the host console** (or *Running the game? Host sign-in*
+on the welcome screen), then the admin key. It is the website's console on a phone: same `/ws/admin` socket and
+`/api/admin/*` routes, nothing extra on the server. See "Running the game from the iPhone app" in the main README. The
+key is kept in the Keychain (`Services/Keychain.swift`, device-only) and **Sign out** forgets it. Four tabs: Run (start a
+game, open/lock/score plays, the live-data card), Log (leaderboard, Play log, Fix result), Players (search, remove and
+block), Message (banner to every player).
+
+`AdminState` decodes only the game and the play strictly; every other part is read leniently (a part that can't be read is
+left out, one bad Play-log row is skipped), so a small server change can't blank the console mid-game. Contract tests decode
+real messages from `tests/capture_ios_admin_fixtures.py`.

@@ -45,7 +45,7 @@ final class HostState: ObservableObject {
     /// A key is saved on this phone.
     @Published private(set) var hasSavedKey: Bool
 
-    private let link = AdminConnection()
+    private let link: AdminLink
     private let keys: KeyStore
     private var key: String?
     private var remember = true
@@ -54,20 +54,38 @@ final class HostState: ObservableObject {
     private var waiters: [Int: CheckedContinuation<AdminAck?, Never>] = [:]
 
     var isBusy: Bool { pending > 0 }
+    /// A key is being used (typed, or saved) and the server hasn't answered yet: show "Connecting…", not the key form.
+    var isConnecting: Bool { key != nil && snapshot == nil }
     var isSignedIn: Bool { snapshot != nil }
     var game: Game? { snapshot?.game }
     var play: Play? { snapshot?.play }
     var feed: FeedState? { snapshot?.feed }
     var server: URL? { ServerConfig.current }
 
-    init(keys: KeyStore) {
+    init(keys: KeyStore, link: AdminLink? = nil) {
         self.keys = keys
+        let channel = link ?? AdminConnection()
+        self.link = channel
         let saved = keys.read()
         key = saved
         hasSavedKey = saved != nil
-        link.onStatus = { [weak self] status in self?.statusChanged(status) }
-        link.onMessage = { [weak self] message in self?.handle(message) }
-        link.onRejected = { [weak self] in self?.rejected("Invalid admin key.") }
+        channel.onStatus = { [weak self] status in self?.statusChanged(status) }
+        channel.onMessage = { [weak self] message in self?.handle(message) }
+        channel.onRejected = { [weak self] in self?.rejected("Invalid admin key.") }
+        if let screen = ScreenshotMode.screen { stage(screen) }
+    }
+
+    /// Store/CI screenshots: show the console on sample data, without a server.
+    private func stage(_ screen: ScreenshotMode.Screen) {
+        switch screen {
+        case .hostSignIn, .hostRun, .hostLive, .hostLog:
+            snapshot = ScreenshotMode.hostSample(for: screen)
+            connection = .online
+            tab = screen == .hostLog ? .log : .run
+            isPresented = true
+        default:
+            break
+        }
     }
 
     /// Server clock, so every countdown on this screen matches the players'.

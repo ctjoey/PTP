@@ -7,6 +7,8 @@ import Foundation
 enum ScreenshotMode {
     enum Screen: String {
         case open, locked, result, board, lounges, rules, points, directions
+        /// The host console on sample data: the key screen, an open play, a feed suggestion, the log.
+        case hostSignIn, hostRun, hostLive, hostLog
     }
 
     static var screen: Screen? {
@@ -55,7 +57,7 @@ enum ScreenshotMode {
         var event = "play_opened"
 
         switch screen {
-        case .open:
+        case .open, .hostSignIn, .hostRun, .hostLive, .hostLog:
             break
         case .locked:
             play.state = .locked
@@ -110,7 +112,7 @@ enum ScreenshotMode {
             case .board: return .board
             case .lounges: return .lounges
             case .rules, .points, .directions: return .rules
-            case .open, .locked, .result: return .live
+            case .open, .locked, .result, .hostSignIn, .hostRun, .hostLive, .hostLog: return .live
             }
         }()
         return Sample(snapshot: snapshot, previous: previous, lounges: lounges, tab: tab)
@@ -132,3 +134,63 @@ enum ScreenshotMode {
         return rows
     }
 }
+
+// MARK: - Host console samples
+
+extension ScreenshotMode {
+    /// What the host console shows for a `host…` screen (nil for every other screen, and for the key screen).
+    static func hostSample(for screen: Screen) -> AdminState? {
+        let now = Date().timeIntervalSince1970
+        let locked = screen == .hostLive || screen == .hostLog
+        let suggestion = screen == .hostLive ? """
+        {"play_id": 61, "status": "ready", "text": "B.Mayfield pass short left to M.Evans to DAL 31 for 9 yards (T.Diggs).",
+         "clock": "Q2 8:41", "down_and_distance": "3rd & 7 at DAL 40", "play_type": "PASS", "direction": "LEFT",
+         "yards": 9, "yardage": "MEDIUM", "flags": [], "warning": null, "auto_at": \(now + 6), "kind": "play"}
+        """ : "null"
+        let json = """
+        {"type": "admin_state", "event": "sync", "server_time": \(now),
+         "game": {"id": 3, "home_name": "Dallas", "home_primary": "#003594", "home_secondary": "#869397",
+                  "away_name": "Tampa Bay", "away_primary": "#D50A0A", "away_secondary": "#FF7900", "status": "LIVE"},
+         "play": {"id": 61, "game_id": 3, "play_number": 12, "down": 3, "distance": "7",
+                  "state": "\(locked ? "LOCKED" : "OPEN")", "voided": false, "opened_at": \(now - 4), "locks_at": \(now + 11)},
+         "pick_stats": {"total": 31, "RUN": 9, "PASS": 22, "LEFT": 11, "MIDDLE": 6, "RIGHT": 14, "SHORT": 8, "MEDIUM": 15,
+                        "LONG": 8, "exact": 0, "scored": 0},
+         "players_online": 34, "spectators_online": 5, "admins_online": 1,
+         "leaderboard": [
+           {"user_id": 5, "username": "Mia", "score": 240, "rank": 1, "exact_hits": 4, "picks": 11},
+           {"user_id": 2, "username": "JoeyC", "score": 210, "rank": 2, "exact_hits": 3, "picks": 11},
+           {"user_id": 9, "username": "Dre", "score": 200, "rank": 3, "exact_hits": 3, "picks": 10},
+           {"user_id": 7, "username": "Sam", "score": 180, "rank": 4, "exact_hits": 2, "picks": 11},
+           {"user_id": 8, "username": "Kat", "score": 150, "rank": 5, "exact_hits": 1, "picks": 9}],
+         "ranked_players": 31,
+         "history": [
+           {"id": 60, "play_number": 11, "down": 2, "distance": "4", "state": "RESOLVED", "voided": 0,
+            "correct_play_type": "RUN", "correct_direction": "MIDDLE", "correct_yardage": "SHORT", "yards_gained": 3,
+            "resolved_by": "feed", "feed_text": "R.White up the middle to TB 38 for 3 yards (L.Vander Esch).",
+            "picks": 30, "exact_hits": 4},
+           {"id": 59, "play_number": 10, "down": 1, "distance": "10", "state": "RESOLVED", "voided": 0,
+            "correct_play_type": "PASS", "correct_direction": "RIGHT", "correct_yardage": "LOSS", "yards_gained": -6,
+            "resolved_by": "host-fix", "feed_text": null, "picks": 31, "exact_hits": 0},
+           {"id": 58, "play_number": 9, "down": 3, "distance": "2", "state": "RESOLVED", "voided": 1,
+            "correct_play_type": null, "correct_direction": null, "correct_yardage": null, "yards_gained": null,
+            "resolved_by": "void", "feed_text": "No Play. Offensive holding.", "picks": 29, "exact_hits": 0},
+           {"id": 57, "play_number": 8, "down": 2, "distance": "8", "state": "RESOLVED", "voided": 0,
+            "correct_play_type": "PASS", "correct_direction": "LEFT", "correct_yardage": "LONG", "yards_gained": 17,
+            "resolved_by": "feed", "feed_text": "B.Mayfield pass deep left to C.Godwin for 17 yards.",
+            "picks": 33, "exact_hits": 6}],
+         "window_seconds": 15,
+         "feed": {"available": true, "linked": true, "source": "tank01", "game_id": "20261008_TB@DAL",
+                  "state": "\(screen == .hostLive ? "idle" : "waiting")",
+                  "message": "\(screen == .hostLive ? "The feed has this play. It will score by itself." : "Connected. It checks the feed only while a play is locked.")",
+                  "paused": false, "auto_score": true, "auto_open": false,
+                  "requests": {"game": 214, "today": 214, "game_cap": 500, "day_cap": 1000, "plan_remaining": 786, "plan_limit": 1000},
+                  "lag": {"median": 18.0, "last": 17.0, "samples": 6}, "waiting": null,
+                  "suggestion": \(suggestion), "disagreement": null,
+                  "next_down": null, "auto_open_at": null, "last_scored": null},
+         "announcement": null, "registered_players": 58}
+        """
+        guard screen == .hostRun || screen == .hostLive || screen == .hostLog else { return nil }
+        return try? JSON.decoder.decode(AdminState.self, from: Data(json.utf8))
+    }
+}
+

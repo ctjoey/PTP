@@ -761,3 +761,116 @@ extension GameLogicTests {
         return state
     }
 }
+
+// MARK: - Host drafts (the console's half-finished entries follow the server's state)
+
+extension GameLogicTests {
+    private func adminState(game: Int? = 1, play: Int? = nil, playState: String = "OPEN", nextDown: String = "null",
+                            history: String = "[]", suggestion: String = "null") -> AdminState {
+        let gameJSON = game.map { """
+        {"id": \($0), "home_name": "Dallas", "home_primary": "#003594", "home_secondary": "#869397",
+         "away_name": "Tampa Bay", "away_primary": "#D50A0A", "away_secondary": "#FF7900", "status": "LIVE"}
+        """ } ?? "null"
+        let playJSON = play.map { """
+        {"id": \($0), "game_id": 1, "play_number": \($0), "down": 1, "distance": "10", "state": "\(playState)",
+         "voided": false, "opened_at": 1, "locks_at": 16}
+        """ } ?? "null"
+        let json = """
+        {"type": "admin_state", "event": "sync", "server_time": 100.0, "game": \(gameJSON), "play": \(playJSON),
+         "players_online": 0, "spectators_online": 0, "admins_online": 1, "leaderboard": [], "ranked_players": 0,
+         "history": \(history), "window_seconds": 15, "announcement": null, "registered_players": 0,
+         "feed": {"state": "idle", "available": true, "linked": true, "source": "demo", "paused": false,
+                  "auto_score": true, "auto_open": false, "next_down": \(nextDown), "suggestion": \(suggestion)}}
+        """
+        guard case .state(let state)? = try? AdminServerMessage.decode(Data(json.utf8)) else {
+            fatalError("test JSON did not decode")
+        }
+        return state
+    }
+
+    @MainActor
+    func testDraftsStartFreshForANewPlayAndANewGame() {
+        let drafts = HostDrafts()
+        drafts.update(from: adminState(game: 1, play: 5))
+        drafts.result = ResultDraft(playType: .run, direction: .left)
+        drafts.update(from: adminState(game: 1, play: 5))
+        XCTAssertEqual(drafts.result.playType, .run, "same play: the half-made result stays")
+        drafts.update(from: adminState(game: 1, play: 6))
+        XCTAssertTrue(drafts.result.isEmpty, "a new play (perhaps opened from another console): start fresh")
+        drafts.down.setDown(3)
+        drafts.result = ResultDraft(playType: .pass)
+        drafts.update(from: adminState(game: 2, play: nil))
+        XCTAssertEqual(drafts.down, DownDraft(), "a new game: 1st & 10 again")
+        XCTAssertTrue(drafts.result.isEmpty)
+        XCTAssertNil(drafts.pickedGame)
+    }
+
+    @MainActor
+    func testDraftsTakeTheNextDownFromTheFeedBetweenPlaysOnly() {
+        let drafts = HostDrafts()
+        drafts.update(from: adminState(game: 1, play: 5, playState: "RESOLVED", nextDown: #"{"down": 2, "distance": "3"}"#))
+        XCTAssertEqual(drafts.down.down, 2)
+        XCTAssertEqual(drafts.down.distance, "3")
+        XCTAssertTrue(drafts.down.showsFeedHint(hasActivePlay: false))
+        drafts.down.setDistance("4")
+        drafts.update(from: adminState(game: 1, play: 5, playState: "RESOLVED", nextDown: #"{"down": 2, "distance": "3"}"#))
+        XCTAssertEqual(drafts.down.distance, "4", "the host's edit wins")
+    }
+
+    @MainActor
+    func testDraftsForgetAFixWhoseRowIsGoneAndKeepsAnOpenOne() throws {
+        let row = """
+        [{"id": 5, "play_number": 5, "down": 1, "distance": "10", "state": "RESOLVED", "voided": 0,
+          "correct_play_type": "RUN", "correct_direction": "LEFT", "correct_yardage": "SHORT", "yards_gained": 2,
+          "resolved_by": "host", "picks": 3, "exact_hits": 1}]
+        """
+        let drafts = HostDrafts()
+        let state = adminState(game: 1, play: 5, playState: "RESOLVED", history: row)
+        drafts.update(from: state)
+        let history = try XCTUnwrap(state.history.first)
+        drafts.fix = FixDraft(row: history)
+        XCTAssertNotNil(drafts.fix)
+        XCTAssertEqual(drafts.fix?.original.summary, "Run · Left · Short (2 yds)")
+        drafts.update(from: state)
+        XCTAssertNotNil(drafts.fix, "the row is still there")
+        drafts.update(from: adminState(game: 1, play: 5, playState: "RESOLVED", history: "[]"))
+        XCTAssertNil(drafts.fix, "the row vanished (another console voided it?)")
+    }
+
+    @MainActor
+    func testChangeLoadsTheSuggestionIntoTheResultBoxes() throws {
+        let sg = """
+        {"play_id": 5, "status": "review", "text": "sacked", "play_type": "PASS", "direction": null, "yards": -7,
+         "yardage": "LOSS", "flags": [], "auto_at": null}
+        """
+        let state = adminState(game: 1, play: 5, playState: "LOCKED", suggestion: sg)
+        let drafts = HostDrafts()
+        drafts.update(from: state)
+        drafts.choices.direction = .right
+        drafts.load(try XCTUnwrap(state.feed?.suggestion))
+        XCTAssertEqual(drafts.result.summary, "Pass · Right · Loss (-7 yds)")
+        XCTAssertTrue(drafts.result.isComplete)
+    }
+
+    func testFixDraftNeedsARealChange() throws {
+        let row = HistoryPlay(id: 9, playNumber: 9, down: 2, distance: "5", state: .resolved, voided: false,
+                              correctPlayType: .pass, correctDirection: .left, correctYardage: .medium, yardsGained: 7,
+                              resolvedBy: "feed", feedText: nil, picks: 4, exactHits: 1)
+        var fix = try XCTUnwrap(FixDraft(row: row))
+        XCTAssertFalse(fix.isChanged)
+        XCTAssertFalse(fix.canSave, "nothing changed")
+        fix.result.choose(Direction.right)
+        XCTAssertTrue(fix.canSave)
+        fix.result.choose(Direction.left)
+        XCTAssertFalse(fix.isChanged, "back to how it was")
+        fix.result.typeYards("9")
+        XCTAssertTrue(fix.isChanged, "different yards count as a change")
+        let preset = ResultDraft(playType: .run, direction: nil, yardage: .short, yards: 2)
+        let fromFeed = try XCTUnwrap(FixDraft(row: row, preset: preset))
+        XCTAssertEqual(fromFeed.result.summary, "Run · Left · Short (2 yds)", "the feed's reading replaces what it knows")
+        let voided = HistoryPlay(id: 10, playNumber: 10, down: nil, distance: nil, state: .resolved, voided: true,
+                                 correctPlayType: nil, correctDirection: nil, correctYardage: nil, yardsGained: nil,
+                                 resolvedBy: "void", feedText: nil, picks: 0, exactHits: 0)
+        XCTAssertNil(FixDraft(row: voided), "only a scored play can be fixed")
+    }
+}

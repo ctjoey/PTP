@@ -3,6 +3,7 @@ import SwiftUI
 @main
 struct PickThePlayApp: App {
     @StateObject private var state = AppState()
+    @StateObject private var host = HostState(keys: KeychainKeyStore())
     @Environment(\.scenePhase) private var phase
     @AppStorage(Appearance.storageKey) private var appearance = Appearance.dark
 
@@ -10,6 +11,7 @@ struct PickThePlayApp: App {
         WindowGroup {
             RootView()
                 .environmentObject(state)
+                .environmentObject(host)
                 .preferredColorScheme(appearance.colorScheme)
                 .tint(Theme.accent)
         }
@@ -18,6 +20,7 @@ struct PickThePlayApp: App {
             switch newPhase {
             case .active:
                 state.connect()
+                host.appBecameActive()
                 // A sleeping server needs up to a minute to answer, so wake it before the first real request.
                 Task {
                     await state.wakeServer()
@@ -25,6 +28,7 @@ struct PickThePlayApp: App {
                 }
             case .background:
                 state.disconnect()
+                host.appEnteredBackground()
             default:
                 break
             }
@@ -34,6 +38,8 @@ struct PickThePlayApp: App {
 
 struct RootView: View {
     @EnvironmentObject var state: AppState
+    @EnvironmentObject var host: HostState
+    @AppStorage(Appearance.storageKey) private var appearance = Appearance.dark
 
     var body: some View {
         Group {
@@ -68,6 +74,12 @@ struct RootView: View {
             .animation(.easeInOut(duration: 0.25), value: state.announcement)
         }
         .fullScreenCover(isPresented: $state.showPractice) { PracticeView() }
+        .fullScreenCover(isPresented: $host.isPresented) {
+            HostConsoleCover()
+                .environmentObject(host)
+                .preferredColorScheme(appearance.colorScheme)
+                .tint(Theme.accent)
+        }
     }
 }
 

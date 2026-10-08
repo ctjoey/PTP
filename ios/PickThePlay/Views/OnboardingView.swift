@@ -3,6 +3,7 @@ import SwiftUI
 /// First run: explain the game, set the server if the build doesn't have one, pick a username.
 struct OnboardingView: View {
     @EnvironmentObject var state: AppState
+    @EnvironmentObject var host: HostState
     @State private var username = ""
     @State private var serverText = ""
     @State private var working = false
@@ -98,6 +99,15 @@ struct OnboardingView: View {
                     Text("Just practice first").font(.system(size: 16, weight: .bold)).frame(maxWidth: .infinity, minHeight: 44)
                 }
                 .buttonStyle(.bordered)
+                .tint(Theme.muted)
+
+                Button {
+                    host.present()
+                } label: {
+                    Text("Running the game? Host sign-in")
+                        .font(.system(size: 15, weight: .bold))
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                }
                 .tint(Theme.muted)
 
                 Disclaimer().padding(.top, 8)

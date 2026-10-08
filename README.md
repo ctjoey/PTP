@@ -141,6 +141,30 @@ Two cards in the right-hand column of the admin console:
   the `blocked_names` table. Typing in the search box also searches the server, so players beyond the first 500 can
   still be found. The iPhone app shows "Your account was deleted." (not the host's wording) until its next update.
 
+### Running the game from the iPhone app (host console)
+
+Everything the website's console does can be done from the iPhone app too, for a helper who is away from a computer.
+**Settings → Open the host console** (also on the welcome screen as *Running the game? Host sign-in*) asks for the same
+admin key, then shows four tabs:
+
+- **Run**: Pick today's game (or the recorded practice game) and **Create Game**; **Open Next Play** (down and yards to go
+  are filled in from the live feed between plays), **Lock Predictions**, the live-data card (status, **Pause / Resume /
+  Check now**, the feed's suggestion with **Score now / Hold / Change / Skip**, the usage meter, the two switches), **Score
+  it yourself** (type, direction, distance, optional yards, **Score Play**, **Void play**), **End game**.
+- **Log**: this game's leaderboard and Play log, with **Fix result** on every scored play.
+- **Players**: the signed-up list with search, **Remove** (and block the name), **Unblock**.
+- **Message**: the banner to every player's screen, with the four quick messages.
+
+It talks to the same `/ws/admin` socket and `/api/admin/*` routes as the website (no server change); several consoles can
+be open at once, and the console warns when a second host is connected. The key is typed once and kept in the iPhone's
+Keychain (device-only, not in backups); **Sign out** in the console's menu forgets it. The screen is kept awake while the
+console is open. The app code is `Models/AdminModels.swift` (wire models, lenient on purpose: only the game and the play must
+decode), `Models/HostLogic.swift` (the decisions: result entry, suggestion choices, next down, fix), `App/HostState.swift`
+(socket, state, one method per action), `App/HostDrafts.swift` and `Views/Host/`. Fixtures for the contract tests come
+from `venv/bin/python tests/capture_ios_admin_fixtures.py` (a real server on a random port, the recorded game as the live
+source). `ios/PickThePlay/Models/TeamPresets.swift` is generated from `teams.py` by `ios/scripts/make_team_presets.py`
+(a test fails when they drift apart).
+
 ## Live data (Tank01)
 
 Optional. Connect a game to [Tank01's](https://rapidapi.com/tank01/api/tank01-nfl-live-in-game-real-time-statistics-nfl)
@@ -582,7 +606,8 @@ API key never appearing in any output.
 
 The iOS app's contract tests decode real server messages saved in `ios/PickThePlayTests/Fixtures/`.
 After changing what the server sends, regenerate them from a real running server (temporary database,
-random port): `venv/bin/python tests/capture_ios_fixtures.py`.
+random port): `venv/bin/python tests/capture_ios_fixtures.py` (player messages) and
+`venv/bin/python tests/capture_ios_admin_fixtures.py` (host console messages and REST payloads).
 
 ## Legal & branding safeguards
 

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject var state: AppState
+    @EnvironmentObject var host: HostState
     @State private var serverText = ""
     @State private var serverError: String?
     @State private var confirmDelete = false
@@ -69,6 +70,18 @@ struct SettingsView: View {
                     Text("How scoring works")
                 } footer: {
                     Text("Directions are as the QB looks downfield. Distance is total yards gained on the play: Short 0–5 yds (an incomplete pass is 0), Medium 6–10, Long 11+. A loss of yards scores no distance points, and so no bonus.")
+                }
+
+                Section {
+                    Button {
+                        host.present()
+                    } label: {
+                        Label("Open the host console", systemImage: "wrench.and.screwdriver.fill")
+                    }
+                } header: {
+                    Text("Running the game?")
+                } footer: {
+                    Text("For whoever opens and scores the plays. You need the admin key from the person who set up the game. Players don't need this.")
                 }
 
                 if let server = state.server {

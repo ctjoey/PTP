@@ -1,13 +1,31 @@
 import Foundation
 
+/// What `HostState` needs from the admin channel. The phone uses `AdminConnection`; the Linux end-to-end test
+/// substitutes a stand-in that carries the same bytes (Linux's networking can't do WebSockets).
+@MainActor
+protocol AdminLink: AnyObject {
+    var onMessage: ((AdminServerMessage) -> Void)? { get set }
+    var onStatus: ((AdminConnection.Status) -> Void)? { get set }
+    var onRejected: (() -> Void)? { get set }
+    var status: AdminConnection.Status { get }
+    func start(url: URL, key: String)
+    func stop()
+    @discardableResult func send(_ object: [String: Any]) -> Bool
+}
+
 /// The host console's `/ws/admin` channel. Same shape as `LiveConnection`: sends `auth` on every (re)connect,
 /// decodes server messages, pings every 25 s and reconnects with backoff. A key the server refuses (close code
 /// 4401) ends the connection for good, since retrying can't help.
 @MainActor
-final class AdminConnection {
+final class AdminConnection: AdminLink {
     enum Status: Equatable {
         case offline, connecting, online
     }
+
+    static let pingMessage: [String: Any] = ["type": "ping"]
+
+    /// The first message on every connection.
+    static func authMessage(key: String) -> [String: Any] { ["type": "auth", "key": key] }
 
     var onMessage: ((AdminServerMessage) -> Void)?
     var onStatus: ((Status) -> Void)?
@@ -71,7 +89,7 @@ final class AdminConnection {
 
         Task { [weak self] in
             do {
-                let data = try JSONSerialization.data(withJSONObject: ["type": "auth", "key": key])
+                let data = try JSONSerialization.data(withJSONObject: AdminConnection.authMessage(key: key))
                 try await task.send(.string(String(decoding: data, as: UTF8.self)))
                 guard let self, gen == self.generation else { return }
                 self.retry = 0
@@ -134,7 +152,7 @@ final class AdminConnection {
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 25_000_000_000)
                 guard !Task.isCancelled, let self, gen == self.generation else { return }
-                self.send(["type": "ping"])
+                self.send(AdminConnection.pingMessage)
             }
         }
     }
