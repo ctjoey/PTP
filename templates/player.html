@@ -43,6 +43,7 @@
       <div class="big-icon" aria-hidden="true">🏟️</div>
       <h2 class="view-title">No game on right now</h2>
       <p class="view-text">Keep this page open. When the admin starts a game, it shows up here instantly.</p>
+      <button class="btn btn-primary" type="button" data-practice-open>Try a practice round</button>
     </div>
 
     <div class="view view-center" data-view="waiting" hidden>
@@ -144,6 +145,8 @@
     <button class="link-btn" type="button" id="change-name">Change name</button>
   </p>
 
+  <button class="btn btn-block" type="button" id="practice-btn" data-practice-open>Practice mode</button>
+
   <section class="card">
     <div class="tabs" id="board-tabs" role="tablist" hidden>
       <button class="tab" type="button" role="tab" data-board="global">Live Game</button>
@@ -184,7 +187,97 @@
     </div>
     <p class="form-error" id="signin-error"></p>
     <button class="btn btn-primary btn-block" type="submit" id="signin-submit">Let's Play</button>
+    <button class="btn btn-block btn-ghost" type="button" data-practice-open style="margin-top:10px">Just practice first</button>
   </form>
+</div>
+
+<!-- Practice round: simulated plays with the live timer and scoring. Nothing is sent to the server. -->
+<div class="modal-backdrop" id="practice-modal" hidden>
+  <div class="modal practice" role="dialog" aria-modal="true" aria-labelledby="practice-title">
+    <div class="modal-head">
+      <h2 id="practice-title">Practice</h2>
+      <button class="btn btn-sm" type="button" id="practice-done">Done</button>
+    </div>
+
+    <section class="me-stats" aria-label="Practice score">
+      <div class="stat"><div class="stat-label">Practice pts</div><div class="stat-value" id="p-score">0</div></div>
+      <div class="stat"><div class="stat-label">Plays</div><div class="stat-value" id="p-played">0</div></div>
+      <div class="stat"><div class="stat-label">Perfect</div><div class="stat-value" id="p-perfect">0</div></div>
+    </section>
+
+    <section class="card stage" aria-live="polite">
+      <div class="view" data-p-view="open">
+        <div class="open-head">
+          <div>
+            <div class="view-kicker" id="p-open-kicker"></div>
+            <h2 class="view-title">Call the play!</h2>
+          </div>
+          <div class="countdown" id="p-countdown" role="timer" aria-live="off">
+            <svg viewBox="0 0 84 84" aria-hidden="true">
+              <circle class="ring-bg" cx="42" cy="42" r="36" fill="none" stroke-width="8"/>
+              <circle class="ring-fg" id="p-ring" cx="42" cy="42" r="36" fill="none" stroke-width="8"/>
+            </svg>
+            <div class="countdown-num" id="p-countdown-num">15</div>
+          </div>
+        </div>
+        <div class="pick-group" role="group" aria-labelledby="p-lbl-type">
+          <div class="pick-label" id="p-lbl-type">Run or pass?</div>
+          <div class="pick-grid two">
+            <button class="pick-btn" type="button" data-p-type="RUN" aria-pressed="false">RUN<small>On the ground</small></button>
+            <button class="pick-btn" type="button" data-p-type="PASS" aria-pressed="false">PASS<small>Through the air</small></button>
+          </div>
+        </div>
+        <div class="pick-group" role="group" aria-labelledby="p-lbl-dir">
+          <div class="pick-label pick-label-row"><span id="p-lbl-dir">Which direction?</span> <span class="qb-hint">As the QB looks downfield</span></div>
+          <div class="pick-grid three">
+            <button class="pick-btn" type="button" data-p-dir="LEFT" aria-pressed="false">LEFT<small>◀</small></button>
+            <button class="pick-btn" type="button" data-p-dir="MIDDLE" aria-pressed="false">MIDDLE<small>▲</small></button>
+            <button class="pick-btn" type="button" data-p-dir="RIGHT" aria-pressed="false">RIGHT<small>▶</small></button>
+          </div>
+        </div>
+        <div class="pick-group" role="group" aria-labelledby="p-lbl-yard">
+          <div class="pick-label" id="p-lbl-yard">How far?</div>
+          <div class="pick-grid three">
+            <button class="pick-btn" type="button" data-p-yard="SHORT" aria-pressed="false">SHORT<small>0-5 yds</small></button>
+            <button class="pick-btn" type="button" data-p-yard="MEDIUM" aria-pressed="false">MEDIUM<small>6-10 yds</small></button>
+            <button class="pick-btn" type="button" data-p-yard="LONG" aria-pressed="false">LONG<small>11+ yds</small></button>
+          </div>
+        </div>
+        <div class="pick-status" id="p-pick-status">Make your call: type, direction, distance</div>
+        <button class="btn btn-primary btn-block" type="button" id="p-snap" disabled>Pick all three, then snap</button>
+        <div class="points-hint">
+          <span class="chip">Type +10</span><span class="chip">Direction +10</span><span class="chip">Distance +10</span><span class="chip gold" title="10 more for all three right: a perfect call is 40">Bonus +10</span>
+        </div>
+      </div>
+
+      <div class="view view-center" data-p-view="locked" hidden>
+        <div class="lock-badge" aria-hidden="true">
+          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+        </div>
+        <div class="view-kicker" id="p-locked-kicker"></div>
+        <h2 class="view-title">Predictions Locked — Play in Progress</h2>
+        <div class="progress-stripes" aria-hidden="true"></div>
+        <div class="your-pick" id="p-locked-pick"></div>
+      </div>
+
+      <div class="view view-center" data-p-view="result" hidden>
+        <div class="view-kicker" id="p-result-kicker"></div>
+        <div class="reveal" id="p-reveal" role="img">
+          <div class="reveal-tile"><div class="lbl">PLAY TYPE</div><div class="val" id="p-reveal-type"></div></div>
+          <div class="reveal-tile"><div class="lbl">DIRECTION</div><div class="val" id="p-reveal-dir"></div></div>
+          <div class="reveal-tile" id="p-reveal-yard-tile"><div class="lbl">DISTANCE</div><div class="val" id="p-reveal-yard"></div><div class="sub" id="p-reveal-yards"></div></div>
+        </div>
+        <div class="points" id="p-points"></div>
+        <div class="points-label" id="p-label"></div>
+        <div class="your-pick" id="p-result-pick"></div>
+        <button class="btn btn-primary btn-block" type="button" id="p-next">Next play</button>
+      </div>
+
+      <div class="confetti" id="p-confetti" aria-hidden="true"></div>
+    </section>
+
+    <p class="practice-note">Practice plays are simulated and don't count toward the live leaderboard.</p>
+  </div>
 </div>
 
 <!-- Head-to-head lounges -->
@@ -231,4 +324,5 @@
   </div>
 </div>
 {% endblock %}
-{% block scripts %}<script src="/static/js/player.js?v={{ v }}"></script>{% endblock %}
+{% block scripts %}<script src="/static/js/player.js?v={{ v }}"></script>
+<script src="/static/js/practice.js?v={{ v }}"></script>{% endblock %}

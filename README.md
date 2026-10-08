@@ -10,7 +10,7 @@ The MVP is a single Python FastAPI server with three web surfaces, synchronised 
 
 | Surface | URL | Who |
 | --- | --- | --- |
-| **Live Player App** | `/` | Fans. Mobile-first, dark by default with a light/dark toggle (the sun/moon button in every page header), installable to the iPhone home screen. |
+| **Live Player App** | `/` | Fans. Mobile-first, dark by default with a light/dark toggle (the sun/moon button in every page header), installable to the iPhone home screen. **Practice mode** (the button under the scores, on the "no game" card and on the welcome screen) plays simulated plays with the live timer and scoring, so anyone can try it with no game on and without signing in. Nothing is sent to the server. |
 | **Head-to-Head Lounges** | `/lounge/<4-digit code>` | Friends playing each other with a private leaderboard. |
 | **Admin Console** | `/admin` | The operator watching the game and driving each play, by hand or with [live data](#live-data-tank01). |
 | **Rules of the Game** | `/rules` | Everyone: how it works, the points, and what Left / Middle / Right mean. |
