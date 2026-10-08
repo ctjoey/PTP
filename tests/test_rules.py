@@ -473,7 +473,7 @@ RULES_SENTENCES = (
     "Before each snap the host opens the play. You have a short window (usually 15 seconds; the countdown is on "
     "screen) to make three calls: Run or Pass, Left, Middle or Right, and Short, Medium or Long.",
     "You can change your pick until it locks at the snap or when the countdown ends.",
-    "After the play, the host enters the official result and points land instantly.",
+    "After the play, the official result is read from the live play-by-play data and scored automatically. The host checks it and can correct it, and points land within seconds.",
     "Only scrimmage plays are called. Kickoffs, punts, field goals, extra points and kneel-downs are skipped. "
     "A play wiped out by a penalty (no play) is voided and nobody scores.",
     "Play for the live leaderboard, or head-to-head with friends in a private lounge.",
