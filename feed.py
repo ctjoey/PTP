@@ -439,7 +439,7 @@ class LiveFeed:
         self.next_down: dict[str, Any] | None = None
         self.auto_open_at: float | None = None
         self.last_scored: dict[str, Any] | None = None
-        self._feed_clock: tuple[str, float] | None = None   # the game clock the feed showed at its last check, and when
+        self._feed_clock: tuple[str, str, float] | None = None   # newest play's clock, live clock, and when it was read
         self._app_clock: str | None = None                  # the clock of the play the app is matched to
         self.lags: list[float] = []
         self._seen_at: dict[int, float] = {}
@@ -902,22 +902,30 @@ class LiveFeed:
 
     # -- matching ---------------------------------------------------------- #
 
+    @staticmethod
+    def _period_label(period: Any) -> str:
+        """"3rd" -> "Q3" (the plays say "Q3"), so the box score and the plays read the same."""
+        text = " ".join(str(period or "").split())
+        return {"1st": "Q1", "2nd": "Q2", "3rd": "Q3", "4th": "Q4", "1": "Q1", "2": "Q2", "3": "Q3", "4": "Q4"}.get(
+            text.lower(), text)
+
     def _note_clock(self, body: dict[str, Any], now: float) -> None:
-        """Remember what game time the feed is at, for the host to hold against the TV."""
-        live = " ".join(f"{body.get('currentPeriod') or ''} {body.get('gameClock') or ''}".split()) \
+        """Remember what game time the feed is at, for the host to hold against the TV: the clock of the newest play
+        (the same kind of time as the one the app is on) and the live clock of the box score."""
+        live = " ".join(f"{self._period_label(body.get('currentPeriod'))} {body.get('gameClock') or ''}".split()) \
             if body.get("gameClock") else ""
         newest = self._newest_play_index(0)
-        label = live or (classify(self.entries[newest]).clock if newest is not None else "")
-        if label:
-            self._feed_clock = (label, now)
+        label = classify(self.entries[newest]).clock if newest is not None else ""
+        if label or live:
+            self._feed_clock = (label or live, live, now)
 
     def _clock_view(self) -> dict[str, Any]:
         """Where the feed is in the game, where the app is, and how many plays the feed has beyond the app."""
         start = self.suggestion.entry_index + 1 if self.suggestion else self.cursor
         behind = sum(1 for e in self.entries[start:] if classify(e).kind != "skip")
         feed = self._feed_clock
-        return {"feed": feed[0] if feed else None, "feed_at": feed[1] if feed else None,
-                "app": self._app_clock, "behind": behind}
+        return {"feed": feed[0] if feed else None, "live": (feed[1] or None) if feed else None,
+                "feed_at": feed[2] if feed else None, "app": self._app_clock, "behind": behind}
 
     def _newest_play_index(self, start: int) -> int | None:
         """The index of the newest entry from ``start`` on that is not a skip (None if there is none)."""

@@ -521,3 +521,18 @@ def test_the_game_clock_the_feed_is_at_and_where_the_app_is(tmp_path):
         assert c["app"] == c["feed"] and c["behind"] == 0
 
     run_rig(tmp_path, scenario)
+
+
+def test_the_box_score_clock_reads_like_the_plays_clock(tmp_path):
+    async def scenario(rig: Rig):
+        from feed import LiveFeed
+
+        assert [LiveFeed._period_label(p) for p in ("3rd", "Q3", "2", "4th", "OT", None)] == ["Q3", "Q3", "Q2", "Q4", "OT", ""]
+        await new_game_midway(rig, 1)
+        await lock_entry(rig, FIRST_PASS)
+        await show_and_wait(rig, 4)
+        rig.feed._note_clock({"currentPeriod": "3rd", "gameClock": "10:43"}, rig.clock())
+        c = rig.state()["clock"]
+        assert c["live"] == "Q3 10:43" and c["feed"] == "Q1 13:16"       # live clock beside the newest play's clock
+
+    run_rig(tmp_path, scenario)

@@ -151,7 +151,7 @@ const PTPFeed = (() => {
         S.live.panel = liveKey;
       }
 
-      renderClock(feed);
+      renderClock(st, feed);
       const linked = !!feed.linked;
       const b = busy();
       const pause = $("#feed-pause");
@@ -451,7 +451,7 @@ const PTPFeed = (() => {
     // ------------------------------------------------------------------ game clock
 
     /** The feed's game clock and the play the app is on, to hold against the TV. Updates with every check. */
-    function renderClock(feed) {
+    function renderClock(st, feed) {
       const c = feed.clock;
       const box = $("#game-clock");
       const show = !!(feed.linked && c && (c.feed || c.app));
@@ -461,10 +461,13 @@ const PTPFeed = (() => {
       setText($("#gc-app"), c.app || "-");
       const behind = c.behind || 0;
       const node = $("#gc-behind");
+      const locked = st.play && st.play.state === "LOCKED" && !st.play.voided && !feed.suggestion ? st.play : null;
       setText(node, behind > 0
         ? `${behind} ${behind === 1 ? "play" : "plays"} ahead of the app: press Check now to catch up`
-        : "In step with the feed");
-      node.classList.toggle("late", behind > 0);
+        : locked ? `Play ${locked.play_number} is waiting for the feed to publish it. Nothing newer yet, so Check now cannot help.`
+          : "In step with the feed");
+      node.classList.toggle("late", behind > 0 || !!locked);
+      setText($("#gc-live"), c.live ? `Live clock ${c.live}` : "");
       clockAge(feed);
     }
 
