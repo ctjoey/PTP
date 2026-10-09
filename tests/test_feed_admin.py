@@ -291,7 +291,7 @@ def test_the_background_loop_polls_the_fake_tank01_and_scores(tmp_path, fake):
 # --------------------------------------------------------------------------- #
 
 PLAYER_GAME_KEYS = {"id", "home_name", "home_primary", "home_secondary", "away_name", "away_primary", "away_secondary",
-                    "status", "created_at"}
+                    "status", "created_at", "home_score", "away_score", "score_at"}   # the score is shown to everyone
 PLAYER_PLAY_KEYS = {"id", "game_id", "play_number", "down", "distance", "state", "voided", "opened_at", "locks_at",
                     "correct_play_type", "correct_direction", "correct_yardage", "yards_gained"}
 PLAYER_MESSAGE_KEYS = {"type", "event", "server_time", "game", "play", "my_prediction", "me", "leaderboard",

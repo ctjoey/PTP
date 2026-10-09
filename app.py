@@ -650,6 +650,14 @@ class GameController:
 
     # -- snapshots -------------------------------------------------------- #
 
+    def _with_score(self, game: dict[str, Any] | None) -> dict[str, Any] | None:
+        """The game plus the live score the feed last read (``None`` values when there is none)."""
+        if not game:
+            return game
+        score = self.feed.score if self.feed.linked else None
+        return {**game, "home_score": score["home"] if score else None, "away_score": score["away"] if score else None,
+                "score_at": score["at"] if score else None}
+
     def _snapshot(self, user_ids: list[int]) -> _Snapshot:
         game = self.store.current_game()
         play = self.store.latest_play(game["id"]) if game else None
@@ -658,7 +666,7 @@ class GameController:
         if play and play["state"] != PlayState.OPEN:  # never reveal the split while picking
             crowd = self.store.pick_stats(play["id"])
         return _Snapshot(
-            game=public_game(game),
+            game=self._with_score(public_game(game)),
             play=play,
             leaderboard=leaderboard,
             by_user={r["user_id"]: r for r in leaderboard},
@@ -727,7 +735,7 @@ class GameController:
             "type": "admin_state",
             "event": event,
             "server_time": time.time(),
-            "game": game,
+            "game": self._with_score(game),
             "play": public_play(play),
             "pick_stats": self.store.pick_stats(play["id"]) if play else None,
             "players_online": signed_in,

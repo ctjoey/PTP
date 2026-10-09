@@ -536,3 +536,18 @@ def test_the_box_score_clock_reads_like_the_plays_clock(tmp_path):
         assert c["live"] == "Q3 10:43" and c["feed"] == "Q1 13:16"       # live clock beside the newest play's clock
 
     run_rig(tmp_path, scenario)
+
+
+def test_the_live_score_rides_along_with_the_game_for_players_and_the_host(tmp_path):
+    async def scenario(rig: Rig):
+        await new_game_midway(rig, 1)
+        assert rig.ctrl.admin_message("x")["game"]["home_score"] is None          # nothing read yet
+        await lock_entry(rig, FIRST_PASS)
+        await show_and_wait(rig, FIRST_PASS)
+        host = rig.ctrl.admin_message("x")["game"]
+        player = rig.ctrl._snapshot([]).game
+        for game in (host, player):
+            assert (game["home_score"], game["away_score"]) == (40, 7) and game["score_at"] <= rig.clock()
+        assert "feed_game_id" not in player                                       # live-data settings stay the host's
+
+    run_rig(tmp_path, scenario)

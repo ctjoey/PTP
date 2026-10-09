@@ -439,6 +439,7 @@ class LiveFeed:
         self.next_down: dict[str, Any] | None = None
         self.auto_open_at: float | None = None
         self.last_scored: dict[str, Any] | None = None
+        self._score: dict[str, Any] | None = None           # {"home": 21, "away": 17, "at": when the feed said so}
         self._feed_clock: tuple[str, str, float] | None = None   # newest play's clock, live clock, and when it was read
         self._app_clock: str | None = None                  # the clock of the play the app is matched to
         self.lags: list[float] = []
@@ -918,6 +919,17 @@ class LiveFeed:
         label = classify(self.entries[newest]).clock if newest is not None else ""
         if label or live:
             self._feed_clock = (label or live, live, now)
+        if self.source == "tank01":   # the recorded practice game would show its final score from the first play
+            try:
+                self._score = {"home": int(str(body.get("homePts")).strip()), "away": int(str(body.get("awayPts")).strip()),
+                               "at": now}
+            except (TypeError, ValueError):
+                pass
+
+    @property
+    def score(self) -> dict[str, Any] | None:
+        """The score as of the feed's last check (None until it has one): shown beside the team names."""
+        return self._score
 
     def _clock_view(self) -> dict[str, Any]:
         """Where the feed is in the game, where the app is, and how many plays the feed has beyond the app."""
