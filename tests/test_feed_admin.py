@@ -16,7 +16,7 @@ HEADERS = {"X-Admin-Key": ADMIN_KEY}
 FAST = dict(tank01_first_delay=0.05, tank01_fast_interval=0.05, tank01_auto_score_grace=0.15, tank01_open_delay=0.1,
             tank01_demo_lag=0.05)
 FEED_KEYS = {"available", "linked", "source", "game_id", "state", "message", "paused", "auto_score", "auto_open",
-             "requests", "lag", "waiting", "suggestion", "disagreement", "next_down", "auto_open_at"}
+             "requests", "lag", "waiting", "suggestion", "disagreement", "next_down", "auto_open_at", "clock"}
 
 
 @pytest.fixture

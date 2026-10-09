@@ -151,6 +151,7 @@ const PTPFeed = (() => {
         S.live.panel = liveKey;
       }
 
+      renderClock(feed);
       const linked = !!feed.linked;
       const b = busy();
       const pause = $("#feed-pause");
@@ -447,6 +448,33 @@ const PTPFeed = (() => {
       $("#fs-fix").hidden = !info.fixable;
     }
 
+    // ------------------------------------------------------------------ game clock
+
+    /** The feed's game clock and the play the app is on, to hold against the TV. Updates with every check. */
+    function renderClock(feed) {
+      const c = feed.clock;
+      const box = $("#game-clock");
+      const show = !!(feed.linked && c && (c.feed || c.app));
+      box.hidden = !show;
+      if (!show) return;
+      setText($("#gc-feed"), c.feed || "-");
+      setText($("#gc-app"), c.app || "-");
+      const behind = c.behind || 0;
+      const node = $("#gc-behind");
+      setText(node, behind > 0
+        ? `${behind} ${behind === 1 ? "play" : "plays"} ahead of the app: press Check now to catch up`
+        : "In step with the feed");
+      node.classList.toggle("late", behind > 0);
+      clockAge(feed);
+    }
+
+    function clockAge(feed) {
+      const c = feed && feed.clock;
+      if (!c || typeof c.feed_at !== "number") { setText($("#gc-age"), ""); return; }
+      const age = Math.max(0, Math.round(now() - c.feed_at));
+      setText($("#gc-age"), age < 90 ? `as of ${age} s ago` : `as of ${Math.round(age / 60)} min ago (it only checks while a play is locked)`);
+    }
+
     // ------------------------------------------------------------------ next play prefill
 
     /** Fill Down and To go from the feed's next_down until the host edits them. */
@@ -483,6 +511,7 @@ const PTPFeed = (() => {
       const feed = st && st.feed;
       if (!feed || !st.game || $("#feed-panel").hidden) return;
       const t = now();
+      clockAge(feed);
       const sg = feed.suggestion;
       if (sg && typeof sg.auto_at === "number" && (sg.status === "ready" || sg.status === "void")) {
         const rem = sg.auto_at - t;

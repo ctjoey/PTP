@@ -506,3 +506,18 @@ def test_the_recorder_keeps_the_last_5000_rows_per_game(tmp_path):
     assert rows[-1]["data"]["i"] == models.FEED_LOG_KEEP + 249 and rows[0]["data"]["i"] >= 100
     assert len(store.feed_log(None)) == 1
     store.close()
+
+
+def test_the_game_clock_the_feed_is_at_and_where_the_app_is(tmp_path):
+    async def scenario(rig: Rig):
+        await new_game_midway(rig, 1)
+        await lock_entry(rig, FIRST_PASS)
+        await show_and_wait(rig, 4)                            # four plays are in the feed, the app is on the first
+        c = rig.state()["clock"]
+        assert c["app"] == "Q1 14:55" and c["feed"] == "Q1 13:16" and c["behind"] == 3
+        assert c["feed_at"] <= rig.clock()
+        await rig.ctrl.feed.check_now()                        # catch up: the newest play, nothing beyond it
+        c = rig.state()["clock"]
+        assert c["app"] == c["feed"] and c["behind"] == 0
+
+    run_rig(tmp_path, scenario)

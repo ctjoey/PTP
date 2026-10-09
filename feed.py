@@ -439,6 +439,8 @@ class LiveFeed:
         self.next_down: dict[str, Any] | None = None
         self.auto_open_at: float | None = None
         self.last_scored: dict[str, Any] | None = None
+        self._feed_clock: tuple[str, float] | None = None   # the game clock the feed showed at its last check, and when
+        self._app_clock: str | None = None                  # the clock of the play the app is matched to
         self.lags: list[float] = []
         self._seen_at: dict[int, float] = {}
         self._texts: list[str] = []
@@ -739,6 +741,7 @@ class LiveFeed:
             self._fail_streak, self._auth_error, self._not_started = 0, False, None
             self._quota_hit = False
             self._ingest(entries or [], body, now)
+            self._note_clock(body, now)
             if not self._baselined:   # still no plays at all: whatever is locked now was locked before the game began
                 self._mark_waited_for_start()
             self._consume(catch_up=manual)
@@ -877,6 +880,9 @@ class LiveFeed:
                                    "first_play": first.play_id})
             return
         self.cursor = len(entries)
+        newest = self._newest_play_index(0)
+        if newest is not None:
+            self._app_clock = classify(self.entries[newest]).clock or self._app_clock
         unmatched = [p.play_id for p in self.pending if not p.resolved]
         for p in self.pending:
             p.resolved, p.resolved_at = True, now
@@ -895,6 +901,23 @@ class LiveFeed:
             self._persist_cursor()
 
     # -- matching ---------------------------------------------------------- #
+
+    def _note_clock(self, body: dict[str, Any], now: float) -> None:
+        """Remember what game time the feed is at, for the host to hold against the TV."""
+        live = " ".join(f"{body.get('currentPeriod') or ''} {body.get('gameClock') or ''}".split()) \
+            if body.get("gameClock") else ""
+        newest = self._newest_play_index(0)
+        label = live or (classify(self.entries[newest]).clock if newest is not None else "")
+        if label:
+            self._feed_clock = (label, now)
+
+    def _clock_view(self) -> dict[str, Any]:
+        """Where the feed is in the game, where the app is, and how many plays the feed has beyond the app."""
+        start = self.suggestion.entry_index + 1 if self.suggestion else self.cursor
+        behind = sum(1 for e in self.entries[start:] if classify(e).kind != "skip")
+        feed = self._feed_clock
+        return {"feed": feed[0] if feed else None, "feed_at": feed[1] if feed else None,
+                "app": self._app_clock, "behind": behind}
 
     def _newest_play_index(self, start: int) -> int | None:
         """The index of the newest entry from ``start`` on that is not a skip (None if there is none)."""
@@ -931,6 +954,7 @@ class LiveFeed:
                 if self._belongs_to_open_play(idx):
                     break   # the host's open play has just happened: its entry waits for the lock, it is not an orphan
                 self._log("orphan", {"text": parsed.text[:200], "kind": parsed.kind}, feed_index=idx)
+                self._app_clock = parsed.clock or self._app_clock
                 if parsed.kind == "play":
                     newest_orphan = (entry, parsed)
                 self.cursor += 1
@@ -1018,6 +1042,7 @@ class LiveFeed:
     def _verify(self, p: Pending, idx: int, entry: dict[str, Any], parsed: Parsed) -> None:
         """The host scored this play before the feed showed it: compare, and tell the host if they differ."""
         scored = p.scored
+        self._app_clock = parsed.clock or self._app_clock
         feed = (parsed.play_type, parsed.direction, parsed.yardage)
         agree = scored == feed if parsed.kind == "play" else None
         self._log("verify", {"agree": agree, "kind": parsed.kind, "scored": scored, "feed": feed}, play_id=p.play_id,
@@ -1052,6 +1077,7 @@ class LiveFeed:
             status, warning = "review", warning or self._distrust
             self._distrust = None
         sug = Suggestion(p.play_id, idx, entry, parsed, status, warning, None, flags)
+        self._app_clock = parsed.clock or self._app_clock
         self.suggestion = sug
         self._notice = None
         self._log("bind", {"lag": round(lag, 1), "kind": parsed.kind}, play_id=p.play_id, feed_index=idx)
@@ -1472,6 +1498,7 @@ class LiveFeed:
             "next_down": self.next_down,
             "auto_open_at": self.auto_open_at,
             "last_scored": self.last_scored,
+            "clock": self._clock_view(),
         }
 
     def _suggestion_view(self) -> dict[str, Any]:

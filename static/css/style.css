@@ -700,6 +700,12 @@ a { color: var(--blue); }
 .state-badge.OPEN { background: color-mix(in srgb, var(--accent) 20%, transparent); color: var(--accent); }
 .state-badge.LOCKED { background: color-mix(in srgb, var(--warn) 20%, transparent); color: var(--warn); }
 .state-badge.RESOLVED { background: color-mix(in srgb, var(--blue) 14%, transparent); color: var(--blue); }
+.game-clock { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: center; gap: 6px 22px; margin: 0 0 12px; padding: 8px 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-3); }
+.game-clock[hidden] { display: none; }
+.gc-label { font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.gc-item b { font-size: 20px; font-variant-numeric: tabular-nums; }
+.gc-behind { font-weight: 800; }
+.gc-behind.late { color: var(--gold); }
 .ctrl-hint { margin: 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-3); line-height: 1.4; }
 .ctrl-timer { font-size: 34px; font-weight: 900; font-variant-numeric: tabular-nums; }
 .ctrl-section { display: flex; flex-direction: column; gap: 10px; padding-top: 14px; margin-top: 14px; border-top: 1px solid var(--border); }
