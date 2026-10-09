@@ -136,6 +136,65 @@ struct Game: Codable, Equatable {
     var awayPrimary: String
     var awaySecondary: String
     var status: GameStatus
+    /// The live score as of the server's last live-data check (`scoreAt`): nil until it has made one, and always
+    /// nil in practice. It can trail the TV by about a minute, so it is shown quietly, as a number beside the team.
+    var homeScore: Int?
+    var awayScore: Int?
+    /// Server clock seconds (epoch) of the check the score came from.
+    var scoreAt: Double?
+
+    enum CodingKeys: String, CodingKey {
+        case id, homeName, homePrimary, homeSecondary, awayName, awayPrimary, awaySecondary, status
+        case homeScore, awayScore, scoreAt
+    }
+}
+
+extension Game {
+    /// The most a team's score can plausibly be; anything beyond it is a bad value, not a score.
+    static let scoreRange = 0...999
+
+    // In an extension so the memberwise initializer stays available (the score fields default to nil).
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(Int.self, forKey: .id)
+        homeName = try c.decode(String.self, forKey: .homeName)
+        homePrimary = try c.decode(String.self, forKey: .homePrimary)
+        homeSecondary = try c.decode(String.self, forKey: .homeSecondary)
+        awayName = try c.decode(String.self, forKey: .awayName)
+        awayPrimary = try c.decode(String.self, forKey: .awayPrimary)
+        awaySecondary = try c.decode(String.self, forKey: .awaySecondary)
+        status = try c.decode(GameStatus.self, forKey: .status)
+        // The score is a nicety: a missing, null, text or out-of-range value reads as "no score yet", never as an error.
+        homeScore = Game.lenientScore(c, .homeScore)
+        awayScore = Game.lenientScore(c, .awayScore)
+        let at = try? c.decodeIfPresent(Double.self, forKey: .scoreAt)
+        scoreAt = at.flatMap { $0.isFinite && $0 > 0 ? $0 : nil }
+    }
+
+    private static func lenientScore(_ c: KeyedDecodingContainer<CodingKeys>, _ key: CodingKeys) -> Int? {
+        if let whole = try? c.decodeIfPresent(Int.self, forKey: key) {
+            return scoreRange.contains(whole) ? whole : nil
+        }
+        // 21.0, from a JSON writer that always prints a decimal point.
+        if let number = try? c.decodeIfPresent(Double.self, forKey: key), number.rounded() == number, abs(number) < 10_000 {
+            return scoreRange.contains(Int(number)) ? Int(number) : nil
+        }
+        return nil
+    }
+
+    /// Both teams' scores, or nil when there is no score to show (one team's number alone would mislead).
+    var liveScore: (home: Int, away: Int)? {
+        guard let homeScore, let awayScore, Game.scoreRange.contains(homeScore), Game.scoreRange.contains(awayScore) else {
+            return nil
+        }
+        return (homeScore, awayScore)
+    }
+
+    /// Whole seconds since the score was read, for the host console's "as of 40 s ago"; nil without a score or a time.
+    func scoreAge(now: Double) -> Int? {
+        guard liveScore != nil, let scoreAt, scoreAt.isFinite, now.isFinite else { return nil }
+        return Int(max(0, min(now - scoreAt, 86_400)).rounded())
+    }
 }
 
 struct Play: Codable, Equatable {
@@ -241,7 +300,7 @@ struct BoardRow: Codable, Equatable, Identifiable {
     var id: Int { userId }
 }
 
-/// How everyone picked a locked or resolved play. `exact` = all three right, `scored` = any points.
+/// How everyone picked a locked or resolved play. `exact` = all three picked correctly, `scored` = any points.
 struct Crowd: Codable, Equatable {
     var total: Int
     var run: Int
@@ -305,8 +364,8 @@ extension Crowd {
     }
 }
 
-/// Points per correct part, plus the bonus for getting all three. `exact` is the total for all three
-/// right ("perfect call"; the name stays for wire compatibility): 10 + 10 + 10 + 10 bonus = 40.
+/// Points per correct part, plus the bonus for picking all three correctly. `exact` is the total for all three
+/// right (a "perfect call"; the name stays for wire compatibility): 10 + 10 + 10 + 10 bonus = 40.
 struct Scoring: Codable, Equatable {
     var type: Int
     var direction: Int
@@ -342,6 +401,38 @@ struct Scoring: Codable, Equatable {
 
     /// The three parts without the bonus (30).
     var allParts: Int { type + direction + yardage }
+}
+
+/// One line of the points table.
+struct PointsRow: Equatable {
+    var title: String
+    /// The choices that count, e.g. "Run / Pass".
+    var detail: String?
+    var points: Int
+    /// The bonus line (drawn in gold).
+    var isBonus = false
+}
+
+extension Scoring {
+    /// The points table above the "Perfect call" line, in the words players see: the welcome screen, the Rules tab
+    /// and Settings all draw it from here, so they can't drift apart.
+    var rows: [PointsRow] {
+        [PointsRow(title: "Pick correct play", detail: "Run / Pass", points: type),
+         PointsRow(title: "Pick correct direction", detail: "Left / Middle / Right", points: direction),
+         PointsRow(title: "Pick correct distance", detail: "Short / Medium / Long", points: yardage),
+         PointsRow(title: "Pick all 3 correctly", detail: nil, points: bonus, isBonus: true)]
+    }
+
+    /// Under the pick panel: "Pick all 3 correctly: +10 bonus = 40". A server from before the bonus (bonus 0) gets
+    /// the plain "Pick all 3 correctly = 30".
+    var bonusLine: String {
+        bonus > 0 ? "Pick all 3 correctly: +\(bonus) bonus = \(exact)" : "Pick all 3 correctly = \(exact)"
+    }
+
+    /// VoiceOver: the bonus line without the symbols.
+    var bonusSpoken: String {
+        bonus > 0 ? "Pick all 3 correctly adds a \(bonus) point bonus, \(exact) in all" : "Pick all 3 correctly scores \(exact) points"
+    }
 }
 
 /// A lounge as returned by the REST API (no leaderboard) or inside a state snapshot (with one).

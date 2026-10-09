@@ -53,6 +53,25 @@ extension AdminState {
 
     /// The scored play whose result can be fixed from the "scored by the feed" line.
     var latestHistory: HistoryPlay? { history.first }
+
+    /// Live data is linked to this game and a play is locked: the feed it belongs to, nil otherwise.
+    private var feedOfLockedPlay: FeedState? {
+        guard play?.state == .locked, let feed, feed.linked else { return nil }
+        return feed
+    }
+
+    /// The locked play is one that live data is following: it has a suggestion for it, or it is waiting to check again.
+    var feedIsWatchingLockedPlay: Bool {
+        guard let feed = feedOfLockedPlay else { return false }
+        return feed.suggestion != nil || feed.waiting?.nextCheckAt != nil
+    }
+
+    /// The locked play is the host's to score: live data is linked but idle, with nothing waiting and nothing
+    /// suggested (it joined late and can't tell which play this one was). The website's console uses the same test.
+    var lockedPlayIsLeftToHost: Bool {
+        guard let feed = feedOfLockedPlay else { return false }
+        return feed.state == "idle" && feed.waiting == nil && feed.suggestion == nil
+    }
 }
 
 // MARK: - The result of a play
@@ -204,6 +223,7 @@ extension FeedSuggestion {
     func note(missing: [Part], paused: Bool) -> String? {
         switch status {
         case .review:
+            if isVoid { return HostText.reviewVoidNote }
             if missing.isEmpty { return "An unusual play, so it won't score by itself. Check it, then tap Score." }
             let names = missing.map(\.label)
             let list = names.count == 1 ? names[0] : names.dropLast().joined(separator: ", ") + " and " + names[names.count - 1]
@@ -270,6 +290,52 @@ struct DownDraft: Equatable {
     }
 }
 
+// MARK: - The timer for the next play
+
+/// The Timer (s) box next to Down and To go: how long players have to pick. Same limits as the server (and the
+/// website): 5 to 60 seconds, 15 unless the host changes it.
+struct TimerDraft: Equatable {
+    static let range = 5...60
+    static let standard = 15
+    /// The longest thing worth typing ("60" is two characters; the rest is room for typos).
+    static let longestText = 3
+
+    private(set) var text = String(TimerDraft.standard)
+
+    /// The box as typed: digits only, a few characters.
+    mutating func type(_ value: String) {
+        text = String(value.filter(\.isASCIIDigit).prefix(Self.longestText))
+    }
+
+    /// The typed number, nil when the box is empty.
+    var typed: Int? {
+        let digits = text.trimmingCharacters(in: .whitespaces)
+        return digits.isEmpty ? nil : (Int(digits) ?? Self.range.upperBound)
+    }
+
+    /// What is sent: the typed number held inside 5...60, or 15 when the box is empty.
+    var seconds: Int { typed.map(Self.clamp) ?? Self.standard }
+
+    /// The box holds a number the server accepts as it is.
+    var isValid: Bool { typed.map(Self.range.contains) ?? false }
+
+    static func clamp(_ value: Int) -> Int { min(range.upperBound, max(range.lowerBound, value)) }
+
+    /// Shows what will be sent, so the box never says one thing and the server gets another.
+    mutating func normalize() { text = String(seconds) }
+
+    /// A plain note when the box isn't a usable number as typed; nil when it is fine.
+    var warning: String? {
+        if isValid { return nil }
+        return typed == nil ? "Type the seconds players get to pick, from 5 to 60. \(seconds) will be used."
+                            : "The timer is 5 to 60 seconds. \(seconds) will be used."
+    }
+}
+
+private extension Character {
+    var isASCIIDigit: Bool { isASCII && isNumber }
+}
+
 // MARK: - Fixing a scored play
 
 /// The "Fix result" editor: starts from how the play was scored; saving needs a complete, different result.
@@ -330,6 +396,52 @@ enum HostText {
     ]
 
     static let maxMessage = 200
+
+    /// The distance buttons in the website's order (the model's own order puts Loss before Long).
+    static let distanceChoices: [YardageOutcome] = [.short, .medium, .long, .loss]
+
+    // MARK: Words shared with the website's console
+
+    /// The live-data chip when a locked play is the host's to score.
+    static let scoreByHand = "SCORE BY HAND"
+    static let voidPlay = "Void play"
+    static let voidHint = "Use it for a penalty, a sack, a QB scramble, no play, or if you missed it. Nobody scores."
+    /// Under the chip when live data joined late (the server sends the same words).
+    static let leftToHostNotice = "Live data joined late, so it can't tell which play this one was. Score it by hand (or void it), then open the next play and live data takes over."
+    static let reviewVoidNote = "The feed says no play, but check it against the TV first. Tap Void play if it's right, or score it yourself with Change."
+    static let lockedLeftToHost = "Live data can't score this play. Tap what happened (Run or Pass, direction, distance), then press Score Play. No play, or you missed it? Press Void play."
+    static let lockedWatched = "Picks are closed. Live data scores it when the result shows up. You can also tap what happened and press Score Play, or press Void play."
+    /// A locked play nothing is watching (no live data, or it is paused or out of requests): no promise about the feed.
+    static let lockedByHand = "Picks are closed. Tap what happened (Run or Pass, direction, distance), then press Score Play. No play, or you missed it? Press Void play."
+    /// The host console works only with the game server the app was built for (the admin key is never sent elsewhere).
+    static let wrongServer = "The host console only works with the built-in game server. Change the server back in Settings."
+
+    /// What the Picks-are-locked card says, by what live data is doing with the play.
+    static func lockedGuidance(_ state: AdminState) -> String {
+        if state.lockedPlayIsLeftToHost { return lockedLeftToHost }
+        return state.feedIsWatchingLockedPlay ? lockedWatched : lockedByHand
+    }
+
+    /// The line under the live-data chip. When the play is left to the host it must say so, whatever the server's
+    /// generic "Connected" words are.
+    static func statusMessage(_ feed: FeedState, leftToHost: Bool) -> String {
+        let sent = feed.message?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if leftToHost { return sent.lowercased().contains("by hand") ? sent : leftToHostNotice }
+        return sent.isEmpty ? feed.defaultMessage : sent
+    }
+
+    /// Whole seconds for the countdown lines, kept in a sane range so odd server numbers can't trap.
+    static func wholeSeconds(_ value: Double, up: Bool = true) -> Int {
+        guard !value.isNaN else { return 0 }
+        return Int(min(max(value, 0), 604_800).rounded(up ? .up : .toNearestOrAwayFromZero))
+    }
+
+    /// The line under "NOT STARTED": when the feed looks again, and what the host can do meanwhile.
+    static func notStartedLine(nextCheckAt: Double?, now: Double) -> String {
+        let ask = "Is the game on? Tap Check now."
+        guard let nextCheckAt else { return ask }
+        return "Next check in \(wholeSeconds(nextCheckAt - now)) s. " + ask
+    }
 }
 
 extension FixDraft: Identifiable {

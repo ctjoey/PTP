@@ -7,11 +7,26 @@ struct LoungesView: View {
     @State private var working = false
     @State private var error: String?
     @State private var created: Lounge?
+    @FocusState private var focus: Field?
+
+    private enum Field: Hashable { case code, name }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
+                    // First thing on the screen, so there is always an obvious way out.
+                    Button {
+                        focus = nil
+                        state.tab = .live
+                    } label: {
+                        Label("Back to the game", systemImage: "chevron.left")
+                            .font(.system(size: 15, weight: .bold))
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(Theme.accent)
+
                     Text("Play the same live game against your friends in a private room with its own leaderboard.")
                         .font(.system(size: 14)).foregroundStyle(Theme.muted)
 
@@ -33,6 +48,7 @@ struct LoungesView: View {
                         HStack(spacing: 8) {
                             TextField("0000", text: $joinCode)
                                 .keyboardType(.numberPad)
+                                .focused($focus, equals: .code)
                                 .font(.system(size: 28, weight: .black).monospacedDigit())
                                 .multilineTextAlignment(.center)
                                 .padding(.vertical, 8)
@@ -54,6 +70,9 @@ struct LoungesView: View {
                         HStack(spacing: 8) {
                             TextField("e.g. Sunday Crew", text: $newName)
                                 .textInputAutocapitalization(.words)
+                                .focused($focus, equals: .name)
+                                .submitLabel(.done)
+                                .onSubmit { focus = nil }
                                 .padding(12)
                                 .background(Theme.surface2, in: RoundedRectangle(cornerRadius: 12))
                             Button("Create") { Task { await create() } }
@@ -83,7 +102,18 @@ struct LoungesView: View {
                     }
                 }
                 .padding(16)
+                // A tap anywhere puts the keyboard away; it runs alongside the buttons and fields, not instead of them.
+                .simultaneousGesture(TapGesture().onEnded { focus = nil })
             }
+            // The number pad has no Return key, so the keyboard carries its own Done; scrolling also lowers it.
+            .scrollDismissesKeyboard(.interactively)
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") { focus = nil }
+                }
+            }
+            .onDisappear { focus = nil }
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle("Head to Head Lounge")
             .navigationBarTitleDisplayMode(.inline)
@@ -133,6 +163,7 @@ struct LoungesView: View {
     }
 
     private func join() async {
+        focus = nil
         working = true
         error = nil
         defer { working = false }
@@ -146,6 +177,7 @@ struct LoungesView: View {
     }
 
     private func create() async {
+        focus = nil
         working = true
         error = nil
         defer { working = false }

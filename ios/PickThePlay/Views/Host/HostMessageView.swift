@@ -8,7 +8,8 @@ import SwiftUI
 
 struct HostMessageView: View {
     @EnvironmentObject var host: HostState
-    @State private var text = ""
+    /// The draft lives in `HostDrafts`, so it is still here after a visit to another tab.
+    @EnvironmentObject var drafts: HostDrafts
     /// A message is on its way to the server.
     @State private var sending = false
     @FocusState private var editing: Bool
@@ -21,6 +22,10 @@ struct HostMessageView: View {
 
     // MARK: What is typed
 
+    private var text: String {
+        get { drafts.messageDraft }
+        nonmutating set { drafts.messageDraft = newValue }
+    }
     private var trimmed: String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
     private var length: Int { trimmed.count }
     private var isOver: Bool { length > HostText.maxMessage }
@@ -84,7 +89,7 @@ struct HostMessageView: View {
 
     private var editor: some View {
         ZStack(alignment: .topLeading) {
-            TextEditor(text: $text)
+            TextEditor(text: $drafts.messageDraft)
                 .font(.system(size: 17))
                 .foregroundStyle(Theme.text)
                 .scrollContentBackground(.hidden)

@@ -59,11 +59,15 @@ struct SettingsView: View {
 
                 Section {
                     let scoring = state.snapshot?.scoring ?? .standard
-                    LabeledContent("Play type right (Run / Pass)", value: "+\(scoring.type)")
-                    LabeledContent("Direction right (Left / Middle / Right)", value: "+\(scoring.direction)")
-                    LabeledContent("Distance right (Short / Medium / Long)", value: "+\(scoring.yardage)")
-                    LabeledContent("Bonus: all three right", value: "+\(scoring.bonus)")
-                    LabeledContent("Perfect call", value: "\(scoring.exact)")
+                    ForEach(scoring.rows, id: \.title) { line in
+                        LabeledContent(LocalizedStringKey(line.detail.map { "\(line.title) (\($0))" } ?? line.title),
+                                       value: "+\(line.points)")
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        LabeledContent("Perfect call", value: "\(scoring.exact)")
+                        Text(ScoreRules.perfectNote).font(.footnote).foregroundStyle(Theme.muted)
+                    }
+                    .accessibilityElement(children: .combine)
                     Button("Rules of the Game") { state.tab = .rules }
                     Button("Practice mode") { state.showPractice = true }
                 } header: {
@@ -101,11 +105,11 @@ struct SettingsView: View {
                         Button(role: .destructive) {
                             confirmDelete = true
                         } label: {
-                            if deleting { ProgressView() } else { Text("Delete account") }
+                            if deleting { ProgressView() } else { Text("Change name or delete account") }
                         }
                         .disabled(deleting)
                     } footer: {
-                        Text("Permanently deletes your username, picks, scores and the lounges you host from the game server.")
+                        Text("To change your name, you delete your account and start again with a new one. This permanently deletes your username, picks, scores and the lounges you host from the game server.")
                     }
                 }
             }
@@ -114,11 +118,11 @@ struct SettingsView: View {
             .navigationTitle("Settings")
             .toolbarBackground(Theme.bg, for: .navigationBar)
             .onAppear { serverText = state.server?.absoluteString ?? "" }
-            .confirmationDialog("Delete your account?", isPresented: $confirmDelete, titleVisibility: .visible) {
+            .confirmationDialog("Change name or delete account?", isPresented: $confirmDelete, titleVisibility: .visible) {
                 Button("Delete account", role: .destructive) { Task { await deleteAccount() } }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("This can't be undone. Your username, picks and scores will be removed.")
+                Text("This deletes your account: your username, picks, scores and the lounges you host. Then you start again and can pick a new name. This can't be undone.")
             }
         }
     }

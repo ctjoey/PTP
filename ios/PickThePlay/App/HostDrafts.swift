@@ -1,13 +1,21 @@
 import SwiftUI
 
-/// The host's half-finished entries on the console (the result being picked, the down and distance, the parts of a
-/// suggestion the feed couldn't read, the game being set up, a fix in progress). They live apart from `HostState`
-/// because they are about this screen, not the server; `update(from:)` keeps them in step with every `admin_state`.
+/// The host's half-finished entries on the console (the result being picked, the down and distance, the timer, the
+/// parts of a suggestion the feed couldn't read, the game being set up, a fix in progress, the Players search and the
+/// Message draft). They live apart from `HostState`'s server state because they are about this screen, not the
+/// server; `update(from:)` keeps them in step with every `admin_state`. `HostState` owns one for the whole run of the
+/// app, so switching tabs (or closing the console for a moment) never loses what the host was typing.
 @MainActor
 final class HostDrafts: ObservableObject {
     /// The result being entered by hand for the open or locked play.
     @Published var result = ResultDraft()
     @Published var down = DownDraft()
+    /// The Timer (s) box: how long players get to pick. The last value stays until the host changes it.
+    @Published var timer = TimerDraft()
+    /// The Players tab's "Find a name" box.
+    @Published var playerSearch = ""
+    /// The Message tab's text, until it is sent.
+    @Published var messageDraft = ""
     /// What the host chose for the parts of the feed's suggestion that it couldn't read.
     @Published var choices = SuggestionChoices()
     /// A game picked from the schedule (or the practice game), waiting for Create Game.

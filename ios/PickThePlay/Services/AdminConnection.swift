@@ -32,7 +32,12 @@ final class AdminConnection: AdminLink {
     /// Called when the server refuses the key (or the first message) for good.
     var onRejected: (() -> Void)?
 
-    private let session = URLSession(configuration: .default)
+    /// The one server the admin key may go to (the address built into the app). `HostState` checks before it calls
+    /// `start`; this is the second lock, so a socket to any other address never gets the key.
+    private let trustedServer: URL?
+    /// A redirect away from the trusted server is refused, so the key in the first frame can never follow one.
+    private lazy var session = URLSession(configuration: .default, delegate: KeepAdminKeyOnTheServer(trusted: trustedServer),
+                                           delegateQueue: nil)
     private var task: URLSessionWebSocketTask?
     private var url: URL?
     private var key: String?
@@ -46,7 +51,15 @@ final class AdminConnection: AdminLink {
         didSet { if status != oldValue { onStatus?(status) } }
     }
 
+    init(trustedServer: URL? = ServerConfig.bundled) {
+        self.trustedServer = trustedServer
+    }
+
     func start(url: URL, key: String) {
+        guard ServerConfig.allowsAdminKey(for: url, builtIn: trustedServer) else {
+            stop()
+            return
+        }
         self.url = url
         self.key = key
         running = true

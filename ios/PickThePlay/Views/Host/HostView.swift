@@ -4,14 +4,14 @@ import UIKit
 /// The full-screen host console: the key screen until the server accepts the key, then the four tabs.
 struct HostConsoleCover: View {
     @EnvironmentObject var host: HostState
-    @StateObject private var drafts = HostDrafts()
 
     var body: some View {
         ZStack {
             Theme.bg.ignoresSafeArea()
             if host.isSignedIn {
+                // The drafts belong to the app's HostState, so they survive tab switches and a closed console.
                 HostConsoleView()
-                    .environmentObject(drafts)
+                    .environmentObject(host.drafts)
             } else {
                 HostSignInView()
             }
@@ -54,7 +54,9 @@ struct HostSignInView: View {
                 Text("For whoever is running the game. You open each play, and score it or let the live feed do it. Players don't need this.")
                     .foregroundStyle(Theme.muted)
 
-                if connectingWithSavedKey {
+                if host.isOtherServer {
+                    wrongServer
+                } else if connectingWithSavedKey {
                     connecting
                 } else {
                     keyForm
@@ -67,6 +69,18 @@ struct HostSignInView: View {
 
     /// A key from last time is being used, or a key just typed is being checked.
     private var connectingWithSavedKey: Bool { host.signingIn || host.hasSavedKey || host.isConnecting }
+
+    /// The app is pointed at some other server (Settings): the key is neither asked for nor sent.
+    private var wrongServer: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(HostText.wrongServer)
+                .font(.system(size: 16, weight: .bold)).foregroundStyle(Theme.warn)
+                .fixedSize(horizontal: false, vertical: true)
+            HostHint("Nothing was sent. Your admin key stays on this iPhone.")
+        }
+        .card()
+        .accessibilityElement(children: .combine)
+    }
 
     private var connecting: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -143,7 +157,7 @@ private struct HostConsoleView: View {
                     switch host.tab {
                     case .run: HostRunView()
                     case .log: HostLogView()
-                    case .players: HostPlayersView()
+                    case .players: HostPlayersView(search: drafts.playerSearch)
                     case .message: HostMessageView()
                     }
                 }

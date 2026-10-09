@@ -145,23 +145,28 @@ struct PointsTable: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            row("Play type right", detail: "Run / Pass", points: "+\(scoring.type)")
-            Divider().overlay(Theme.border)
-            row("Direction right", detail: "Left / Middle / Right", points: "+\(scoring.direction)")
-            Divider().overlay(Theme.border)
-            row("Distance right", detail: "Short / Medium / Long", points: "+\(scoring.yardage)")
-            Divider().overlay(Theme.border)
-            row("Bonus: all three right", detail: nil, points: "+\(scoring.bonus)", gold: true)
-            Divider().overlay(Theme.border)
-            HStack(alignment: .firstTextBaseline) {
-                Text("Perfect call").font(.headline.weight(.black)).foregroundStyle(Theme.text)
-                Spacer(minLength: 8)
-                Text("\(scoring.exact)").font(.title3.weight(.black).monospacedDigit()).foregroundStyle(Theme.gold)
+            ForEach(scoring.rows, id: \.title) { line in
+                row(line.title, detail: line.detail, points: "+\(line.points)", gold: line.isBonus)
+                Divider().overlay(Theme.border)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Perfect call").font(.headline.weight(.black)).foregroundStyle(Theme.text)
+                    Spacer(minLength: 8)
+                    Text("\(scoring.exact)").font(.title3.weight(.black).monospacedDigit()).foregroundStyle(Theme.gold)
+                }
+                Text(ScoreRules.perfectNote).font(.subheadline).foregroundStyle(Theme.muted)
             }
             .padding(.vertical, 8)
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Points. Play type right, \(scoring.type). Direction right, \(scoring.direction). Distance right, \(scoring.yardage). Bonus for all three right, \(scoring.bonus). Perfect call, \(scoring.exact) points.")
+        .accessibilityLabel(spoken)
+    }
+
+    /// "Points. Pick correct play, 10. ... Perfect call, 40 points. You picked the play."
+    private var spoken: String {
+        let lines = scoring.rows.map { "\($0.title), \($0.points)." }.joined(separator: " ")
+        return "Points. \(lines) Perfect call, \(scoring.exact) points. \(ScoreRules.perfectNote)."
     }
 
     private func row(_ title: String, detail: String?, points: String, gold: Bool = false) -> some View {
@@ -188,7 +193,7 @@ struct BonusMath: View {
                 block("Bonus", scoring.bonus, color: Theme.gold)
             }
             HStack(alignment: .firstTextBaseline) {
-                Text("All three right, plus the bonus").font(.footnote).foregroundStyle(Theme.muted)
+                Text("Pick all 3 correctly, plus the bonus").font(.footnote).foregroundStyle(Theme.muted)
                 Spacer(minLength: 8)
                 Text("= \(scoring.exact)").font(.title2.weight(.black).monospacedDigit()).foregroundStyle(Theme.gold)
             }

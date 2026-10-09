@@ -27,12 +27,20 @@ struct HostRunView: View {
                     }
                 }
                 if state.game != nil && state.stage != .gameOver && !startingAnother {
-                    HostLiveDataCard()
-                    if state.hasActivePlay { ScoreItYourselfCard(state: state) }
+                    if state.lockedPlayIsLeftToHost {
+                        // Live data can't score this play, so the way to do it comes first.
+                        ScoreItYourselfCard(state: state)
+                        HostLiveDataCard()
+                    } else {
+                        HostLiveDataCard()
+                        if state.hasActivePlay { ScoreItYourselfCard(state: state) }
+                    }
                     GameFooterCard(state: state, startAnother: { startingAnother = true })
                 }
             }
             .onChange(of: state.game?.id) { _, _ in startingAnother = false }
+            // A play was opened (here or on another console) while "Start a different game" was showing: back to the play.
+            .onChange(of: state.hasActivePlay) { _, active in if active { startingAnother = false } }
         }
     }
 }
@@ -237,6 +245,7 @@ private struct PlayControlCard: View {
     var state: AdminState
 
     @State private var opening = false
+    @FocusState private var timerFocused: Bool
 
     var body: some View {
         HostCard(title, systemImage: "football.fill") {
@@ -281,24 +290,54 @@ private struct PlayControlCard: View {
                     }
                 }
             }
-            Text("Yards to go").kicker()
-            TextField("10", text: Binding(get: { drafts.down.distance }, set: { drafts.down.setDistance($0) }))
-                .autocorrectionDisabled()
-                .textInputAutocapitalization(.characters)
-                .font(.system(size: 20, weight: .heavy))
-                .padding(14)
-                .background(Theme.surface2, in: RoundedRectangle(cornerRadius: 12))
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Yards to go").kicker()
+                    TextField("10", text: Binding(get: { drafts.down.distance }, set: { drafts.down.setDistance($0) }))
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.characters)
+                        .font(.system(size: 20, weight: .heavy))
+                        .padding(14)
+                        .background(Theme.surface2, in: RoundedRectangle(cornerRadius: 12))
+                }
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Timer (s)").kicker()
+                    timerField
+                }
+                .frame(width: 104)
+            }
             if drafts.down.showsFeedHint(hasActivePlay: false) {
                 HostHint("Filled in from the live feed. Change it if the TV says something else.", color: Theme.accent)
             } else {
                 HostHint("Match the TV: a number, or Goal.")
             }
+            if let warning = drafts.timer.warning { HostHint(warning, color: Theme.warn) }
             HostButton("Open Next Play", systemImage: "play.fill", kind: .primary, busy: opening) {
                 Task { await open() }
             }
             .disabled(host.isBusy || opening || state.game?.status == .final)
-            HostHint("Open the play just before the snap. Players then have \(Int(state.windowSeconds)) seconds to pick.")
+            HostHint("Open the play just before the snap. Players then have \(drafts.timer.seconds) seconds to pick.")
         }
+    }
+
+    /// How many seconds players get to pick (5 to 60). The number pad has no Done key, so the keyboard gets one.
+    private var timerField: some View {
+        TextField("15", text: Binding(get: { drafts.timer.text }, set: { drafts.timer.type($0) }))
+            .keyboardType(.numberPad)
+            .focused($timerFocused)
+            .font(.system(size: 20, weight: .heavy))
+            .padding(14)
+            .background(Theme.surface2, in: RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(timerFocused ? Theme.accent : Color.clear, lineWidth: 1))
+            .accessibilityLabel("Timer in seconds, 5 to 60")
+            .onChange(of: timerFocused) { _, focused in if !focused { drafts.timer.normalize() } }
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    // The keyboard toolbar belongs to the whole screen: only offer Done while this box is the one being typed in.
+                    if timerFocused { Button("Done") { timerFocused = false } }
+                }
+            }
     }
 
     // Players are picking: the clock, who has picked, Lock.
@@ -327,18 +366,21 @@ private struct PlayControlCard: View {
         }
     }
 
-    // Locked: waiting for the result.
+    // Locked: waiting for the result. What it says depends on whether live data is really following the play.
     private var lockedBody: some View {
         VStack(alignment: .leading, spacing: 10) {
             if let crowd = state.pickStats, crowd.total > 0 { CrowdBars(crowd: crowd) }
-            HostHint("Waiting for the result. With live data it appears below by itself; otherwise score it yourself.")
+            HostHint(HostText.lockedGuidance(state), color: state.lockedPlayIsLeftToHost ? Theme.warn : Theme.muted)
         }
     }
 
     private func open() async {
+        timerFocused = false
+        drafts.timer.normalize()
         opening = true
         defer { opening = false }
-        let ok = await host.openPlay(down: drafts.down.down, distance: drafts.down.distanceToSend, windowSeconds: state.windowSeconds)
+        let ok = await host.openPlay(down: drafts.down.down, distance: drafts.down.distanceToSend,
+                                     windowSeconds: Double(drafts.timer.seconds))
         if ok { drafts.result.clear() }
     }
 }
@@ -377,7 +419,7 @@ private struct ScoreItYourselfCard: View {
             }
             Text("How far?").kicker()
             HStack(spacing: 8) {
-                ForEach(YardageOutcome.allCases, id: \.self) { option in
+                ForEach(HostText.distanceChoices, id: \.self) { option in
                     PickButton(title: option.rawValue, caption: caption(option), selected: drafts.result.yardage == option,
                                enabled: !host.isBusy, height: 54, spoken: spoken(option)) {
                         edited { drafts.result.choose(option) }
@@ -404,10 +446,11 @@ private struct ScoreItYourselfCard: View {
             }
             .disabled(host.isBusy || scoring || !locked || !drafts.result.isComplete)
             if !locked { HostHint("Lock the play first, then score it.") }
-            HostButton("Void play (penalty or no play)", systemImage: "nosign", kind: .secondary) {
+            HostButton(HostText.voidPlay, systemImage: "nosign", kind: .secondary) {
                 confirmVoid = true
             }
             .disabled(host.isBusy)
+            HostHint(HostText.voidHint)
         }
         .confirmationDialog("Void this play?", isPresented: $confirmVoid, titleVisibility: .visible) {
             Button("Void play", role: .destructive) { Task { _ = await host.voidPlay() } }

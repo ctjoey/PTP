@@ -29,12 +29,23 @@ chosen (changing any part re-sends it while the play is OPEN):
 | Distance (`yardage`) | Short 0–5 yds / Medium 6–10 / Long 11+ | Total yards gained; an incomplete pass is 0 yds = Short |
 
 Scoring (the server is the authority; `ScoreRules` mirrors it for Practice mode and the result view):
-+10 play type, +10 direction, +10 distance, +10 bonus for all three = 40 (a "perfect call", `exact` on
-the wire). Possible totals are 0, 10, 20 and 40; 30 can't happen. A loss of yards (`LOSS`) never matches
-a distance pick, so it scores no distance points and so no bonus. Result labels follow the per-part
-right/wrong flags (falling back to points): all three "Perfect call!", two "Two of three", one "One of
-three", none "No points this time". Plays scored before the bonus keep their 30; they still read as a
-perfect call.
++10 pick correct play, +10 pick correct direction, +10 pick correct distance, +10 pick all 3 correctly = 40 (a
+"perfect call", `exact` on the wire). The points table reads the same on every screen: *Pick correct play (Run /
+Pass)*, *Pick correct direction (Left / Middle / Right)*, *Pick correct distance (Short / Medium / Long)*, *Pick all 3
+correctly*, then *Perfect call* with the line "You picked the play" under it. Possible totals are 0, 10, 20 and 40; 30
+can't happen. A loss of yards (`LOSS`) never matches a distance pick, so it scores no distance points and so no
+bonus. Result labels follow the per-part right/wrong flags (falling back to points): all three "Perfect call!" (with
+"You picked the play" under it), two "Two of three", one "One of three", none "No points this time". Plays scored
+before the bonus keep their 30; they still read as a perfect call. The four rows are `Scoring.rows` and the
+words under the pick panel are `Scoring.bonusLine`, so the welcome screen, the Rules tab, Settings and the pick
+screen can't drift apart; `ScoreRules.perfectNote` is "You picked the play".
+
+The live score sits beside each team in the scorebug (`CHI 17 @ 24 DET`). The server adds `home_score`,
+`away_score` and `score_at` to the game (null until its live-data checks have read a score, and always for the
+practice game), and the score can trail the TV by about a minute, so the player screens show just the number:
+no spinner, no clock. `Game` reads all three leniently (a missing, null, text or out-of-range value means "no
+score", never a decode error); `Game.liveScore` gives both numbers or nil (one team's number alone is never
+drawn), and `Game.scoreAge(now:)` is the "as of 40 s ago" the host console prints.
 
 Directions are `LEFT` / `MIDDLE` / `RIGHT` (the NFL's run and pass location words). The app always
 sends `MIDDLE`; it still decodes `CENTER` (and a crowd count under `"CENTER"`) from a server or game.db
@@ -81,16 +92,22 @@ PickThePlay/
   Services/  APIClient + ServerConfig (REST, server address), LiveConnection (WebSocket with
              hello/ping/backoff), AdminConnection (the host console's /ws/admin), Keychain (the
              admin key), Practice (scoring rules + offline practice game)
-  Views/     Live (scorebug + open/locked/result/final stages), Leaderboard, Lounges, Rules (rules
-             of the game, points table, run/pass direction diagrams), Settings (server, points,
-             privacy, delete account), Onboarding, Practice, shared Components, Theme,
+  Views/     Live (scorebug with the live score + open/locked/result/final stages), Leaderboard,
+             Lounges (the Head to Head tab: "Back to the game" on top, a Done key on the keyboards,
+             tap or scroll to put them away), Rules (rules of the game, points table, run/pass
+             direction diagrams), Settings (server, points, privacy, "Change name or delete
+             account"), Onboarding, Practice, shared Components, Theme,
              Host/ (the host console: key screen, Run, Log, Players, Message)
 PickThePlayTests/
   Fixtures/  Real messages captured from the Python server; ContractTests decode every one
-             (incl. state_play_resolved_loss: a pass for a loss that scores type + direction only)
+             (incl. state_play_resolved_loss: a pass for a loss that scores type + direction only;
+             state_game_score is state_play_opened with the game's three score fields filled in, as
+             the server sends them once its live-data checks have read a score)
   ContractTests.swift   fixtures decode; the server's points equal ScoreRules on the same pick
   GameLogicTests.swift  every 3-part scoring combination incl. the bonus, LOSS, labels, MIDDLE and
                         the CENTER alias, practice odds, pick restore
+  PlayerScreenTests.swift  the live score on the game (missing, null and odd values), the points
+                        table's words, the bonus line
 ```
 
 ## Keeping the app and server in step

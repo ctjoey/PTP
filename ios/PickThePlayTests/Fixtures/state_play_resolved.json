@@ -16,12 +16,15 @@
   "game": {
     "away_name": "Chicago",
     "away_primary": "#0B162A",
+    "away_score": null,
     "away_secondary": "#C83803",
     "created_at": 1791476840.5918686,
     "home_name": "Detroit",
     "home_primary": "#0076B6",
+    "home_score": null,
     "home_secondary": "#B0B7BC",
     "id": 1,
+    "score_at": null,
     "status": "LIVE"
   },
   "leaderboard": [

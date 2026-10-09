@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// The same rules the server uses (models.score_prediction): +10 for each correct part (play type,
-/// direction, distance) and a +10 bonus when all three are right, so a perfect call = 40. Possible totals
+/// direction, distance) and a +10 bonus when all three are picked correctly, so a perfect call = 40. Possible totals
 /// are 0, 10, 20 and 40 (30 can't happen). A loss of yards never matches a distance pick (so a loss also
 /// means no bonus), and a pick without a distance (made before the distance pick existed) scores none.
 enum ScoreRules {
@@ -10,7 +10,7 @@ enum ScoreRules {
         var typeCorrect: Bool
         var directionCorrect: Bool
         var yardageCorrect: Bool
-        /// All three right ("Perfect call"; `exact` on the wire), which also earns the bonus.
+        /// All three picked correctly ("Perfect call"; `exact` on the wire), which also earns the bonus.
         var exact: Bool { typeCorrect && directionCorrect && yardageCorrect }
         var correctParts: Int { [typeCorrect, directionCorrect, yardageCorrect].filter { $0 }.count }
     }
@@ -64,7 +64,7 @@ enum ScoreRules {
         return label(points: pick.pointsEarned ?? 0, scoring: scoring)
     }
 
-    /// All three right (gold styling, confetti): by the flags when known, else by points.
+    /// All three picked correctly (gold styling, confetti): by the flags when known, else by points.
     static func isPerfect(_ pick: Prediction?, scoring: Scoring = .standard) -> Bool {
         guard let pick else { return false }
         if let parts = correctParts(pick) { return parts == 3 }
@@ -76,9 +76,12 @@ enum ScoreRules {
         return [t, d, y].filter { $0 }.count
     }
 
+    /// The plain-words line under "Perfect call" in the points table, and on the result when all three are right.
+    static let perfectNote = "You picked the play"
+
     /// One line for onboarding, settings and the pick screen.
     static func summary(_ s: Scoring = .standard) -> String {
-        "+\(s.type) play type, +\(s.direction) direction, +\(s.yardage) distance, +\(s.bonus) bonus for all three = \(s.exact)."
+        "+\(s.type) pick correct play, +\(s.direction) pick correct direction, +\(s.yardage) pick correct distance, +\(s.bonus) pick all 3 correctly = \(s.exact)."
     }
 
     /// The server's per-part flags, filled in from the outcome where it left one out.

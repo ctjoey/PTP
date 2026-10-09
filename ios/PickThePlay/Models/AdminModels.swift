@@ -120,9 +120,11 @@ struct FeedSuggestion: Equatable, Identifiable {
         return yards.map(YardageOutcome.init(yards:))
     }
 
-    /// The feed says it was not a play at all (a penalty wiped it out), or the host held that verdict.
+    /// The feed says it was not a play at all (a penalty wiped it out, a sack, a scramble), or the host held that
+    /// verdict. The server may still have downgraded a "no play" to `review` (it has no down and distance to compare
+    /// with): `kind` stays "void", and the card must still offer Void, not three pickers.
     var isVoid: Bool {
-        status == .void || (status == .held && playType == nil && direction == nil && text.lowercased().contains("no play"))
+        status == .void || kind == "void" || (status == .held && playType == nil && direction == nil && text.lowercased().contains("no play"))
     }
 
     /// The parts the feed could not fill in and the host must choose.
@@ -258,8 +260,9 @@ struct FeedState: Equatable {
         return false
     }
 
-    /// The plain-English state shown on the status chip.
-    func label(at now: Double) -> String {
+    /// The plain-English state shown on the status chip. `leftToHost`: a locked play live data isn't watching.
+    func label(at now: Double, leftToHost: Bool = false) -> String {
+        if leftToHost { return HostText.scoreByHand }
         if isQuiet(at: now) { return "QUIET" }
         switch state {
         case "off": return "OFF"
@@ -277,8 +280,8 @@ struct FeedState: Equatable {
     /// good = running normally, wait = needs patience, bad = needs the host, off = nothing to show.
     enum Tone { case good, wait, bad, off }
 
-    func tone(at now: Double) -> Tone {
-        if isQuiet(at: now) { return .wait }
+    func tone(at now: Double, leftToHost: Bool = false) -> Tone {
+        if leftToHost || isQuiet(at: now) { return .wait }
         switch state {
         case "idle", "waiting": return .good
         case "paused", "not_started": return .wait

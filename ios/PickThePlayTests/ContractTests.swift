@@ -30,7 +30,8 @@ final class ContractTests: XCTestCase {
             XCTAssertFalse(String(decoding: try fixture(name), as: UTF8.self).contains("CENTER"), name)
         }
         for name in ["state_sync_nogame", "state_game_created", "state_play_opened", "state_play_locked",
-                     "state_play_resolved", "state_play_resolved_loss", "state_play_voided", "state_final"] {
+                     "state_play_resolved", "state_play_resolved_loss", "state_play_voided", "state_final",
+                     "state_game_score"] {
             let s = try snapshot(name)
             // Every snapshot carries the 10/10/10 scoring plus the 10 bonus, so all three = 40.
             XCTAssertEqual(s.scoring, .standard, name)
@@ -61,6 +62,32 @@ final class ContractTests: XCTestCase {
         XCTAssertEqual(game.homeSecondary.uppercased(), "#B0B7BC")
         XCTAssertEqual(Football.abbreviation(game.awayName), "CHI")
         XCTAssertEqual(Football.abbreviation(game.homeName), "DET")
+    }
+
+    func testGameCarriesTheLiveScoreWhenThereIsOne() throws {
+        // Until live data has made a check the three score fields are on the wire as null (never missing).
+        for name in ["state_game_created", "state_play_opened", "state_play_locked", "state_play_resolved",
+                     "state_play_resolved_loss", "state_play_voided", "state_final"] {
+            let wire = try XCTUnwrap(try object(fixture(name))["game"] as? [String: Any], name)
+            for key in ["home_score", "away_score", "score_at"] {
+                XCTAssertTrue(wire[key] is NSNull, "\(name) \(key)")
+            }
+            let game = try XCTUnwrap(try snapshot(name).game, name)
+            XCTAssertNil(game.homeScore, name)
+            XCTAssertNil(game.awayScore, name)
+            XCTAssertNil(game.scoreAt, name)
+            XCTAssertNil(game.liveScore, name)
+        }
+        // With a score (an open play whose game the live data has read: Detroit 24, Chicago 17, 20 seconds ago).
+        let s = try snapshot("state_game_score")
+        let game = try XCTUnwrap(s.game)
+        XCTAssertEqual(game.homeScore, 24)
+        XCTAssertEqual(game.awayScore, 17)
+        XCTAssertEqual(game.liveScore?.home, 24)
+        XCTAssertEqual(game.liveScore?.away, 17)
+        XCTAssertEqual(game.scoreAge(now: s.serverTime), 20)
+        XCTAssertEqual(game.awayName, "Chicago", "the rest of the game is unchanged")
+        XCTAssertEqual(s.play?.state, .open)
     }
 
     func testOpenPlayHidesCrowdAndHasTimer() throws {

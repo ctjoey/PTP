@@ -2,7 +2,7 @@ import XCTest
 @testable import PickThePlay
 
 final class GameLogicTests: XCTestCase {
-    // MARK: - Scoring (mirrors models.score_prediction on the server: +10 a part, +10 bonus for all three)
+    // MARK: - Scoring (mirrors models.score_prediction on the server: +10 a part, +10 bonus for picking all 3 correctly)
 
     func testScoringMatchesServerRulesForEveryCombination() {
         let picks: [Yardage?] = Yardage.allCases + [nil]  // nil = a pick made before the distance pick existed
@@ -165,13 +165,14 @@ final class GameLogicTests: XCTestCase {
     func testScoringCopy() {
         XCTAssertEqual(Scoring.standard, Scoring(type: 10, direction: 10, yardage: 10, bonus: 10, exact: 40))
         XCTAssertEqual(Scoring.standard.allParts + Scoring.standard.bonus, Scoring.standard.exact)
-        XCTAssertEqual(ScoreRules.summary(), "+10 play type, +10 direction, +10 distance, +10 bonus for all three = 40.")
+        XCTAssertEqual(ScoreRules.summary(),
+                       "+10 pick correct play, +10 pick correct direction, +10 pick correct distance, +10 pick all 3 correctly = 40.")
     }
 
     func testScoringDecodesWithAndWithoutBonus() throws {
         let current = try JSON.decoder.decode(Scoring.self, from: Data(#"{"type": 10, "direction": 10, "yardage": 10, "bonus": 10, "exact": 40}"#.utf8))
         XCTAssertEqual(current, .standard)
-        // A server from before the bonus: all three = 30, so the bonus is 0.
+        // A server from before the bonus: picking all 3 pays 30, so the bonus is 0.
         let old = try JSON.decoder.decode(Scoring.self, from: Data(#"{"type": 10, "direction": 10, "yardage": 10, "exact": 30}"#.utf8))
         XCTAssertEqual(old.bonus, 0)
         // A bonus-era server that left the key out still adds up.
@@ -322,7 +323,7 @@ final class GameLogicTests: XCTestCase {
         XCTAssertEqual(game.gradedPick?.directionCorrect, true)
         XCTAssertEqual(game.gradedPick?.yardageCorrect, false)
 
-        // A play for a loss of yards: type and direction right, no distance points.
+        // A play for a loss of yards: type and direction correct, no distance points.
         game.outcome = { PlayOutcome(playType: .pass, direction: .left, yards: -6) }
         game.nextPlay()
         game.pickType = .pass

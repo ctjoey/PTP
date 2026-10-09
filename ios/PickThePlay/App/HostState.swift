@@ -44,9 +44,14 @@ final class HostState: ObservableObject {
     @Published var notice: Notice?
     /// A key is saved on this phone.
     @Published private(set) var hasSavedKey: Bool
+    /// The host's half-finished entries; they outlive the tabs (and the console being closed for a moment).
+    let drafts = HostDrafts()
 
     private let link: AdminLink
     private let keys: KeyStore
+    /// The one game server the admin key may be sent to: the address built into the app. A tester can point the
+    /// app at another server in Settings; the key must never follow.
+    private let trustedServer: () -> URL?
     private var key: String?
     private var remember = true
     private var clockOffset: Double = 0
@@ -55,16 +60,24 @@ final class HostState: ObservableObject {
 
     var isBusy: Bool { pending > 0 }
     /// A key is being used (typed, or saved) and the server hasn't answered yet: show "Connecting…", not the key form.
-    var isConnecting: Bool { key != nil && snapshot == nil }
+    var isConnecting: Bool { key != nil && snapshot == nil && serverIsTrusted }
     var isSignedIn: Bool { snapshot != nil }
     var game: Game? { snapshot?.game }
     var play: Play? { snapshot?.play }
     var feed: FeedState? { snapshot?.feed }
     var server: URL? { ServerConfig.current }
+    /// The app is pointed at its built-in game server, so the admin key may be used.
+    var serverIsTrusted: Bool { ServerConfig.allowsAdminKey(for: server, builtIn: trustedServer()) }
+    /// The app is pointed at some other server (a tester changed it in Settings): the console says so and sends
+    /// nothing. (With no address at all there is nothing to refuse; the key screen says the address isn't set.)
+    var isOtherServer: Bool { server != nil && !serverIsTrusted }
 
-    init(keys: KeyStore, link: AdminLink? = nil) {
+    /// `trustedServer` is the address the key may go to (the built-in one unless a test says otherwise).
+    init(keys: KeyStore, link: AdminLink? = nil, trustedServer: (() -> URL?)? = nil) {
         self.keys = keys
-        let channel = link ?? AdminConnection()
+        let trusted = trustedServer ?? { ServerConfig.bundled }
+        self.trustedServer = trusted
+        let channel = link ?? AdminConnection(trustedServer: trusted())
         self.link = channel
         let saved = keys.read()
         key = saved
@@ -130,6 +143,7 @@ final class HostState: ObservableObject {
 
     /// Check the key with the server. A sleeping server is woken first (it can take a minute).
     func signIn(key entered: String, remember: Bool) async {
+        guard allowKey() else { return }
         guard beginSignIn(key: entered, remember: remember), let server, let tried = key else { return }
         let awake = await APIClient(server: server).waitUntilAwake()
         guard signingIn, key == tried else { return }  // cancelled or replaced while waiting
@@ -173,8 +187,18 @@ final class HostState: ObservableObject {
     }
 
     private func connect() {
+        guard allowKey() else { return }
         guard let key, let server, let url = ServerConfig.adminSocketURL(for: server) else { return }
         link.start(url: url, key: key)
+    }
+
+    /// True when the key may be sent. Otherwise nothing is sent: the key screen explains, and so does a notice.
+    private func allowKey() -> Bool {
+        if !isOtherServer { return true }
+        signingIn = false
+        authError = HostText.wrongServer
+        show(HostText.wrongServer, isError: true)
+        return false
     }
 
     private func rejected(_ message: String) {
@@ -289,12 +313,20 @@ final class HostState: ObservableObject {
 
     // MARK: - Plays
 
-    func openPlay(down: Int?, distance: String?, windowSeconds: Double?) async -> Bool {
+    /// The fields of `open_play`. `windowSeconds` (the Timer box) is held to the server's 5 to 60 and sent as a whole
+    /// number; nil leaves it to the server's default.
+    nonisolated static func openPlayFields(down: Int?, distance: String?, windowSeconds: Double?) -> [String: Any] {
         var fields: [String: Any] = [:]
         if let down { fields["down"] = down }
         if let distance, !distance.isEmpty { fields["distance"] = distance }
-        if let windowSeconds { fields["window_seconds"] = min(60, max(5, windowSeconds)) }
-        return await ok("open_play", fields)
+        if let windowSeconds, windowSeconds.isFinite {
+            fields["window_seconds"] = TimerDraft.clamp(Int(min(max(windowSeconds, 0), 1000).rounded()))
+        }
+        return fields
+    }
+
+    func openPlay(down: Int?, distance: String?, windowSeconds: Double?) async -> Bool {
+        await ok("open_play", Self.openPlayFields(down: down, distance: distance, windowSeconds: windowSeconds))
     }
 
     func lockPlay() async -> Bool { await ok("lock_play") }
@@ -368,7 +400,8 @@ final class HostState: ObservableObject {
     }
 
     private func api() throws -> APIClient {
+        guard !isOtherServer else { throw APIError(status: 0, message: HostText.wrongServer) }
         guard let server, let key else { throw APIError(status: 401, message: "Sign in with the admin key first.") }
-        return APIClient(server: server, adminKey: key)
+        return APIClient(server: server, adminKey: key, trustedServer: trustedServer())
     }
 }

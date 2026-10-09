@@ -35,6 +35,33 @@ enum ServerConfig {
         return parts.url
     }
 
+    /// The admin key may only be sent to the game server the app was built for. `server` is where the app is pointed
+    /// now (a tester can change it in Settings); `builtIn` is the address baked into the build. They must be the same
+    /// server: same host, and the same scheme and port too, so a plain-http copy of the address can't get the key.
+    /// Works for the socket's ws/wss addresses as well. With no built-in address nothing is trusted.
+    static func allowsAdminKey(for server: URL?, builtIn: URL? = bundled) -> Bool {
+        guard let server, let builtIn, let a = origin(of: server), let b = origin(of: builtIn) else { return false }
+        return a == b
+    }
+
+    private struct Origin: Equatable {
+        var secure: Bool
+        var host: String
+        var port: Int
+    }
+
+    private static func origin(of url: URL) -> Origin? {
+        guard let scheme = url.scheme?.lowercased(), var host = url.host?.lowercased(), !host.isEmpty else { return nil }
+        let secure: Bool
+        switch scheme {
+        case "https", "wss": secure = true
+        case "http", "ws": secure = false
+        default: return nil
+        }
+        while host.hasSuffix(".") { host.removeLast() }  // "example.com." is the same server as "example.com"
+        return Origin(secure: secure, host: host, port: url.port ?? (secure ? 443 : 80))
+    }
+
     static func socketURL(for server: URL) -> URL? {
         socketURL(for: server, path: "/ws")
     }
@@ -59,13 +86,28 @@ struct APIError: LocalizedError {
     var isUnauthorized: Bool { status == 401 }
 }
 
+/// Refuses a redirect to any server but the trusted one, so the admin key can't follow a request somewhere else.
+final class KeepAdminKeyOnTheServer: NSObject, URLSessionTaskDelegate {
+    let trusted: URL?
+
+    init(trusted: URL?) { self.trusted = trusted }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
+                    newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {
+        completionHandler(ServerConfig.allowsAdminKey(for: request.url, builtIn: trusted) ? request : nil)
+    }
+}
+
 /// Thin async wrapper over the server's REST API.
 struct APIClient {
     var server: URL
     var token: String?
-    /// The host's admin key (sent as `X-Admin-Key`); only the host console sets it.
+    /// The host's admin key (sent as `X-Admin-Key`); only the host console sets it. It is only ever sent to
+    /// `trustedServer`: with any other address the request is refused before it leaves the phone.
     var adminKey: String?
     var session: URLSession = .shared
+    /// The one server the admin key may go to (the address built into the app).
+    var trustedServer: URL? = ServerConfig.bundled
 
     func createUser(username: String) async throws -> UserAccount {
         try await request("POST", "/api/users", body: ["username": username])
@@ -140,6 +182,10 @@ struct APIClient {
         guard let url = URL(string: path, relativeTo: server) else {
             throw APIError(status: 0, message: "The server address looks wrong. Check it in Settings.")
         }
+        if adminKey != nil, !(ServerConfig.allowsAdminKey(for: server, builtIn: trustedServer)
+                              && ServerConfig.allowsAdminKey(for: url.absoluteURL, builtIn: trustedServer)) {
+            throw APIError(status: 0, message: HostText.wrongServer)
+        }
         var req = URLRequest(url: url, timeoutInterval: 15)
         req.httpMethod = method
         req.setValue("application/json", forHTTPHeaderField: "Accept")
@@ -151,7 +197,9 @@ struct APIClient {
         }
         let result: (Data, URLResponse)
         do {
-            result = try await session.data(for: req)
+            // A request that carries the admin key is never followed to another server.
+            let delegate = adminKey == nil ? nil : KeepAdminKeyOnTheServer(trusted: trustedServer)
+            result = try await session.data(for: req, delegate: delegate)
         } catch {
             throw APIError(status: 0, message: "Can't reach the game server. Check your connection and try again.")
         }

@@ -36,9 +36,11 @@ enum ScreenshotMode {
 
     static func sample(for screen: Screen) -> Sample {
         let now = Date().timeIntervalSince1970
-        // Chicago at Detroit in the clubs' real colours (the same presets the admin console offers).
+        // Chicago at Detroit in the clubs' real colours (the same presets the admin console offers), with a score
+        // as the live data last read it.
         let game = Game(id: 7, homeName: "Detroit", homePrimary: "#0076B6", homeSecondary: "#B0B7BC",
-                        awayName: "Chicago", awayPrimary: "#0B162A", awaySecondary: "#C83803", status: .live)
+                        awayName: "Chicago", awayPrimary: "#0B162A", awaySecondary: "#C83803", status: .live,
+                        homeScore: 24, awayScore: 17, scoreAt: now - 20)
         var play = Play(id: 42, gameId: 7, playNumber: 23, down: 3, distance: "7", state: .open, voided: false,
                         openedAt: now - 4, locksAt: now + 11, correctPlayType: nil, correctDirection: nil,
                         correctYardage: nil, yardsGained: nil)
@@ -150,7 +152,8 @@ extension ScreenshotMode {
         let json = """
         {"type": "admin_state", "event": "sync", "server_time": \(now),
          "game": {"id": 3, "home_name": "Dallas", "home_primary": "#003594", "home_secondary": "#869397",
-                  "away_name": "Tampa Bay", "away_primary": "#D50A0A", "away_secondary": "#FF7900", "status": "LIVE"},
+                  "away_name": "Tampa Bay", "away_primary": "#D50A0A", "away_secondary": "#FF7900", "status": "LIVE",
+                  "home_score": 21, "away_score": 17, "score_at": \(now - 25)},
          "play": {"id": 61, "game_id": 3, "play_number": 12, "down": 3, "distance": "7",
                   "state": "\(locked ? "LOCKED" : "OPEN")", "voided": false, "opened_at": \(now - 4), "locks_at": \(now + 11)},
          "pick_stats": {"total": 31, "RUN": 9, "PASS": 22, "LEFT": 11, "MIDDLE": 6, "RIGHT": 14, "SHORT": 8, "MEDIUM": 15,

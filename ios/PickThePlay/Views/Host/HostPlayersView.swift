@@ -17,10 +17,16 @@ import SwiftUI
 
 struct HostPlayersView: View {
     @EnvironmentObject var host: HostState
-    @StateObject private var list = PlayerList()
+    @EnvironmentObject var drafts: HostDrafts
+    @StateObject private var list: PlayerList
     /// The player the host tapped Remove on; the confirmation sheet is open while this is set.
     @State private var asking: HostPlayer?
     @FocusState private var searching: Bool
+
+    /// `search` is what was typed in the box last time (kept in `HostDrafts`), so switching tabs doesn't lose it.
+    init(search: String = "") {
+        _list = StateObject(wrappedValue: PlayerList(query: search))
+    }
 
     var body: some View {
         VStack(spacing: 14) {
@@ -35,7 +41,8 @@ struct HostPlayersView: View {
             guard let count, count != model.total else { return }
             Task { @MainActor in await model.load(host: host) }
         }
-        .onChange(of: list.query) { _, _ in
+        .onChange(of: list.query) { _, query in
+            drafts.playerSearch = query
             asking = nil
             list.queryChanged(host: host)
         }
@@ -324,7 +331,7 @@ private final class PlayerList: ObservableObject {
     static let longestQuery = 40
 
     /// The search box.
-    @Published var query = ""
+    @Published var query: String
     @Published private(set) var players: [HostPlayer] = []
     @Published private(set) var blocked: [String] = []
     /// Everyone signed up, whatever the search (from the last good reply).
@@ -339,6 +346,10 @@ private final class PlayerList: ObservableObject {
     @Published private(set) var working = false
     /// The search text the list on screen is the server's answer to.
     @Published private(set) var settledQuery: String?
+
+    init(query: String = "") {
+        self.query = String(query.prefix(Self.longestQuery))
+    }
 
     private var inFlight = 0
     private var issued = 0

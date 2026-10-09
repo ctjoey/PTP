@@ -1,19 +1,19 @@
 {
   "crowd": null,
-  "event": "game_created",
+  "event": "play_opened",
   "game": {
     "away_name": "Chicago",
     "away_primary": "#0B162A",
-    "away_score": null,
+    "away_score": 17,
     "away_secondary": "#C83803",
     "created_at": 1791476840.5918686,
     "home_name": "Detroit",
     "home_primary": "#0076B6",
-    "home_score": null,
+    "home_score": 24,
     "home_secondary": "#B0B7BC",
     "id": 1,
-    "score_at": null,
-    "status": "SCHEDULED"
+    "score_at": 1791476820.6074638,
+    "status": "LIVE"
   },
   "leaderboard": [],
   "lounge": {
@@ -54,7 +54,21 @@
     "username": "JoeyC"
   },
   "my_prediction": null,
-  "play": null,
+  "play": {
+    "correct_direction": null,
+    "correct_play_type": null,
+    "correct_yardage": null,
+    "distance": "7",
+    "down": 3,
+    "game_id": 1,
+    "id": 1,
+    "locks_at": 1791476855.6063623,
+    "opened_at": 1791476840.6063623,
+    "play_number": 1,
+    "state": "OPEN",
+    "voided": false,
+    "yards_gained": null
+  },
   "ranked_players": 0,
   "scoring": {
     "bonus": 10,
@@ -63,6 +77,6 @@
     "type": 10,
     "yardage": 10
   },
-  "server_time": 1791476840.5938845,
+  "server_time": 1791476840.6074638,
   "type": "state"
 }

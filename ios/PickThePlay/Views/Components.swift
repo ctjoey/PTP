@@ -7,8 +7,11 @@ struct ScorebugView: View {
     var play: Play?
 
     var body: some View {
+        // Read once: both numbers or neither (the score is a nicety and may be missing).
+        let score = game.liveScore
         HStack(spacing: 0) {
-            team(name: game.awayName, primary: game.awayPrimary, secondary: game.awaySecondary, tag: "AWAY", leading: true)
+            team(name: game.awayName, primary: game.awayPrimary, secondary: game.awaySecondary, tag: "AWAY", leading: true,
+                 score: score?.away)
             VStack(spacing: 6) {
                 StatusPill(status: game.status)
                 Text("@").font(.system(size: 13, weight: .black)).foregroundStyle(Theme.dim)
@@ -18,20 +21,34 @@ struct ScorebugView: View {
             }
             .padding(.horizontal, 8)
             .frame(width: 104)
-            team(name: game.homeName, primary: game.homePrimary, secondary: game.homeSecondary, tag: "HOME", leading: false)
+            team(name: game.homeName, primary: game.homePrimary, secondary: game.homeSecondary, tag: "HOME", leading: false,
+                 score: score?.home)
         }
         .frame(height: 96)
         .background(Theme.surface)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(Theme.border, lineWidth: 1))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(game.awayName) at \(game.homeName), \(game.status.rawValue.lowercased())")
+        .accessibilityLabel(spoken(score))
     }
 
-    private func team(name: String, primary: String, secondary: String, tag: String, leading: Bool) -> some View {
+    /// "Chicago at Detroit, live" or, with a score, "Chicago 17, Detroit 24, live".
+    private func spoken(_ score: (home: Int, away: Int)?) -> String {
+        let status = game.status.rawValue.lowercased()
+        guard let score else { return "\(game.awayName) at \(game.homeName), \(status)" }
+        return "\(game.awayName) \(score.away), \(game.homeName) \(score.home), \(status)"
+    }
+
+    private func team(name: String, primary: String, secondary: String, tag: String, leading: Bool, score: Int?) -> some View {
         let ink = Theme.ink(on: primary)
         return VStack(alignment: leading ? .leading : .trailing, spacing: 3) {
-            Text(Football.abbreviation(name)).font(.system(size: 28, weight: .black)).italic()
+            // The score sits between the abbreviation and the "@": CHI 17 @ 24 DET.
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                if let score, !leading { scoreText(score) }
+                Text(Football.abbreviation(name)).font(.system(size: 28, weight: .black)).italic()
+                if let score, leading { scoreText(score) }
+            }
+            .lineLimit(1).minimumScaleFactor(0.7)
             Text(name).font(.system(size: 12, weight: .bold)).opacity(0.85).lineLimit(1)
             Text(tag).font(.system(size: 9, weight: .heavy)).tracking(1.8).opacity(0.7)
         }
@@ -44,6 +61,15 @@ struct ScorebugView: View {
                 .background(Color.black)
         )
         .overlay(alignment: .bottom) { Rectangle().fill(Color(hex: secondary)).frame(height: 4) }
+    }
+
+    /// Quiet: just the number, no spinner or label; it changes in place when the next check brings a new one.
+    private func scoreText(_ score: Int) -> some View {
+        Text("\(score)")
+            .font(.system(size: 24, weight: .heavy).monospacedDigit())
+            .opacity(0.9)
+            .contentTransition(.numericText())
+            .animation(.snappy, value: score)
     }
 }
 
@@ -223,27 +249,18 @@ struct CountdownRing: View {
 
 // MARK: - Chips, bars, stats
 
-/// "All three right: +10 bonus = 40" under the pick panel (live and practice). A server from before the
-/// bonus (bonus 0) gets the plain "All three right = 30".
+/// "Pick all 3 correctly: +10 bonus = 40" under the pick panel (live and practice). A server from before the
+/// bonus (bonus 0) gets the plain "Pick all 3 correctly = 30".
 struct BonusChip: View {
     var scoring: Scoring = .standard
 
     var body: some View {
-        Chip(text: text, style: .gold)
+        Chip(text: scoring.bonusLine, style: .gold)
             .lineLimit(1)
             .minimumScaleFactor(0.8)
             .frame(maxWidth: .infinity)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(spoken)
-    }
-
-    private var text: String {
-        scoring.bonus > 0 ? "All three right: +\(scoring.bonus) bonus = \(scoring.exact)" : "All three right = \(scoring.exact)"
-    }
-
-    private var spoken: String {
-        scoring.bonus > 0 ? "Bonus: all three right adds \(scoring.bonus) points, \(scoring.exact) in all"
-            : "All three right scores \(scoring.exact) points"
+            .accessibilityLabel(scoring.bonusSpoken)
     }
 }
 
@@ -435,6 +452,13 @@ struct ResultReveal: View {
                 .foregroundStyle(Theme.text)
                 .opacity(shown ? 1 : 0)
                 .animation(.easeOut(duration: 0.3).delay(1.0), value: shown)
+            // The same words as under "Perfect call" in the points table.
+            if exact {
+                Text(ScoreRules.perfectNote).font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(Theme.gold)
+                    .opacity(shown ? 1 : 0)
+                    .animation(.easeOut(duration: 0.3).delay(1.15), value: shown)
+            }
         }
         .onAppear { shown = true }
         .onChange(of: animationKey) { _, _ in

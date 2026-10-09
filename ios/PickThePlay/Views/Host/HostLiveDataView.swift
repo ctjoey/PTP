@@ -28,7 +28,7 @@ private enum FeedColor {
 
 /// Whole seconds for the countdown lines, kept in a sane range so odd server numbers can't trap.
 private func wholeSeconds(_ value: Double, up: Bool = true) -> Int {
-    Int(min(max(value, 0), 604_800).rounded(up ? .up : .toNearestOrAwayFromZero))
+    HostText.wholeSeconds(value, up: up)
 }
 
 /// "Nothing found." / "Nothing found" -> a sentence that ends with one full stop.
@@ -172,12 +172,14 @@ struct HostLiveDataCard: View {
         }
     }
 
-    /// Changes when a suggestion needs the host's check or the feed disagrees with a scored play; "" otherwise.
+    /// Changes when a suggestion needs the host's check, the feed disagrees with a scored play, or a locked play is
+    /// left to the host (it warns once for that play, like a review suggestion does); "" otherwise.
     private func alertKey(_ feed: FeedState) -> String {
         if let d = feed.disagreement { return "disagree|\(d.playId)|\(d.feed)|\(d.scored)" }
         if let sg = feed.suggestion, sg.status == .review || sg.warning != nil {
             return "check|\(sg.playId)|\(sg.statusText)|\(sg.warning ?? "")"
         }
+        if host.snapshot?.lockedPlayIsLeftToHost == true, let play = host.play { return "byhand|\(play.id)" }
         return ""
     }
 
@@ -254,9 +256,10 @@ private struct FeedStatusSection: View {
     private var statusHeader: some View {
         TimelineView(.periodic(from: .now, by: 0.5)) { _ in
             let now = host.now()
-            let tone = feed.tone(at: now)
-            let label = feed.label(at: now)
-            let message = (feed.message?.isEmpty == false ? feed.message : nil) ?? feed.defaultMessage
+            let leftToHost = host.snapshot?.lockedPlayIsLeftToHost == true
+            let tone = feed.tone(at: now, leftToHost: leftToHost)
+            let label = feed.label(at: now, leftToHost: leftToHost)
+            let message = HostText.statusMessage(feed, leftToHost: leftToHost)
             HStack(alignment: .top, spacing: 12) {
                 ToneDot(tone: tone).padding(.top, 5)
                 VStack(alignment: .leading, spacing: 6) {
@@ -284,6 +287,7 @@ private struct FeedStatusSection: View {
         if let at = feed.autoOpenAt, at > now {
             return "Next play opens automatically in \(wholeSeconds(at - now)) s. Pause cancels it."
         }
+        if feed.state == "not_started" { return HostText.notStartedLine(nextCheckAt: feed.waiting?.nextCheckAt, now: now) }
         guard feed.state == "waiting", let waiting = feed.waiting else { return nil }
         var bits: [String] = []
         if let since = waiting.since { bits.append("waiting \(wholeSeconds(now - since, up: false)) s") }
