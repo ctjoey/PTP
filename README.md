@@ -183,7 +183,7 @@ working, and nothing waits for the feed.
 3. The first scrimmage entry that shows up is that play. It is read (`playparse.py`) and becomes a
    **suggestion** in the console: what the feed says, as the same chips you already know (Run/Pass,
    Left/Middle/Right, Short/Medium/Long and the yards).
-4. A clean suggestion is **scored automatically after 8 seconds** (a visible countdown), unless you
+4. A clean suggestion is **scored automatically after 4 seconds** (a visible countdown), unless you
    **Hold** it, **Change** it, **Score now**, or **Skip** the feed play. Odd plays wait for you.
 5. When it is scored, the **next play's down and distance is prefilled** in the Open Next Play form.
 
@@ -200,7 +200,7 @@ a field goal's distance are never mistaken for the play's yards.
 
 **If you miss a play** (never open it), its feed entry is still waiting when you open the next one. The down-and-distance
 check catches it ("Feed shows 2nd & 3 but this play is 1st & 10": tap **Skip this feed play**), but it cannot when both
-plays have the same down and distance, so glance at the shown play text during the 8 s countdown; **Hold** stops it.
+plays have the same down and distance, so glance at the shown play text during the 4 s countdown; **Hold** stops it.
 
 **If you score first** (you are faster than the feed) your play stays in line as "verification only": when its
 entry arrives it is checked, and if the feed disagrees you get a **Disagreement** banner with **Fix result** or
@@ -227,7 +227,7 @@ down by itself; after that it is automatic again.
   older plays and offers the newest one for you to confirm ("Caught up to the newest play").
 - Toggles: **Auto-score clean plays** (on by default) and **Open next play automatically** (**off** by default).
 - **Typical delay: N s**, the median of how long Tank01 took to show the last plays. Auto-open is only safe once
-  you have seen it: lag + the 8 s grace + the 12 s open delay should be well under about 25 s.
+  you have seen it: lag + the 4 s grace (the next play opens at once) should be well under about 25 s.
 - A usage meter ("Requests this game 214 / 900, plan has 786 left") with an amber warning at 80%, and
   **Allow 100 more** when the per-game cap stops it.
 - **Download feed log**: everything the recorder noted (see below).
@@ -274,8 +274,8 @@ already holds costs nothing.
 | `TANK01_ALLOW_OVERAGE` | `0` | `1` ignores the reserve (paid overage on a Pro plan) |
 | `TANK01_FIRST_DELAY` | `5` | Seconds to the first check, until there are lag samples |
 | `TANK01_FAST_INTERVAL` | `2.5` | Seconds between checks in the first minute |
-| `TANK01_AUTO_SCORE_GRACE` | `8` | Seconds a clean suggestion shows before it is scored |
-| `TANK01_OPEN_DELAY` | `12` | Seconds after a clean score until auto-open opens the next play |
+| `TANK01_AUTO_SCORE_GRACE` | `4` | Seconds a clean suggestion shows before it is scored |
+| `TANK01_OPEN_DELAY` | `0` | Seconds after a clean score until auto-open opens the next play |
 | `TANK01_TIMEOUT` | `15` | Seconds before a request to Tank01 is given up on |
 | `TANK01_DEMO_LAG` | `12` | Seconds the practice game takes to "show" a locked play |
 

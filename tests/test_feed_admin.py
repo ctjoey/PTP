@@ -516,5 +516,5 @@ def test_settings_read_the_environment_with_safe_fallbacks(monkeypatch):
     d = Settings()
     assert (d.tank01_api_key, d.tank01_max_requests_per_game, d.tank01_max_requests_per_day, d.tank01_reserve) == ("", 900, 1000, 15)
     assert d.tank01_allow_overage is False and (d.tank01_first_delay, d.tank01_fast_interval) == (5.0, 2.5)
-    assert (d.tank01_auto_score_grace, d.tank01_open_delay, d.tank01_timeout) == (8.0, 12.0, 15.0)
+    assert (d.tank01_auto_score_grace, d.tank01_open_delay, d.tank01_timeout) == (4.0, 0.0, 15.0)
     assert d.tank01_base_url == "https://tank01-nfl-live-in-game-real-time-statistics-nfl.p.rapidapi.com"

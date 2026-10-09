@@ -385,7 +385,7 @@ def test_pause_holds_a_running_countdown_and_resume_restarts_it(tmp_path):
         await rig.step(60)
         assert rig.play()["state"] == "LOCKED"
         await rig.ctrl.feed_resume()
-        assert rig.state()["suggestion"]["auto_at"] == rig.clock() + 8
+        assert rig.state()["suggestion"]["auto_at"] == rig.clock() + 4
         await rig.step(8)
         assert rig.play()["state"] == "RESOLVED"
 
@@ -490,6 +490,22 @@ def test_auto_open_is_off_by_default(tmp_path):
     run_rig(tmp_path, scenario)
 
 
+def test_by_default_a_clean_play_scores_after_four_seconds_and_the_next_play_opens_at_once(tmp_path):
+    async def scenario(rig: Rig):
+        await rig.new_game()
+        rig.ctrl.feed.set_options(auto_open=True)
+        await lock_entry(rig, FIRST_PASS)
+        await show_and_wait(rig, FIRST_PASS)
+        assert rig.state()["suggestion"]["auto_at"] == rig.clock() + 4
+        await rig.step(3)
+        assert rig.play()["state"] == "LOCKED"
+        await rig.step(1)                                      # scored, and the next play opens in the same moment
+        play = rig.play()
+        assert play["play_number"] == 2 and play["state"] == "OPEN" and (play["down"], play["distance"]) == (2, "3")
+
+    run_rig(tmp_path, scenario)
+
+
 def test_auto_open_opens_the_next_play_with_the_computed_down_and_distance(tmp_path):
     async def scenario(rig: Rig):
         await rig.new_game()
@@ -508,7 +524,7 @@ def test_auto_open_opens_the_next_play_with_the_computed_down_and_distance(tmp_p
         assert rig.state()["auto_open_at"] is None and rig.state()["next_down"] is None
         assert rig.game["status"] == "LIVE"
 
-    run_rig(tmp_path, scenario)
+    run_rig(tmp_path, scenario, tank01_open_delay=12.0)
 
 
 @pytest.mark.parametrize("entry, why", [
@@ -558,7 +574,7 @@ def test_auto_open_is_cancelled_by_the_host_or_by_pausing(tmp_path):
         await rig.step(60)
         assert rig.play()["play_number"] == 3 and rig.play()["state"] == "OPEN"
 
-    run_rig(tmp_path, scenario)
+    run_rig(tmp_path, scenario, tank01_open_delay=12.0)
 
 
 def test_auto_open_turned_off_cancels_the_pending_open(tmp_path):
@@ -572,7 +588,7 @@ def test_auto_open_turned_off_cancels_the_pending_open(tmp_path):
         rig.ctrl.feed.set_options(auto_open=False)
         assert rig.state()["auto_open_at"] is None
 
-    run_rig(tmp_path, scenario)
+    run_rig(tmp_path, scenario, tank01_open_delay=12.0)
 
 
 def test_auto_open_does_not_fire_after_the_game_is_over(tmp_path):
@@ -589,7 +605,7 @@ def test_auto_open_does_not_fire_after_the_game_is_over(tmp_path):
         await rig.step(60)
         assert rig.play()["state"] == "RESOLVED"
 
-    run_rig(tmp_path, scenario)
+    run_rig(tmp_path, scenario, tank01_open_delay=12.0)
 
 
 # --------------------------------------------------------------------------- #

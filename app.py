@@ -110,8 +110,8 @@ class Settings:
         default_factory=lambda: os.environ.get("TANK01_ALLOW_OVERAGE", "").strip().lower() in ("1", "true", "yes", "on"))
     tank01_first_delay: float = field(default_factory=lambda: _env_number("TANK01_FIRST_DELAY", 5.0))
     tank01_fast_interval: float = field(default_factory=lambda: _env_number("TANK01_FAST_INTERVAL", 2.5))
-    tank01_auto_score_grace: float = field(default_factory=lambda: _env_number("TANK01_AUTO_SCORE_GRACE", 8.0))
-    tank01_open_delay: float = field(default_factory=lambda: _env_number("TANK01_OPEN_DELAY", 12.0))
+    tank01_auto_score_grace: float = field(default_factory=lambda: _env_number("TANK01_AUTO_SCORE_GRACE", 4.0))
+    tank01_open_delay: float = field(default_factory=lambda: _env_number("TANK01_OPEN_DELAY", 0.0))
     tank01_timeout: float = field(default_factory=lambda: _env_number("TANK01_TIMEOUT", 15.0))
     tank01_demo_lag: float = field(default_factory=lambda: _env_number("TANK01_DEMO_LAG", 12.0))  # practice game's delay
 

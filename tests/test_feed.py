@@ -126,10 +126,10 @@ def test_clean_play_is_suggested_then_scored_after_the_grace_period(tmp_path):
         assert (sug["play_type"], sug["direction"], sug["yards"], sug["yardage"]) == ("PASS", "RIGHT", 7, "MEDIUM")
         assert sug["text"].startswith("A.Dalton pass short right") and sug["clock"] == "Q1 14:55"
         assert sug["down_and_distance"] == "1st & 10 at CAR 14" and sug["flags"] == [] and sug["warning"] is None
-        assert sug["auto_at"] == rig.clock() + 8 and s["waiting"] is None
+        assert sug["auto_at"] == rig.clock() + 4 and s["waiting"] is None
         assert s["lag"] == {"median": 5.0, "last": 5.0, "samples": 1}
         assert rig.play()["state"] == "LOCKED"
-        await rig.step(7)
+        await rig.step(3)
         assert rig.play()["state"] == "LOCKED"
         await rig.step(1)
         play = rig.play()
@@ -333,7 +333,7 @@ def test_auto_score_off_waits_for_the_host_and_can_be_turned_on(tmp_path):
             await rig.step(30)
         assert rig.play()["state"] == "LOCKED"
         rig.ctrl.feed.set_options(auto_score=True)                 # turning it on starts the countdown
-        assert rig.state()["suggestion"]["auto_at"] == rig.clock() + 8
+        assert rig.state()["suggestion"]["auto_at"] == rig.clock() + 4
         await rig.step(8)
         assert rig.play()["state"] == "RESOLVED"
 
