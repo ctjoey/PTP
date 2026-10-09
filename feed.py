@@ -49,11 +49,11 @@ MAX_RESPONSE_BYTES = 4_000_000
 
 # Polling schedule after a play locks: (seconds since lock below which the interval applies, interval).
 # The first check comes after ``first_delay``; the fast interval is a setting.
-INTERVALS = ((60.0, None), (180.0, 10.0), (600.0, 20.0))  # None: the fast interval
-SLOW_INTERVAL = 30.0
+INTERVALS = ((60.0, None), (180.0, 5.0), (600.0, 10.0))  # None: the fast interval
+SLOW_INTERVAL = 15.0
 QUIET_AFTER = 600.0
-NOT_STARTED_RETRY = 120.0
-FIRST_DELAY_MIN, FIRST_DELAY_MAX = 6.0, 45.0   # a slow feed (lag 45 s+) must not be polled from second 25 on
+NOT_STARTED_RETRY = 60.0
+FIRST_DELAY_MIN, FIRST_DELAY_MAX = 3.0, 45.0   # a slow feed (lag 45 s+) must not be polled from second 25 on
 BACKOFF_MAX = 30.0
 ERROR_AFTER, AUTOPAUSE_AFTER = 5, 10
 VERIFY_TTL = 150.0   # a play the host scored first waits this long for its feed entry
@@ -1528,7 +1528,7 @@ class LiveFeed:
         if self.game_final:
             return "done", "The game is over."
         if self._not_started and waiting:
-            return "not_started", (f"Waiting for kickoff. {self._not_started} Checking every 2 minutes. If the game is "
+            return "not_started", (f"Waiting for kickoff. {self._not_started} Checking every minute. If the game is "
                                    "already on, Tank01 is running late: score by hand, or wait and it catches up.")
         if self._fail_streak >= ERROR_AFTER:
             return "error", "Having trouble reaching Tank01. Still trying; score by hand if you need to."

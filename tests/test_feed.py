@@ -62,13 +62,13 @@ def test_polls_only_while_a_locked_play_waits_and_follows_the_schedule(tmp_path)
         locked_at = rig.clock()
         s = rig.state()
         assert s["state"] == "waiting" and s["waiting"]["play_id"] == rig.play()["id"]
-        assert s["waiting"]["next_check_at"] == locked_at + 10 and s["waiting"]["since"] == locked_at
-        await rig.step(9)
+        assert s["waiting"]["next_check_at"] == locked_at + 5 and s["waiting"]["since"] == locked_at
+        await rig.step(4)
         assert rig.server.hits == []                           # first check only after the first delay
-        await rig.until(lambda: len(rig.server.hits) == 1)
-        await rig.until(lambda: rig.clock() - locked_at >= 700)
+        await rig.until(lambda: len(rig.server.hits) == 1, step=0.5)
+        await rig.until(lambda: rig.clock() - locked_at >= 700, step=0.5)
         offsets = rig.poll_offsets(locked_at)
-        expected = [10, *range(15, 61, 5), *range(70, 181, 10), *range(200, 601, 20), 630, 660, 690]
+        expected = [*(5 + 2.5 * i for i in range(23)), *range(65, 181, 5), *range(190, 601, 10), 615, 630, 645, 660, 675, 690]
         assert offsets[: len(expected)] == expected
         # An empty feed never produced anything, and the host still can score by hand.
         assert rig.play()["state"] == "LOCKED"
@@ -127,7 +127,7 @@ def test_clean_play_is_suggested_then_scored_after_the_grace_period(tmp_path):
         assert sug["text"].startswith("A.Dalton pass short right") and sug["clock"] == "Q1 14:55"
         assert sug["down_and_distance"] == "1st & 10 at CAR 14" and sug["flags"] == [] and sug["warning"] is None
         assert sug["auto_at"] == rig.clock() + 8 and s["waiting"] is None
-        assert s["lag"] == {"median": 10.0, "last": 10.0, "samples": 1}
+        assert s["lag"] == {"median": 5.0, "last": 5.0, "samples": 1}
         assert rig.play()["state"] == "LOCKED"
         await rig.step(7)
         assert rig.play()["state"] == "LOCKED"
@@ -407,22 +407,22 @@ def test_lag_is_measured_and_sets_the_next_first_check(tmp_path):
         await rig.until(lambda: rig.clock() - locked >= 20)       # the entry shows up 20 s after the lock
         rig.server.reveal(upto=FIRST_PASS)
         await rig.until(lambda: rig.state()["suggestion"] is not None)
-        assert rig.state()["lag"] == {"median": 20.0, "last": 20.0, "samples": 1} or rig.state()["lag"]["last"] in (20.0, 25.0)
+        assert rig.state()["lag"] == {"median": 20.0, "last": 20.0, "samples": 1} or rig.state()["lag"]["last"] in (20.0, 22.5, 23.0, 25.0)
         lag = rig.state()["lag"]["last"]
         await rig.step(8)
         await lock_entry(rig, RUN_LEFT_END)
         s = rig.state()
-        assert s["waiting"]["next_check_at"] - s["waiting"]["since"] == pytest.approx(min(45.0, max(6.0, 0.8 * lag)))
+        assert s["waiting"]["next_check_at"] - s["waiting"]["since"] == pytest.approx(min(45.0, max(3.0, 0.8 * lag)))
 
     run_rig(tmp_path, scenario)
 
 
-def test_first_check_delay_is_clamped_between_6_and_45_seconds(tmp_path):
+def test_first_check_delay_is_clamped_between_3_and_45_seconds(tmp_path):
     async def scenario(rig: Rig):
         await rig.new_game()
         rig.feed.lags = [1.0, 2.0, 1.5]
         await lock_entry(rig, FIRST_PASS)
-        assert rig.state()["waiting"]["next_check_at"] - rig.state()["waiting"]["since"] == 6.0
+        assert rig.state()["waiting"]["next_check_at"] - rig.state()["waiting"]["since"] == 3.0
         rig.server.reveal(upto=FIRST_PASS)
         await rig.until(lambda: rig.state()["suggestion"] is not None)
         await rig.step(8)

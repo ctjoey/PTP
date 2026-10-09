@@ -507,7 +507,7 @@ def test_settings_read_the_environment_with_safe_fallbacks(monkeypatch):
     s = Settings()
     assert (s.tank01_api_key, s.tank01_base_url) == ("k-123", "http://x.test")
     assert (s.tank01_max_requests_per_game, s.tank01_max_requests_per_day, s.tank01_reserve) == (50, 1000, 3)
-    assert s.tank01_allow_overage is True and s.tank01_first_delay == 7.5 and s.tank01_fast_interval == 5.0
+    assert s.tank01_allow_overage is True and s.tank01_first_delay == 7.5 and s.tank01_fast_interval == 2.5
     assert (s.tank01_auto_score_grace, s.tank01_open_delay, s.tank01_timeout, s.tank01_demo_lag) == (9.0, 11.0, 4.0, 2.0)
     assert "k-123" not in repr(s)
     for name in list(__import__("os").environ):
@@ -515,6 +515,6 @@ def test_settings_read_the_environment_with_safe_fallbacks(monkeypatch):
             monkeypatch.delenv(name)
     d = Settings()
     assert (d.tank01_api_key, d.tank01_max_requests_per_game, d.tank01_max_requests_per_day, d.tank01_reserve) == ("", 900, 1000, 15)
-    assert d.tank01_allow_overage is False and (d.tank01_first_delay, d.tank01_fast_interval) == (10.0, 5.0)
+    assert d.tank01_allow_overage is False and (d.tank01_first_delay, d.tank01_fast_interval) == (5.0, 2.5)
     assert (d.tank01_auto_score_grace, d.tank01_open_delay, d.tank01_timeout) == (8.0, 12.0, 15.0)
     assert d.tank01_base_url == "https://tank01-nfl-live-in-game-real-time-statistics-nfl.p.rapidapi.com"

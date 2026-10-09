@@ -255,9 +255,9 @@ message, and manual scoring carries on, when:
 - Tank01 itself says the quota is used up.
 
 Schedule:
-the first check comes `0.8 x typical delay` after the lock (kept between 6 and 45 s, so a slow feed is not polled from second 25 on; `TANK01_FIRST_DELAY`, 10 s,
-until it has samples), then every `TANK01_FAST_INTERVAL` (5 s) for the first minute, every 10 s until 3 minutes,
-every 20 s until 10 minutes, then every 30 s. A game that has not started is checked every 2 minutes. Errors back
+the first check comes `0.8 x typical delay` after the lock (kept between 3 and 45 s, so a slow feed is not polled from second 25 on; `TANK01_FIRST_DELAY`, 5 s,
+until it has samples), then every `TANK01_FAST_INTERVAL` (2.5 s) for the first minute, every 5 s until 3 minutes,
+every 10 s until 10 minutes, then every 15 s. A game that has not started is checked every minute. Errors back
 off (10, 20, then 30 s); after 5 failures in a row the panel shows **Error** (it keeps trying slowly), after 10 it
 **pauses** itself. A rejected key (HTTP 401/403) stops at once and says so. A play scored from entries the server
 already holds costs nothing.
@@ -272,8 +272,8 @@ already holds costs nothing.
 | `TANK01_MAX_REQUESTS_PER_DAY` | `1000` | Requests per UTC day, over all games |
 | `TANK01_RESERVE` | `15` | Stop when the plan has this many left |
 | `TANK01_ALLOW_OVERAGE` | `0` | `1` ignores the reserve (paid overage on a Pro plan) |
-| `TANK01_FIRST_DELAY` | `10` | Seconds to the first check, until there are lag samples |
-| `TANK01_FAST_INTERVAL` | `5` | Seconds between checks in the first minute |
+| `TANK01_FIRST_DELAY` | `5` | Seconds to the first check, until there are lag samples |
+| `TANK01_FAST_INTERVAL` | `2.5` | Seconds between checks in the first minute |
 | `TANK01_AUTO_SCORE_GRACE` | `8` | Seconds a clean suggestion shows before it is scored |
 | `TANK01_OPEN_DELAY` | `12` | Seconds after a clean score until auto-open opens the next play |
 | `TANK01_TIMEOUT` | `15` | Seconds before a request to Tank01 is given up on |
@@ -309,7 +309,7 @@ revised: what to tune next. One line per poll also goes to the normal log.
 2. Rehearse once with **Practice with a recorded game**: let a few plays auto-score, try Hold, Change, Skip, Pause and Fix result.
 3. On game day tap **Pick today's game** (one request), pick it and **Create Game**. Leave **Open next play automatically** off.
 4. Open the first play shortly before the snap. Before kickoff the feed answers "not started" and live data waits
-   (it looks again every 2 minutes). If Tank01 is slow to go live, the first play simply waits: when the feed
+   (it looks again every minute). If Tank01 is slow to go live, the first play simply waits: when the feed
    catches up, the game's first play is offered to you as a suggestion to confirm with one tap (**Score now**), and the
    plays that happened while it waited are skipped. You can also score it by hand at any time.
 5. Watch **Typical delay** and the requests meter for the first few plays. Keep **Check now** for a stuck play.

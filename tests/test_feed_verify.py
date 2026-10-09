@@ -443,7 +443,7 @@ def test_the_background_loop_sleeps_when_nothing_is_due_and_never_spins(tmp_path
         assert len(ticks) <= 3 and ticks[-1] is None            # idle: parked on the wake event, no timer at all
         await rig.open_lock(1, "10")                            # a locked play: one timer (the first check)
         await asyncio.sleep(0.4)
-        assert len(ticks) <= 8 and 9 <= ticks[-1] <= 10
+        assert len(ticks) <= 8 and 4 <= ticks[-1] <= 5
         assert len(rig.server.hits) == 0                        # the clock is manual: nothing is due yet
 
     run_rig(tmp_path, scenario)

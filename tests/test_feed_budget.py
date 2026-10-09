@@ -28,9 +28,9 @@ def test_not_started_body_waits_two_minutes_and_says_when_the_game_starts(tmp_pa
         await rig.until(lambda: len(rig.server.hits) == 1)
         s = rig.state()
         assert s["state"] == "not_started" and "8:15p(ET)" in s["message"]
-        assert s["waiting"]["next_check_at"] - rig.clock() == 120
+        assert s["waiting"]["next_check_at"] - rig.clock() == 60
         assert log_rows(rig, "poll")[0]["data"]["error_kind"] == "not_started"
-        await rig.step(119)
+        await rig.step(59)
         assert len(rig.server.hits) == 1
         rig.server.not_started = False
         rig.server.reveal(upto=FIRST_PASS)
@@ -157,7 +157,7 @@ def test_server_errors_back_off_then_show_an_error_then_pause(tmp_path):
         await rig.until(lambda: len(rig.server.hits) >= 10, limit=900)
         offsets = rig.poll_offsets(locked)
         gaps = [b - a for a, b in zip(offsets, offsets[1:])]
-        assert offsets[0] == 10 and gaps[:5] == [10, 20, 30, 30, 30]       # doubling, capped at 30 s
+        assert offsets[0] == 5 and gaps[:5] == [5, 10, 20, 30, 30]         # doubling, capped at 30 s
         # five in a row: "error" (still retrying slowly); ten: paused with a message
         assert log_rows(rig, "error")[4]["data"]["streak"] == 5
         s = rig.state()
@@ -417,7 +417,7 @@ def test_check_now_while_a_play_waits_resets_the_next_check(tmp_path):
         await rig.ctrl.feed_check_now()
         s = rig.state()
         assert len(rig.server.hits) == 1 and s["waiting"]["checks"] == 1
-        assert s["waiting"]["next_check_at"] - rig.clock() == 5
+        assert s["waiting"]["next_check_at"] - rig.clock() == 2.5
 
     run_rig(tmp_path, scenario)
 
