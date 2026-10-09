@@ -605,7 +605,7 @@ class GameController:
     # -- host tools: remove a player, message the players ------------------- #
 
     async def remove_player(self, data: RemovePlayerIn) -> dict[str, Any]:
-        """Remove a player (and with ``block`` their name too): the same deletion as Settings > Delete account, done by
+        """Remove a player (and with ``block`` their name too): the same deletion as Settings > Change name or delete account, done by
         the host. Their picks and points go, they are signed out where they are, and the boards refresh."""
         username = self.store.remove_user(data.user_id, data.block)
         if username is None:

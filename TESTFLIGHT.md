@@ -7,7 +7,8 @@ upload it to TestFlight. You never open Xcode. The recipe is in `.github/workflo
 
 - **Native iPhone app** in `ios/PickThePlay` (iPhone only, iOS 17 or later), named **Pick the Play**.
   It includes a **Practice** mode that works without a live game, the **Live** game, leaderboards,
-  lounges, a **Rules** tab (works offline), and **Delete account** in Settings (Apple requires that).
+  **Head to Head** lounges, a **Rules** tab (works offline), and **Change name or delete account** in Settings
+  (Apple requires account deletion).
 - **Build + test on every push** to `ios/`. Each run also takes the App Store screenshots.
 - **TestFlight upload on demand**, using the same cloud signing as GameDial. Apple creates the
   certificates and profiles for you. The build number goes up by itself each run.
@@ -131,8 +132,11 @@ TestFlight builds expire after 90 days. Run Step 4 again for a fresh one.
   your `PTP_ADMIN_KEY`): pick the two teams and create the game, open each play, lock it, then resolve
   it with the play type, direction (Left, Middle or Right, as the QB looks downfield) and distance or
   yards gained. See README → "Running a game" and the Rules page (*your server*`/rules`).
-- **Scoring:** +10 play type, +10 direction, +10 distance, +10 bonus for all three = 40. A loss of
-  yards scores no distance points (and so no bonus).
+- **Scoring:** Pick correct play +10, pick correct direction +10, pick correct distance +10, pick all 3
+  correctly +10 = 40 (a perfect call: "You picked the play"). A loss of yards scores no distance points (and
+  so no bonus).
+- **Running a game from the phone:** the app has a host console too (**Settings → Open the host console**,
+  then the admin key). Only people who know the key can use it.
 
 ## If something goes wrong
 
@@ -148,19 +152,30 @@ TestFlight builds expire after 90 days. Run Step 4 again for a fresh one.
 
 - [ ] **Privacy Policy URL**: *your server*`/privacy`
 - [ ] **Support URL**: *your server*`/support`
-- [x] **Account deletion**: done (Settings → Delete account)
+- [x] **Account deletion**: done (Settings → Change name or delete account)
 - [ ] **App Privacy**. Answer "Yes, we collect data". Choose **Identifiers → User ID** (the username)
       and **User Content → Gameplay Content** (the picks). For both: **linked to the user: Yes**,
       **used for tracking: No**, purpose **App Functionality** only.
 - [ ] **Age rating** questionnaire: there's no chat, no gambling and no prizes (points only). The
       only thing players create is a username shown on leaderboards.
+- [ ] **Description** (the listing text). Keep the wording the same as the screens, for example: "Call every
+      snap before it happens. When a play opens you have 15 seconds to pick run or pass, left, middle or right
+      (as the quarterback looks downfield) and how far: short (0-5 yards), medium (6-10) or long (11+).
+      Pick correct play +10, pick correct direction +10, pick correct distance +10, and pick all 3 correctly
+      for another +10: a perfect call is 40 ('You picked the play'). Follow the live game, climb the leaderboard,
+      or play friends in a private Head to Head lounge. No game on? Try Practice. Pick the Play is an
+      independent fan prediction game for entertainment only. It is not affiliated with, endorsed by, or
+      sponsored by any professional football league or club."
 - [ ] **Review notes**, for example: "Free-to-play football prediction game, no password: pick any
       username. Before each play you call run or pass, left/middle/right (as the quarterback looks
-      downfield) and short/medium/long: +10 play type, +10 direction, +10 distance, +10 bonus for all
-      three = 40. The Rules tab explains everything. Teams are shown by city name only. To try it without a live game, use **Practice**. To see a live game, open
-      *your server*`/admin`, enter the key `<the key you give them>`, create a game and run a few
-      plays while the app is open. The same controls are inside the app for whoever runs the game:
-      **Settings → Open the host console**, enter the same key `<the key you give them>`."
+      downfield) and short/medium/long. Points: pick correct play +10, pick correct direction +10,
+      pick correct distance +10, pick all 3 correctly +10 = 40 (a perfect call). The Rules tab explains
+      everything. Teams are shown by city name only. To try it without a live game, use **Practice**. To see a live game,
+      open *your server*`/admin`, enter the key `<the key you give them>`, create a game and run a few
+      plays while the app is open. **The app also includes a host console, used to run a game.** It is
+      reached from **Settings → Open the host console** and is protected by an admin key that the host gets
+      from the game owner; players never see it. Reviewers can use the key `<the key you give them>`.
+      **Settings → Change name or delete account** deletes the account and its picks."
 - [ ] **Export compliance**: the app only uses standard HTTPS, so the answer is **No**. The build
       already declares `ITSAppUsesNonExemptEncryption = false`, so TestFlight doesn't ask each time.
 - [ ] **Screenshots**: open any green run in **Actions**, scroll to **Artifacts**, and download

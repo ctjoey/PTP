@@ -477,8 +477,8 @@ RULES_SENTENCES = (
     "Only scrimmage plays are called. Kickoffs, punts, field goals, extra points and kneel-downs are skipped. "
     "A play wiped out by a penalty, a sack or a quarterback scramble is no play: it is voided and nobody scores.",
     "Play for the live leaderboard, or head-to-head with friends in a private lounge.",
-    "Call Points Play type right (Run / Pass) +10 Direction right (Left / Middle / Right) +10 "
-    "Distance right (Short / Medium / Long) +10 Bonus: all three right +10 Perfect call 40",
+    "Call Points Pick correct play (Run / Pass) +10 Pick correct direction (Left / Middle / Right) +10 "
+    "Pick correct distance (Short / Medium / Long) +10 Pick all 3 correctly +10 Perfect call You picked the play 40",
     "Example: you call Run · Left · Short and the play is Run · Left · Medium: 20 points. "
     "Call Run · Left · Medium: 40.",
     "Distance is the total yards gained on the play: Short 0-5 yards, Medium 6-10, Long 11 or more. An incomplete "
@@ -530,7 +530,7 @@ def test_rules_is_linked_everywhere(client, admin_headers):
     lounge = client.post("/api/lounges", json={"name": "Sunday Crew"}, headers=auth(joey)).json()
     for path in ("/", f"/lounge/{lounge['id']}"):
         html = client.get(path).text
-        assert '<a class="btn btn-sm" id="rules-btn" href="/rules">Rules</a>' in html  # header, next to H2H
+        assert '<a class="btn btn-sm" id="rules-btn" href="/rules">Rules</a>' in html  # header, next to Head to Head
         assert html.index('id="rules-btn"') < html.index('id="lounge-btn"')
         assert '<a href="/rules">Read the full rules</a>' in html  # welcome modal
         assert re.search(r'href="/privacy"[^>]*>Privacy</a> · <a href="/support"[^>]*>Support</a> · '

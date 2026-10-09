@@ -172,8 +172,9 @@ actually happened (run or pass; left, middle or right as the quarterback looks d
 distance: Short, Medium, Long or Loss, or just type the yards gained), and **Resolve & Score Play**.
 Every phone updates instantly.
 
-Players pick all three too: +10 play type, +10 direction, +10 distance, +10 bonus for all three = 40.
-A loss of yards scores no distance points (and so no bonus). The **Rules** button (the
+Players pick all three too: pick correct play +10, pick correct direction +10, pick correct distance +10, pick
+all 3 correctly +10 = 40 (a perfect call: "You picked the play"). A loss of yards scores no distance points (and
+so no bonus). The **Rules** button (the
 **http://127.0.0.1:8000/rules** page) explains it all, including what counts as left, middle or
 right; all final calls are yours as the host. The [README](README.md#running-a-game-admin) has the
 details and keyboard shortcuts.

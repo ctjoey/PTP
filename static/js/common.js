@@ -218,6 +218,43 @@ const PTP = (() => {
     set("--away-ink", inkFor(game.away_primary));
   }
 
+  /** A score to show: a whole number from 0 up. Null (no score yet) or anything odd gives null, so nothing is drawn. */
+  function scoreText(value) {
+    return typeof value === "number" && Number.isInteger(value) && value >= 0 && value < 1000 ? String(value) : null;
+  }
+
+  /**
+   * The live score beside each team (and, in the host console, how old it is). The server fills it in only when a
+   * check of the live data happens, so it can trail the TV by about a minute. Both scores must be good to show
+   * either one; with none yet (or the practice game) both stay hidden.
+   */
+  function renderScore(root, game) {
+    const away = scoreText(game.away_score);
+    const home = scoreText(game.home_score);
+    const show = away !== null && home !== null;
+    for (const [side, text] of [["away", away], ["home", home]]) {
+      const node = $(`.team.${side} .team-score`, root);
+      if (!node) continue;
+      node.hidden = !show;
+      const want = show ? text : "";
+      if (node.textContent !== want) node.textContent = want;
+    }
+    root.dataset.scoreAt = show && typeof game.score_at === "number" && Number.isFinite(game.score_at) ? String(game.score_at) : "";
+    paintScoreAge(root);
+  }
+
+  /** "Score as of 12 s ago" in the host console's scorebug (the player pages have no such line). */
+  function paintScoreAge(root) {
+    const node = root && $(".bug-age", root);
+    if (!node) return;
+    const at = root.dataset.scoreAt ? Number(root.dataset.scoreAt) : NaN;
+    node.hidden = !Number.isFinite(at);
+    if (node.hidden) return;
+    const age = Math.max(0, Math.round(now() - at));
+    const text = `Score as of ${age < 90 ? `${age} s` : `${Math.round(age / 60)} min`} ago`;
+    if (node.textContent !== text) node.textContent = text;
+  }
+
   /** Fill a scorebug element (see templates) from a game + play. */
   function renderScorebug(root, game, play) {
     if (!root) return;
@@ -228,6 +265,7 @@ const PTP = (() => {
     $(".team.away .team-name", root).textContent = game.away_name;
     $(".team.home .team-abbr", root).textContent = teamAbbr(game.home_name);
     $(".team.home .team-name", root).textContent = game.home_name;
+    renderScore(root, game);
     const pill = $(".status-pill", root);
     pill.textContent = game.status;
     pill.className = `status-pill ${String(game.status).toLowerCase()}`;
@@ -303,7 +341,7 @@ const PTP = (() => {
 
   return {
     $, $$, el, toast, api, LiveSocket, now, syncClock, theme,
-    ordinal, downDistance, teamAbbr, inkFor, applyTeamColors, renderScorebug, pct, crowdBars,
+    ordinal, downDistance, teamAbbr, inkFor, applyTeamColors, renderScorebug, paintScoreAge, pct, crowdBars,
     YARDAGE_RANGE, bucketForYards, yardsText, titleCase, describeResult,
   };
 })();

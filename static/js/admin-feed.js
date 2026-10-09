@@ -230,7 +230,9 @@ const PTPFeed = (() => {
         yardage: sg.yardage || over.yardage || bucketForYards(sg.yards) || null,
         yards: sg.yards === undefined ? null : sg.yards,
       };
-      const isVoid = sg.status === "void" ||
+      // The feed said "no play". The server may still have downgraded it to review (the down and distance don't
+      // prove it is this play's penalty): the card then still offers Void, with its warning, not three pickers.
+      const isVoid = sg.status === "void" || sg.kind === "void" ||
         (sg.status === "held" && !sg.play_type && !sg.direction && /no play/i.test(sg.text || ""));
       const missing = isVoid ? [] : PARTS.filter((p) => !merged[p.key]);
       return { merged, isVoid, missing, complete: !isVoid && missing.length === 0 };
@@ -288,9 +290,11 @@ const PTPFeed = (() => {
       const note = $("#sg-note");
       let text = "";
       if (sg.status === "review") {
-        text = v.missing.length
-          ? `Pick the ${v.missing.map((p) => p.label).join(", ").replace(/, ([^,]*)$/, " and $1")} above, then Score.`
-          : "An unusual play, so it won't score by itself. Check it, then tap Score.";
+        text = v.isVoid
+          ? "The feed says no play, but check it against the TV first. Tap Void play if it's right, or score it yourself with Change."
+          : v.missing.length
+            ? `Pick the ${v.missing.map((p) => p.label).join(", ").replace(/, ([^,]*)$/, " and $1")} above, then Score.`
+            : "An unusual play, so it won't score by itself. Check it, then tap Score.";
       } else if (sg.status === "held") {
         text = v.isVoid
           ? "On hold. Tap Void play to confirm it, or score it yourself with Change."

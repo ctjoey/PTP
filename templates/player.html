@@ -10,7 +10,7 @@
     </a>
     <div class="topbar-actions">
       <a class="btn btn-sm" id="rules-btn" href="/rules">Rules</a>
-      <button class="btn btn-sm" id="lounge-btn" type="button"><span class="h2h-prefix">H2H </span>Lounges</button>
+      <button class="btn btn-sm" id="lounge-btn" type="button">Head to Head</button>
       {% include "_theme_toggle.html" %}
       <span class="conn connecting" id="conn" role="img" aria-label="Connecting"></span>
     </div>
@@ -29,14 +29,14 @@
     </div>
     <div class="row">
       <button class="btn btn-sm" id="invite-btn" type="button">Invite</button>
-      <a class="btn btn-sm btn-ghost" href="/">Exit</a>
+      <a class="btn btn-sm" href="/">Back to the game</a>
     </div>
   </section>
 
   <section class="scorebug" id="scorebug" hidden>
-    <div class="team away"><div class="team-abbr"></div><div class="team-name"></div><div class="team-tag">AWAY</div></div>
+    <div class="team away"><div class="team-top"><div class="team-abbr"></div><div class="team-score" hidden></div></div><div class="team-name"></div><div class="team-tag">AWAY</div></div>
     <div class="bug-mid"><span class="status-pill"></span><span class="bug-at">@</span><span class="bug-info"></span></div>
-    <div class="team home"><div class="team-abbr"></div><div class="team-name"></div><div class="team-tag">HOME</div></div>
+    <div class="team home"><div class="team-top"><div class="team-abbr"></div><div class="team-score" hidden></div></div><div class="team-name"></div><div class="team-tag">HOME</div></div>
   </section>
 
   <section class="card stage" id="stage" aria-live="polite">
@@ -98,7 +98,7 @@
       </div>
       <div class="pick-status" id="pick-status">Make your call: type, direction, distance</div>
       <div class="points-hint">
-        <span class="chip">Type +10</span><span class="chip">Direction +10</span><span class="chip">Distance +10</span><span class="chip gold" title="10 more for all three right: a perfect call is 40">Bonus +10</span>
+        <span class="chip">Type +10</span><span class="chip">Direction +10</span><span class="chip">Distance +10</span><span class="chip gold" title="Pick all 3 correctly: +10 bonus = 40">Bonus +10</span>
       </div>
     </div>
 
@@ -125,6 +125,7 @@
       </div>
       <div class="points" id="result-points"></div>
       <div class="points-label" id="result-label"></div>
+      <div class="points-sub" id="result-sub" hidden>You picked the play</div>
       <div class="your-pick" id="result-pick"></div>
       <p class="view-text small" id="result-crowd"></p>
       <p class="view-text small">Next play coming up…</p>
@@ -148,7 +149,7 @@
 
   <p class="whoami" id="whoami" hidden>
     Playing as <b id="whoami-name"></b> ·
-    <button class="link-btn" type="button" id="change-name">Change name</button>
+    <button class="link-btn" type="button" id="change-name">Change name or delete account</button>
   </p>
 
   <button class="btn btn-block" type="button" id="practice-btn" data-practice-open>Practice mode</button>
@@ -179,11 +180,11 @@
       <b>Run or Pass</b>, <b>Left, Middle or Right</b> (as the QB looks downfield) and <b>how far</b>:
       Short (0-5 yds), Medium (6-10) or Long (11+).</p>
     <table class="scoring-table">
-      <tr><td>Correct play type</td><td>+10</td></tr>
-      <tr><td>Correct direction</td><td>+10</td></tr>
-      <tr><td>Correct distance</td><td>+10</td></tr>
-      <tr><td>Bonus: all three right</td><td>+10</td></tr>
-      <tr class="perfect"><td>Perfect call</td><td>40</td></tr>
+      <tr><td>Pick correct play (Run / Pass)</td><td>+10</td></tr>
+      <tr><td>Pick correct direction (Left / Middle / Right)</td><td>+10</td></tr>
+      <tr><td>Pick correct distance (Short / Medium / Long)</td><td>+10</td></tr>
+      <tr><td>Pick all 3 correctly</td><td>+10</td></tr>
+      <tr class="perfect"><td>Perfect call <span class="perfect-sub">You picked the play</span></td><td>40</td></tr>
     </table>
     <p class="muted small" style="margin:8px 0 0">A loss of yards scores no distance points, and so no bonus.
       <a href="/rules">Read the full rules</a></p>
@@ -252,7 +253,7 @@
         <div class="pick-status" id="p-pick-status">Make your call: type, direction, distance</div>
         <button class="btn btn-primary btn-block" type="button" id="p-snap" disabled>Pick all three, then snap</button>
         <div class="points-hint">
-          <span class="chip">Type +10</span><span class="chip">Direction +10</span><span class="chip">Distance +10</span><span class="chip gold" title="10 more for all three right: a perfect call is 40">Bonus +10</span>
+          <span class="chip">Type +10</span><span class="chip">Direction +10</span><span class="chip">Distance +10</span><span class="chip gold" title="Pick all 3 correctly: +10 bonus = 40">Bonus +10</span>
         </div>
       </div>
 
@@ -275,6 +276,7 @@
         </div>
         <div class="points" id="p-points"></div>
         <div class="points-label" id="p-label"></div>
+        <div class="points-sub" id="p-sub" hidden>You picked the play</div>
         <div class="your-pick" id="p-result-pick"></div>
         <button class="btn btn-primary btn-block" type="button" id="p-next">Next play</button>
       </div>
@@ -290,8 +292,8 @@
 <div class="modal-backdrop" id="lounge-modal" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="lounge-modal-title">
     <div class="modal-head">
-      <h2 id="lounge-modal-title">Head-to-Head Lounges</h2>
-      <button class="btn btn-sm btn-ghost" type="button" data-close aria-label="Close">✕</button>
+      <h2 id="lounge-modal-title">Head to Head</h2>
+      <button class="btn btn-sm" type="button" data-close>Back to the game</button>
     </div>
     <p class="muted small">Play the same live game against your friends in a private room with its own leaderboard.</p>
 
@@ -303,7 +305,7 @@
     <section class="modal-section">
       <h3>Join with a 4-digit code</h3>
       <form class="row" id="join-form" novalidate>
-        <input class="input code" id="join-code" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="0000" autocomplete="off" aria-label="Lounge code">
+        <input class="input code" id="join-code" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="0000" autocomplete="off" enterkeyhint="go" aria-label="Lounge code">
         <button class="btn btn-primary" type="submit">Join</button>
       </form>
       <p class="muted small lounge-how">Got a code from a friend? Type it in and tap Join. Your group's leaderboard opens.</p>
@@ -313,7 +315,7 @@
     <section class="modal-section">
       <h3>Create a lounge</h3>
       <form class="row" id="create-form" novalidate>
-        <input class="input" id="create-name" maxlength="32" placeholder="e.g. Sunday Crew" aria-label="Lounge name">
+        <input class="input" id="create-name" maxlength="32" placeholder="e.g. Sunday Crew" enterkeyhint="go" aria-label="Lounge name">
         <button class="btn btn-primary" type="submit">Create</button>
       </form>
       <p class="muted small lounge-how">Name your group and tap Create, then send the code to friends. They enter it above to join.</p>

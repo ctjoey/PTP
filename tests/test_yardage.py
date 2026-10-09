@@ -304,7 +304,7 @@ def test_old_database_is_migrated_and_keeps_working(old_db):
     old_play = store.get_play(1)
     assert (old_play["correct_play_type"], old_play["correct_yardage"], old_play["yards_gained"]) == ("PASS", None, None)
     assert store.predictions_for_play(1)[1]["yardage"] is None
-    # Old perfect calls (type + direction) no longer count as all three right.
+    # Old perfect calls (type + direction) no longer count as picking all 3 correctly.
     board = store.game_leaderboard(1)
     assert [(r["username"], r["score"], r["exact_hits"]) for r in board] == [("alice", 30, 0), ("bob", 10, 0)]
 

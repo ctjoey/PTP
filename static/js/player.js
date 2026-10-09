@@ -443,6 +443,7 @@
 
     const points = $("#result-points");
     const label = $("#result-label");
+    const sub = $("#result-sub");
     $("#result-body").hidden = play.voided;
     $("#result-kicker").textContent = `${playLabel(play)} — ${play.voided ? "No play" : "Result"}`;
 
@@ -450,6 +451,7 @@
       points.textContent = "VOID";
       points.className = "points zero";
       label.textContent = "No play (penalty, sack or QB scramble) — no points";
+      sub.hidden = true;
       $("#result-pick").replaceChildren();
       $("#result-crowd").textContent = "";
     } else {
@@ -466,6 +468,7 @@
       points.textContent = pts === null ? "—" : `+${pts}`;
       points.className = `points ${right === 3 ? "exact" : pts ? "some" : "zero"}`;
       label.textContent = resultLabel(right);
+      sub.hidden = right !== 3;   // "You picked the play", under "Perfect call!"
       pickChips($("#result-pick"), pick, play);
       $("#result-crowd").textContent =
         crowd && crowd.total
@@ -655,11 +658,11 @@
     }
   }
 
-  /** Deleting the account is how a name is changed: a name is only ever tied to this browser's sign-in. */
+  /** "Change name or delete account": deleting the account is how a name is changed (a name is only ever tied to this browser's sign-in). */
   async function changeName() {
     if (!S.token) return;
     const name = (S.user && S.user.username) || "your name";
-    if (!confirm(`Change your name? This deletes "${name}" along with its picks, scores and any lounges you host, then lets you pick a new name.`)) return;
+    if (!confirm(`Change your name or delete your account? This deletes "${name}" along with its picks, scores and any lounges you host. You can then start again with a new name. It can't be undone.`)) return;
     const button = $("#change-name");
     button.disabled = true;
     try {
@@ -697,8 +700,24 @@
       if (ev.key === "Escape") modal.hidden = true;
     });
 
+    // A number pad has no Done key. Put the keyboard away on a tap outside the fields, on a drag, and (on a phone)
+    // once the 4th digit is in, so the Join button and "Back to the game" are never hidden behind it.
+    const dropKeyboard = () => {
+      const field = document.activeElement;
+      if (field && modal.contains(field) && field.matches("input, textarea")) field.blur();
+    };
+    modal.addEventListener("pointerdown", (ev) => {
+      if (!ev.target.closest("input, textarea, button, a, label, select")) dropKeyboard();
+    });
+    let dragFrom = null;
+    modal.addEventListener("touchstart", (ev) => { dragFrom = ev.touches[0].clientY; }, { passive: true });
+    modal.addEventListener("touchmove", (ev) => {
+      if (dragFrom !== null && Math.abs(ev.touches[0].clientY - dragFrom) > 12) { dragFrom = null; dropKeyboard(); }
+    }, { passive: true });
+
     $("#join-code").addEventListener("input", (ev) => {
       ev.target.value = ev.target.value.replace(/\D/g, "").slice(0, 4);
+      if (ev.target.value.length === 4 && matchMedia("(pointer: coarse)").matches) ev.target.blur();
     });
     $("#join-form").addEventListener("submit", async (ev) => {
       ev.preventDefault();

@@ -136,7 +136,7 @@ a { color: var(--blue); }
 
 .topbar-actions { display: flex; align-items: center; gap: 8px; }
 .topbar .btn { white-space: nowrap; }
-/* Rules + Lounges + the theme toggle + the live dot next to the brand: compact up to 460 px so the dot never
+/* Rules + Head to Head + the theme toggle + the live dot next to the brand: compact up to 460 px so the dot never
    pokes out of the viewport (an iPhone Pro Max is 430 wide). */
 @media (max-width: 460px) {
   .topbar { gap: 8px; }
@@ -145,14 +145,16 @@ a { color: var(--blue); }
   .topbar .brand-sub { letter-spacing: .15em; }
   .topbar-actions { gap: 5px; }
   .topbar .btn-sm { padding: 0 9px; font-size: 13px; }
-  .h2h-prefix { display: none; }
 }
-@media (max-width: 370px) {
+/* "Head to Head" is longer than the old "Lounges": a 375 to 400 pt phone gets a slightly smaller brand and buttons. */
+@media (max-width: 400px) {
   .topbar .brand-name { font-size: 17px; }
   .topbar .brand-sub { letter-spacing: .12em; }
+  .topbar-actions { gap: 4px; }
+  .topbar .btn-sm { padding: 0 7px; font-size: 12.5px; }
 }
-/* Very narrow phones (iPhone SE): the actions drop under the brand rather than overflow. */
-@media (max-width: 340px) {
+/* Very narrow phones (360 pt and under): the actions drop under the brand rather than overflow. */
+@media (max-width: 360px) {
   .topbar { flex-wrap: wrap; row-gap: 8px; }
   .topbar-actions { margin-left: auto; }
 }
@@ -258,7 +260,11 @@ a { color: var(--blue); }
   border-bottom: 4px solid var(--home-2);
   text-align: right;
 }
+.team-top { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.team.home .team-top { justify-content: flex-end; }
+.team.home .team-score { order: -1; }   /* CAR 14 @ 7 WSH: each score sits next to its own team */
 .team-abbr { font-size: 28px; font-weight: 900; font-style: italic; letter-spacing: -.02em; line-height: 1; }
+.team-score { font-size: 22px; font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; opacity: .92; }
 .team-name { font-size: 12px; font-weight: 700; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 4px; }
 .team-tag { font-size: 9px; font-weight: 800; letter-spacing: .18em; opacity: .7; margin-top: 2px; }
 .bug-mid {
@@ -269,6 +275,7 @@ a { color: var(--blue); }
 }
 .bug-at { font-weight: 900; color: var(--dim); font-size: 13px; }
 .bug-info { font-size: 11px; font-weight: 700; color: var(--muted); text-align: center; white-space: nowrap; }
+.bug-age { max-width: 96px; font-size: 10px; font-weight: 700; line-height: 1.25; color: var(--dim); text-align: center; }
 
 .status-pill {
   display: inline-flex; align-items: center; gap: 6px;
@@ -293,6 +300,9 @@ a { color: var(--blue); }
   background: linear-gradient(90deg, color-mix(in srgb, var(--blue) 20%, var(--surface)), var(--surface));
   border: 1px solid color-mix(in srgb, var(--blue) 40%, var(--border));
 }
+.lounge-strip { flex-wrap: wrap; }
+.lounge-strip .row { flex: none; margin-left: auto; }
+.lounge-strip .btn { white-space: nowrap; }
 .lounge-strip-name { font-weight: 800; }
 .lounge-strip-code { font-size: 12px; color: var(--muted); }
 
@@ -447,6 +457,8 @@ a { color: var(--blue); }
 .animate .points { animation: popIn .55s .8s cubic-bezier(.2, 1.6, .4, 1) both; }
 .animate .points-label { animation: fadeUp .4s 1.05s both; }
 .points-label { font-weight: 900; letter-spacing: .1em; text-transform: uppercase; font-size: 14px; }
+.points-sub { margin-top: 4px; font-size: 13px; font-weight: 800; color: var(--gold); }
+.animate .points-sub { animation: fadeUp .4s 1.15s both; }
 
 .confetti { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
 .confetti i {
@@ -564,6 +576,7 @@ a { color: var(--blue); }
 .scoring-table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .scoring-table td { padding: 6px 0; border-bottom: 1px solid var(--border); }
 .scoring-table td:last-child { text-align: right; font-weight: 900; color: var(--accent); }
+.perfect-sub { display: block; font-size: 12px; font-weight: 700; opacity: .85; }
 
 .toasts {
   position: fixed; z-index: 80; left: 50%; transform: translateX(-50%);

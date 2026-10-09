@@ -31,11 +31,11 @@
     <p>You can change your pick until the timer runs out. Then predictions lock, the play runs, and
       everyone sees the result and the updated leaderboard at the same moment.</p>
     <table class="scoring-table">
-      <tr><td>Correct play type</td><td>+{{ scoring.type }}</td></tr>
-      <tr><td>Correct direction</td><td>+{{ scoring.direction }}</td></tr>
-      <tr><td>Correct distance</td><td>+{{ scoring.yardage }}</td></tr>
-      <tr><td>Bonus: all three right</td><td>+{{ scoring.bonus }}</td></tr>
-      <tr class="perfect"><td>Perfect call</td><td>{{ scoring.exact }}</td></tr>
+      <tr><td>Pick correct play (Run / Pass)</td><td>+{{ scoring.type }}</td></tr>
+      <tr><td>Pick correct direction (Left / Middle / Right)</td><td>+{{ scoring.direction }}</td></tr>
+      <tr><td>Pick correct distance (Short / Medium / Long)</td><td>+{{ scoring.yardage }}</td></tr>
+      <tr><td>Pick all 3 correctly</td><td>+{{ scoring.bonus }}</td></tr>
+      <tr class="perfect"><td>Perfect call <span class="perfect-sub">You picked the play</span></td><td>{{ scoring.exact }}</td></tr>
     </table>
     <p>For example, you pick Run, Left, Short and it's a run to the left for 7 yards (Medium): that's
       {{ scoring.type + scoring.direction }} points. Pick Run, Left, Medium and you get all three plus the
@@ -66,13 +66,14 @@
 
   <section class="card">
     <h2>Deleting your account</h2>
-    <p>In the iPhone app, go to <b>Settings &gt; Delete account</b> and confirm. Your account is deleted
-      immediately and permanently, including your username, picks and points, your lounge memberships,
-      and any lounges you host. This can't be undone. You can start again any time with a new
+    <p>In the iPhone app, go to <b>Settings &gt; Change name or delete account</b> and confirm. Your account
+      is deleted immediately and permanently, including your username, picks and points, your lounge
+      memberships, and any lounges you host. This can't be undone. You can start again any time with a new
       username.</p>
-    <p>Playing in Safari or from a Home Screen icon instead of the iPhone app? Tap <b>Change name</b>
-      under your scores. It deletes your account the same way and lets you pick a new username. You can
-      also ask the person running your game to remove your account.</p>
+    <p>Playing in Safari or from a Home Screen icon instead of the iPhone app? Tap
+      <b>Change name or delete account</b> under your scores. It does the same thing: it deletes your account
+      and lets you pick a new username. You can also ask the person running your game to remove your
+      account.</p>
     <p>See the <a href="/privacy">Privacy Policy</a> for exactly what is stored.</p>
   </section>
 

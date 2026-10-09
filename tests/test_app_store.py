@@ -158,7 +158,7 @@ PRIVACY_PHRASES = (
     "no analytics",
     "do not sell your data",
     "IP address",
-    "Settings &gt; Delete account",
+    "Settings &gt; Change name or delete account",
     "operator resets the game",
     "not directed at children under 13",
     "not affiliated with",
@@ -177,10 +177,12 @@ def test_privacy_page(client):
 def test_support_page(client):
     res = client.get("/support")
     assert res.status_code == 200
-    for phrase in ("How to play", "15 seconds", "+10", "Correct distance", "Bonus: all three right",
-                   "Perfect call</td><td>40</td>", "Left, middle or right?", 'href="/rules"',
+    for phrase in ("How to play", "15 seconds", "+10", "Pick correct play (Run / Pass)",
+                   "Pick correct direction (Left / Middle / Right)", "Pick correct distance (Short / Medium / Long)",
+                   "Pick all 3 correctly", 'Perfect call <span class="perfect-sub">You picked the play</span></td><td>40</td>',
+                   "Left, middle or right?", 'href="/rules"',
                    "as the quarterback looks downfield", "Short</b> (5 yards or less)", "A loss of yards scores no",
-                   "4-digit code", "Delete account", 'href="/privacy"', "App Store", "not affiliated with"):
+                   "4-digit code", "Change name or delete account", 'href="/privacy"', "App Store", "not affiliated with"):
         assert phrase in res.text, phrase
 
 

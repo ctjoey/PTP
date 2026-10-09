@@ -518,6 +518,7 @@
   }
 
   wireUI();
+  setInterval(() => PTP.paintScoreAge($("#scorebug")), 1000);   // "Score as of N s ago" keeps counting between messages
   const saved = storage.get(KEY_STORAGE);
   if (saved) start(saved);
   else showAuth();

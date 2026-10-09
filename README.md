@@ -4,14 +4,14 @@ A real-time, second-screen prediction game for live pro football. Before every s
 **15 seconds** to call the play — **Run or Pass**, **Left, Middle or Right** (as the QB looks
 downfield) and **how far: Short, Medium or Long** — then watch points and leaderboards update the
 instant the admin scores the play. For example: *Run, Left, Short*. Each right call is worth 10
-points, and getting all three right adds a 10-point bonus: a perfect call is 40.
+points, and picking all 3 correctly adds a 10-point bonus: a perfect call is 40 ("You picked the play").
 
 The MVP is a single Python FastAPI server with three web surfaces, synchronised over WebSockets:
 
 | Surface | URL | Who |
 | --- | --- | --- |
 | **Live Player App** | `/` | Fans. Mobile-first, dark by default with a light/dark toggle (the sun/moon button in every page header), installable to the iPhone home screen. **Practice mode** (the button under the scores, on the "no game" card and on the welcome screen) plays simulated plays with the live timer and scoring, so anyone can try it with no game on and without signing in. Nothing is sent to the server. |
-| **Head-to-Head Lounges** | `/lounge/<4-digit code>` | Friends playing each other with a private leaderboard. |
+| **Head to Head** (lounges) | `/lounge/<4-digit code>` | Friends playing each other with a private leaderboard. |
 | **Admin Console** | `/admin` | The operator watching the game and driving each play, by hand or with [live data](#live-data-tank01). |
 | **Rules of the Game** | `/rules` | Everyone: how it works, the points, and what Left / Middle / Right mean. |
 
@@ -193,6 +193,7 @@ working, and nothing waits for the feed.
 | "No Play" (a penalty nullified the play), a **sack**, or a **quarterback scramble** | Void: voided automatically after the grace period. A sack or a scramble is no play and scores nothing for anyone: there was no throw to call |
 | An interception, fumble or aborted snap, lateral or reverse, an accepted penalty, no charted direction or yards, anything unrecognised | **Review**: an amber card with a prefill and the reasons. Never automatic: you finish it (e.g. pick the direction) and press Score |
 | The feed's down and distance differs from the play you opened ("Feed shows 2nd & 3 but this play is 2nd & 8") | Review with that warning, and a **Skip this feed play** button that throws the entry away and keeps waiting |
+| "No Play" (or a sack / scramble) when the down and distance can't prove it is this play's | Review, but still a **no-play card**: it offers **Void play** (not the Run / Pass, direction and distance pickers) and keeps "Check the down and distance before voiding this play" in view. It never voids by itself |
 | Kickoffs, punts, field goals, extra points, two-point tries, kneel-downs, spikes, timeouts, quarter markers | Not plays: skipped silently |
 
 When in doubt the parser says "review", never a guess. An interception's return yards, a penalty's yards and
@@ -374,16 +375,20 @@ colors. `GET /api/admin/feed/log` returns the recorder.
 
 ## Scoring
 
-Each play has three picks. Each one you get right is worth **10 points**, and getting all three right
-adds a **10-point bonus**: +10 play type, +10 direction, +10 distance, +10 bonus for all three = 40.
+Each play has three picks. Each one you get right is worth **10 points**, and picking all 3 correctly
+adds a **10-point bonus**: +10 pick correct play, +10 pick correct direction, +10 pick correct distance, +10 pick all 3 correctly = 40.
+Every screen (website, iPhone app, Rules, Support, Practice) words the points table the same way:
 
-| Pick | Choices | Points if right |
+| Row | Choices | Points |
 | --- | --- | --- |
-| Play type | Run · Pass | +10 |
-| Direction (as the QB looks downfield) | Left · Middle · Right | +10 |
-| Distance (total yards gained) | Short 0-5 yds · Medium 6-10 · Long 11+ | +10 |
-| Bonus: all three right | | +10 |
-| **Perfect call** | | **40** |
+| Pick correct play (Run / Pass) | Run · Pass | +10 |
+| Pick correct direction (Left / Middle / Right), as the QB looks downfield | Left · Middle · Right | +10 |
+| Pick correct distance (Short / Medium / Long), total yards gained | Short 0-5 yds · Medium 6-10 · Long 11+ | +10 |
+| Pick all 3 correctly | | +10 |
+| **Perfect call** ("You picked the play") | | **40** |
+
+When a player picks all 3 correctly, the live result (and Practice) shows **Perfect call!** with the line
+"You picked the play" under it.
 
 So a play scores 0, 10, 20 or 40 (30 can't happen). A **loss of yards** (a run stopped behind
 the line) scores no distance points, and so no bonus: a loss earns at most 20. An incomplete pass or
@@ -391,7 +396,7 @@ no gain is 0 yards, which is Short. Example: you pick *Run, Left, Short* and it'
 7 yards (Medium): **20 points**. Pick *Run, Left, Medium*: **40**. Points already scored before the
 bonus existed stay as they were (an old 30 stays 30).
 
-Ties share a rank (1, 2, 2, 4). Within a tie, more perfect calls (all three right) sort first.
+Ties share a rank (1, 2, 2, 4). Within a tie, more perfect calls (all 3 picked correctly) sort first.
 The live leaderboard ranks points in the current game; *Season pts* is the user's all-time total.
 
 ### Left, Middle and Right
@@ -411,7 +416,7 @@ console and the support page). Always from the offense's point of view, as the Q
 
 ## Head-to-Head Lounges
 
-From the player app, tap **H2H Lounges** to:
+From the player app, tap **Head to Head** (in the website's header, and a tab in the iPhone app) to:
 
 - **Create** a lounge. You become the host (👑) and get a 4-digit code plus a share link
   (uses the iOS share sheet where available).
@@ -509,10 +514,15 @@ Inside a lounge you play the same live game, with a private leaderboard tab of e
   `yardage` (`null` for picks made before distance picks existed) and `points_earned`. Once the play is
   resolved, `my_prediction` adds `type_correct`, `direction_correct` and `yardage_correct`.
 - **Snapshots** carry `"scoring": {"type": 10, "direction": 10, "yardage": 10, "bonus": 10, "exact": 40}`
-  (`bonus` = extra for all three right, `exact` = a perfect call), and `crowd` (hidden while OPEN)
+  (`bonus` = extra for picking all 3 correctly, `exact` = a perfect call), and `crowd` (hidden while OPEN)
   counts `RUN`, `PASS`, `LEFT`, `MIDDLE`, `RIGHT`, `SHORT`, `MEDIUM`, `LONG`, `total`, `exact` (picks
-  with all three right) and `scored` (picks worth more than 0). Leaderboard `exact_hits` counts plays
-  with all three right.
+  with all 3 correct) and `scored` (picks worth more than 0). Leaderboard `exact_hits` counts plays
+  with all 3 correct.
+- **The game object** (`state.game`, and `admin_state.game` for the host) also carries `home_score`, `away_score`
+  (whole numbers) and `score_at` (server epoch seconds): the live score as of the last check of the live data, so it can
+  trail the TV by about a minute. All three are `null` until a check has happened, and always `null` for the
+  recorded practice game. Every screen shows the number beside the team name when it has one and hides it otherwise
+  (the host console adds "Score as of N s ago").
 
 ### REST API
 
@@ -554,8 +564,9 @@ map straight to `LEFT` / `MIDDLE` / `RIGHT`.
 
 **App Store.** App Review needs a privacy policy URL, a support URL, in-app account deletion and
 filtering of user-visible names. Point App Store Connect at `https://<your server>/privacy` and
-`/support` (set `PTP_CONTACT_EMAIL` first); the iOS app deletes accounts with `DELETE /api/me`; and
-offensive usernames and lounge names are rejected with "Please choose a different name."
+`/support` (set `PTP_CONTACT_EMAIL` first); the iOS app deletes accounts with `DELETE /api/me` (Settings → **Change name or
+delete account**; on the website it is the same button under the scores, because deleting the account is how a name is
+changed); and offensive usernames and lounge names are rejected with "Please choose a different name."
 (`models.is_offensive_name`).
 
 ### Data model

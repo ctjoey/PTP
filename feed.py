@@ -440,6 +440,7 @@ class LiveFeed:
         self.auto_open_at: float | None = None
         self.last_scored: dict[str, Any] | None = None
         self._score: dict[str, Any] | None = None           # {"home": 21, "away": 17, "at": when the feed said so}
+        self._score_changed = False
         self._feed_clock: tuple[str, str, float] | None = None   # newest play's clock, live clock, and when it was read
         self._app_clock: str | None = None                  # the clock of the play the app is matched to
         self.lags: list[float] = []
@@ -709,6 +710,9 @@ class LiveFeed:
                 try:
                     self._after_poll(result, waiting, started, manual)
                     self._read_failures = 0
+                    if self._score_changed:   # a touchdown or a field goal: refresh every phone's scorebug now
+                        self._score_changed = False
+                        await self.host.feed_broadcast("score")
                 except Exception:  # noqa: BLE001 - a bug in reading one answer must not turn into a request every few seconds
                     log.exception("live data could not read the feed's answer")
                     self._read_failures += 1
@@ -921,10 +925,13 @@ class LiveFeed:
             self._feed_clock = (label or live, live, now)
         if self.source == "tank01":   # the recorded practice game would show its final score from the first play
             try:
-                self._score = {"home": int(str(body.get("homePts")).strip()), "away": int(str(body.get("awayPts")).strip()),
-                               "at": now}
+                score = {"home": int(str(body.get("homePts")).strip()), "away": int(str(body.get("awayPts")).strip()), "at": now}
             except (TypeError, ValueError):
-                pass
+                score = None
+            if score:
+                if not self._score or (self._score["home"], self._score["away"]) != (score["home"], score["away"]):
+                    self._score_changed = True   # players are told when it moves (see _poll), not on every check
+                self._score = score
 
     @property
     def score(self) -> dict[str, Any] | None:

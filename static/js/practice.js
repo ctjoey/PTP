@@ -2,8 +2,8 @@
  *
  * Simulated plays with the live game's 15-second timer, three-part pick and scoring, so anyone can try the
  * game with no game on and without signing in. Nothing here talks to the server. The scoring and the odds are
- * the same as the iPhone app's Practice mode: +10 play type, +10 direction, +10 distance, +10 bonus for all
- * three = 40; a loss of yards never matches a distance pick.
+ * the same as the iPhone app's Practice mode: +10 for picking the correct play, +10 direction, +10 distance, +10 for
+ * picking all 3 correctly = 40; a loss of yards never matches a distance pick.
  */
 "use strict";
 
@@ -236,6 +236,7 @@
     points.textContent = scored ? `+${scored.points}` : "—";
     points.className = `points ${scored && scored.parts === 3 ? "exact" : scored && scored.points ? "some" : "zero"}`;
     $("#p-label").textContent = scored ? LABELS[scored.parts] : "You didn't pick this play";
+    $("#p-sub").hidden = !(scored && scored.parts === 3);   // "You picked the play", under "Perfect call!"
     pickChips($("#p-result-pick"), scored ? G.pick : null, scored);
 
     show("result");

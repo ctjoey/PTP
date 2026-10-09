@@ -47,11 +47,11 @@
     <table class="scoring-table">
       <thead><tr><th scope="col">Call</th><th scope="col">Points</th></tr></thead>
       <tbody>
-        <tr><td>Play type right (Run / Pass)</td><td>+{{ scoring.type }}</td></tr>
-        <tr><td>Direction right (Left / Middle / Right)</td><td>+{{ scoring.direction }}</td></tr>
-        <tr><td>Distance right (Short / Medium / Long)</td><td>+{{ scoring.yardage }}</td></tr>
-        <tr><td>Bonus: all three right</td><td>+{{ scoring.bonus }}</td></tr>
-        <tr class="perfect"><td><b>Perfect call</b></td><td><b>{{ scoring.exact }}</b></td></tr>
+        <tr><td>Pick correct play (Run / Pass)</td><td>+{{ scoring.type }}</td></tr>
+        <tr><td>Pick correct direction (Left / Middle / Right)</td><td>+{{ scoring.direction }}</td></tr>
+        <tr><td>Pick correct distance (Short / Medium / Long)</td><td>+{{ scoring.yardage }}</td></tr>
+        <tr><td>Pick all 3 correctly</td><td>+{{ scoring.bonus }}</td></tr>
+        <tr class="perfect"><td><b>Perfect call</b> <span class="perfect-sub">You picked the play</span></td><td><b>{{ scoring.exact }}</b></td></tr>
       </tbody>
     </table>
     <p class="example">Example: you call Run · Left · Short and the play is Run · Left · Medium:

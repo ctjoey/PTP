@@ -551,3 +551,31 @@ def test_the_live_score_rides_along_with_the_game_for_players_and_the_host(tmp_p
         assert "feed_game_id" not in player                                       # live-data settings stay the host's
 
     run_rig(tmp_path, scenario)
+
+
+def test_players_are_told_when_the_score_moves(tmp_path):
+    async def scenario(rig: Rig):
+        sent: list[str] = []
+        original = rig.ctrl.feed_broadcast
+
+        async def spy(event: str) -> None:
+            sent.append(event)
+            await original(event)
+
+        rig.ctrl.feed_broadcast = spy
+        await new_game_midway(rig, 1)
+        await lock_entry(rig, FIRST_PASS)
+        await show_and_wait(rig, FIRST_PASS)
+        assert sent.count("score") == 1                        # the first score the feed reads
+        await rig.ctrl.feed.check_now()
+        assert sent.count("score") == 1                        # the same score again: nothing to say
+        import tests.fakefeed as ff
+        original_meta = ff.META
+        ff.META = {**ff.META, "homePts": "47"}
+        try:
+            await rig.ctrl.feed.check_now()
+        finally:
+            ff.META = original_meta
+        assert sent.count("score") == 2
+
+    run_rig(tmp_path, scenario)
