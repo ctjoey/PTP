@@ -371,7 +371,58 @@ def next_down_and_distance(
 
 
 def _next_down(entry: Any, parsed: Parsed, home_abbr: Any, away_abbr: Any, home_id: Any, away_id: Any):
-    if parsed.kind != PLAY or parsed.yards is None or parsed.touchdown or not isinstance(entry, dict):
+    if parsed.kind != PLAY or parsed.yards is None or parsed.touchdown:
+        return None
+    return _advance(entry, parsed.yards, False, False, home_abbr, away_abbr, home_id, away_id)
+
+
+_PENALTY_YARDS = re.compile(r"\bPENALTY on [^,]+,\s*([^,]+?),\s*(\d+)\s+yards?\b", _I)
+_OFFENSE_FOUL = re.compile(r"false start|offensive|delay of game|ineligible|illegal (?:formation|shift|motion|substitution)"
+                           r"|too many men", _I)
+_DEFENSE_FOUL = re.compile(r"defensive|offside|neutral zone|encroachment|roughing|illegal contact|face ?mask"
+                           r"|unnecessary roughness", _I)
+_AUTO_FIRST_DOWN = re.compile(r"defensive (?:holding|pass interference)|roughing|face ?mask|unnecessary roughness"
+                              r"|illegal contact", _I)
+
+
+def next_down_after_void(
+    entry: Any, parsed: Parsed, home_abbr: str | None, away_abbr: str | None, home_id: Any, away_id: Any,
+) -> dict[str, Any] | None:
+    """The down and distance of the next play after a play the app counts as "no play".
+
+    A sack or a scramble is a real play in the game: the down moves on by its yards. A penalty with "No Play" replays
+    the down, moved by the penalty's yards (an automatic first down for the fouls that give one). Anything unclear
+    gives None, and the host sets the next play as before.
+    """
+    try:
+        if not isinstance(entry, dict) or parsed.kind != VOID or parsed.touchdown:
+            return None
+        text = str(entry.get("play") or "")
+        if parsed.reason in ("sack", "scramble"):
+            numbers = {-int(m.group(1)) if m.group(1) else 0 if m.group(3) else int(m.group(2))
+                       for m in _YARDS.finditer(text)}
+            if len(numbers) != 1:
+                return None
+            return _advance(entry, numbers.pop(), False, False, home_abbr, away_abbr, home_id, away_id)
+        if parsed.reason == "no_play":
+            found = _PENALTY_YARDS.search(text)
+            if not found or len(_PENALTY_YARDS.findall(text)) != 1:
+                return None
+            foul, yards = found.group(1), int(found.group(2))
+            offense, defense = bool(_OFFENSE_FOUL.search(foul)), bool(_DEFENSE_FOUL.search(foul))
+            if offense == defense:
+                return None
+            return _advance(entry, -yards if offense else yards, True, bool(_AUTO_FIRST_DOWN.search(foul)),
+                            home_abbr, away_abbr, home_id, away_id)
+    except Exception:  # noqa: BLE001
+        return None
+    return None
+
+
+def _advance(entry: Any, gain: int, replay: bool, auto_first: bool, home_abbr: Any, away_abbr: Any, home_id: Any,
+             away_id: Any):
+    """Where the ball and the down are after the offense moved ``gain`` yards (``replay``: the same down again)."""
+    if not isinstance(entry, dict):
         return None
     situation = parse_down_and_distance(entry.get("downAndDistance"))
     if not situation or situation["to_go"] == "inches":
@@ -407,16 +458,17 @@ def _next_down(entry: Any, parsed: Parsed, home_abbr: Any, away_abbr: Any, home_
     to_go = to_goal if goal_to_go else int(situation["to_go"])
     if to_go > to_goal or to_go < 1:
         return None
-    gain = parsed.yards
+    if replay and gain > 0 and gain * 2 > to_goal:
+        gain = to_goal // 2   # half the distance to the goal
     new_to_goal = to_goal - gain
     if new_to_goal <= 0 or new_to_goal > 99:  # touchdown or a safety
         return None
-    if gain >= to_go:  # first down
+    if auto_first or gain >= to_go:  # first down
         return {"down": 1, "distance": "Goal" if new_to_goal <= 10 else "10"}
-    down = situation["down"] + 1
+    down = situation["down"] if replay else situation["down"] + 1
     if down > 4:
         return None
     new_to_go = to_go - gain
-    if goal_to_go or new_to_go >= new_to_goal:
+    if new_to_goal <= 10 and (goal_to_go or new_to_go >= new_to_goal):
         return {"down": down, "distance": "Goal"}
     return {"down": down, "distance": str(new_to_go)}

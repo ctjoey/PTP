@@ -35,7 +35,7 @@ from pathlib import Path
 from typing import Any, Awaitable, Callable, Protocol
 
 from models import GameError, GameStatus, PlayState, Store, resolve_yardage
-from playparse import Parsed, classify, next_down_and_distance, parse_down_and_distance
+from playparse import Parsed, classify, next_down_after_void, next_down_and_distance, parse_down_and_distance
 from teams import feed_matchup, feed_team
 
 log = logging.getLogger("pick_the_play.feed")
@@ -1162,7 +1162,9 @@ class LiveFeed:
                  and result is not None)
         # The form is filled for any play the host accepted as the feed read it (also after a check); only a clean one
         # opens the next play by itself.
-        self.next_down = self._next_down(sug) if not void and not changed and sug.kind == "play" and result is not None else None
+        after_void = self._next_down_after_void(sug) if void else None
+        self.next_down = after_void if void else (
+            self._next_down(sug) if not changed and sug.kind == "play" and result is not None else None)
         if void:
             summary = "No play (voided)"
         else:
@@ -1172,13 +1174,20 @@ class LiveFeed:
                             "voided": void}
         self._log("score", {"by": "auto" if auto else "host", "void": void, "result": result, "changed": changed,
                             "next_down": self.next_down}, play_id=play_id, feed_index=sug.entry_index)
-        self._schedule_open(clean)
+        self._schedule_open(clean or after_void is not None)   # a no-play still moves the game on
         await self.host.feed_broadcast("play_voided" if void else "play_resolved")
         self._changed()
         return play
 
     def _next_down(self, sug: Suggestion) -> dict[str, Any] | None:
         return self._next_down_of(sug.entry, sug.parsed)
+
+    def _next_down_after_void(self, sug: Suggestion) -> dict[str, Any] | None:
+        meta = self._box_meta
+        if not meta:
+            return None
+        return next_down_after_void(sug.entry, sug.parsed, meta.get("home"), meta.get("away"),
+                                    meta.get("teamIDHome"), meta.get("teamIDAway"))
 
     def _next_down_of(self, entry: Any, parsed: Parsed) -> dict[str, Any] | None:
         meta = self._box_meta  # team abbreviations and ids from the last box score
@@ -1282,7 +1291,8 @@ class LiveFeed:
                 self._twins.append((self.clock(), p.down, p.distance))
                 if self._demo and not p.resolved:
                     self._demo.on_play_cancelled()
-        self.auto_open_at = None
+        self.next_down = self._next_down_after_void(sug) if had_entry and sug else None
+        self._schedule_open(self.next_down is not None)   # the host's Void moves the game on too, when the feed knew the play
         self._log("host_void", {"had_entry": had_entry}, play_id=play["id"])
         self._persist_cursor()
         self._changed()

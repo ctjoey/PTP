@@ -530,7 +530,6 @@ def test_auto_open_opens_the_next_play_with_the_computed_down_and_distance(tmp_p
 @pytest.mark.parametrize("entry, why", [
     (13, "a 3rd-down incompletion leads to 4th down: likely a punt or field goal"),
     (48, "a touchdown"),
-    (34, "a sack is a review play"),
 ])
 def test_auto_open_skips_fourth_downs_touchdowns_and_review_plays(tmp_path, entry, why):
     async def scenario(rig: Rig):
@@ -736,3 +735,48 @@ def test_the_practice_game_carries_on_from_the_same_play_after_a_restart(tmp_pat
         await ctrl2.shutdown()
 
     run_rig(tmp_path, scenario, tank01_api_key="")
+
+
+@pytest.mark.parametrize("entry, expected, opens", [
+    (18, (2, "10"), True),      # false start, 5 yards: the same down, five yards further back
+    (34, (3, "10"), True),      # a sack for -4 on 2nd & 6 is a real play: 3rd & 10
+    (51, (2, "6"), True),       # a QB scramble for 4 on 1st & 10
+    (46, (1, "10"), True),      # defensive pass interference: automatic first down
+    (106, (4, "9"), False),     # delay of game on 4th down: set up, but never opened by itself
+])
+def test_after_a_no_play_the_game_moves_on_with_the_right_down_and_distance(tmp_path, entry, expected, opens):
+    from tests.test_feed import dd, new_game_midway
+
+    async def scenario(rig: Rig):
+        await new_game_midway(rig, entry)
+        rig.ctrl.feed.set_options(auto_open=True)
+        await rig.open_lock(*dd(entry))
+        rig.server.reveal(upto=entry)
+        await rig.until(lambda: rig.state()["suggestion"] is not None, limit=60)
+        await rig.step(5)                                      # the countdown runs out: voided
+        assert rig.play(1)["voided"] == 1
+        down, distance = expected
+        if opens:
+            play = rig.play()
+            assert play["play_number"] == 2 and play["state"] == "OPEN" and (play["down"], play["distance"]) == (down, distance)
+        else:
+            assert rig.play()["play_number"] == 1 and rig.state()["next_down"] == {"down": down, "distance": distance}
+
+    run_rig(tmp_path, scenario)
+
+
+def test_the_hosts_own_void_moves_the_game_on_when_the_feed_had_read_the_play(tmp_path):
+    from tests.test_feed import dd, new_game_midway
+
+    async def scenario(rig: Rig):
+        await new_game_midway(rig, 34)
+        rig.ctrl.feed.set_options(auto_open=True, auto_score=False)
+        await rig.open_lock(*dd(34))
+        rig.server.reveal(upto=34)
+        await rig.until(lambda: rig.state()["suggestion"] is not None, limit=60)
+        await rig.ctrl.void_play()                             # the host presses Void instead of waiting
+        await rig.step(1)
+        play = rig.play()
+        assert play["play_number"] == 2 and play["state"] == "OPEN" and (play["down"], play["distance"]) == (3, "10")
+
+    run_rig(tmp_path, scenario)

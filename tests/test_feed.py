@@ -229,7 +229,7 @@ def test_a_sack_is_no_play_and_voids_itself_after_the_grace_period(tmp_path):
         play = rig.play()
         assert play["state"] == "RESOLVED" and play["voided"] == 1 and play["resolved_by"] == "void"
         assert "sacked" in play["feed_text"]
-        assert rig.state()["last_scored"]["voided"] is True and rig.state()["next_down"] is None
+        assert rig.state()["last_scored"]["voided"] is True and rig.state()["next_down"] == {"down": 3, "distance": "10"}
 
     run_rig(tmp_path, scenario)
 
@@ -245,7 +245,7 @@ def test_void_suggestion_auto_voids_after_the_grace_period(tmp_path):
         play = rig.play()
         assert play["state"] == "RESOLVED" and play["voided"] == 1 and play["resolved_by"] == "void"
         assert "No Play" in play["feed_text"]
-        assert rig.state()["next_down"] is None
+        assert rig.state()["next_down"] == {"down": 2, "distance": "10"}   # a no-play moves the game on: the replay of the down
 
     run_rig(tmp_path, scenario)
 
