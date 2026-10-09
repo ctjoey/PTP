@@ -215,6 +215,10 @@ down by itself; after that it is automatic again.
 
 - A status line with a coloured dot and one plain sentence: *Waiting for the result of play #7*, *Paused*,
   *Capped*, *Error*, *Waiting for kickoff*, *The game is over*, or *Feed is quiet: long delay (injury or review?)*.
+- **Joined late.** If you lock a play after the feed is already several plays ahead (live data connected mid-game),
+  it cannot tell which play yours was: the chip turns amber (**SCORE BY HAND**) and a line under the play says to tap
+  what happened and press **Resolve & Score Play**, or press **Void play**. After that, open the next play and live
+  data follows along again.
 - **Pause / Resume / Check now.** Pause stops every request and the auto-score countdown (use it for an injury,
   a long replay review, or any time you want hands-off); Resume checks right away if a play is waiting;
   **Check now** makes one request on demand, even while paused. With nothing locked, it throws away feed entries for plays
@@ -302,7 +306,10 @@ revised: what to tune next. One line per poll also goes to the normal log.
    stuck play from eating the rest of the month.
 2. Rehearse once with **Practice with a recorded game**: let a few plays auto-score, try Hold, Change, Skip, Pause and Fix result.
 3. On game day tap **Pick today's game** (one request), pick it and **Create Game**. Leave **Open next play automatically** off.
-4. Open the first play shortly before the snap. Before kickoff the feed answers "not started" and live data waits.
+4. Open the first play shortly before the snap. Before kickoff the feed answers "not started" and live data waits
+   (it looks again every 2 minutes). If Tank01 is slow to go live, the first play simply waits: when the feed
+   catches up, the game's first play is offered to you as a suggestion to confirm with one tap (**Score now**), and the
+   plays that happened while it waited are skipped. You can also score it by hand at any time.
 5. Watch **Typical delay** and the requests meter for the first few plays. Keep **Check now** for a stuck play.
 6. Any play that surprises you: score it by hand (**Resolve & Score**, **Void play**); nothing else is needed.
 7. Afterwards download the feed log and keep it for tuning.

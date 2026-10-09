@@ -126,15 +126,19 @@ const PTPFeed = (() => {
       $("#feed-keys").hidden = !feed;
       if (!visible) { flagTitle(false); return; }
       const sg = feed.suggestion;
-      flagTitle(!!feed.disagreement || !!(sg && (sg.status === "review" || sg.warning)));
+      // A locked play that live data is no longer watching (it joined late): only the host can score it.
+      const stranded = !!st.play && st.play.state === "LOCKED" && !st.play.voided && !!feed.linked
+        && feed.state === "idle" && !feed.waiting && !sg;
+      flagTitle(!!feed.disagreement || !!(sg && (sg.status === "review" || sg.warning)) || stranded);
 
-      const tone = toneOf(feed);
+      const tone = stranded ? "wait" : toneOf(feed);
       const dot = $("#feed-dot");
       if (dot.dataset.tone !== tone) dot.dataset.tone = tone;
       dot.classList.toggle("pulse", feed.state === "waiting" && tone === "good");
       const chip = $("#feed-state");
       if (chip.dataset.tone !== tone) chip.dataset.tone = tone;
-      const label = isQuiet(feed) ? "QUIET" : (STATE_LABEL[feed.state] || String(feed.state || "").toUpperCase());
+      const label = stranded ? "SCORE BY HAND" : isQuiet(feed) ? "QUIET"
+        : (STATE_LABEL[feed.state] || String(feed.state || "").toUpperCase());
       setText(chip, label);
       const message = feed.message || DEFAULT_MESSAGE[feed.state] || "";
       setText($("#feed-msg"), message);

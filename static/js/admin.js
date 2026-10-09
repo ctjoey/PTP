@@ -159,6 +159,17 @@
     const badge = $("#ctrl-badge");
     badge.textContent = play ? (play.voided ? "VOIDED" : play.state) : "IDLE";
     badge.className = `state-badge ${play && !play.voided ? play.state : ""}`;
+    const hint = $("#ctrl-hint");
+    const locked = !!play && play.state === "LOCKED" && !play.voided;
+    hint.hidden = !locked;
+    if (locked) {
+      const fd = st.feed;
+      const stranded = !!fd && fd.linked && fd.state === "idle" && !fd.waiting && !fd.suggestion;
+      const words = stranded
+        ? "Live data can't score this play. Tap what happened (Run or Pass, direction, distance), then press Resolve & Score Play. No play, or you missed it? Press Void play."
+        : "Picks are closed. Live data scores it when the result shows up. You can also tap what happened and press Resolve & Score Play, or press Void play.";
+      if (hint.textContent !== words) hint.textContent = words;
+    }
     syncTimer();
 
     // Controller buttons

@@ -700,6 +700,7 @@ a { color: var(--blue); }
 .state-badge.OPEN { background: color-mix(in srgb, var(--accent) 20%, transparent); color: var(--accent); }
 .state-badge.LOCKED { background: color-mix(in srgb, var(--warn) 20%, transparent); color: var(--warn); }
 .state-badge.RESOLVED { background: color-mix(in srgb, var(--blue) 14%, transparent); color: var(--blue); }
+.ctrl-hint { margin: 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-3); line-height: 1.4; }
 .ctrl-timer { font-size: 34px; font-weight: 900; font-variant-numeric: tabular-nums; }
 .ctrl-section { display: flex; flex-direction: column; gap: 10px; padding-top: 14px; margin-top: 14px; border-top: 1px solid var(--border); }
 .ctrl-section:first-child { border-top: 0; margin-top: 0; padding-top: 0; }
