@@ -222,7 +222,9 @@ down by itself; after that it is automatic again.
 - **Pause / Resume / Check now.** Pause stops every request and the auto-score countdown (use it for an injury,
   a long replay review, or any time you want hands-off); Resume checks right away if a play is waiting;
   **Check now** makes one request on demand, even while paused. With nothing locked, it throws away feed entries for plays
-  nobody opened (a way to catch up after missing a few), but keeps the newest one for a play you have open and not yet locked.
+  nobody opened (a way to catch up after missing a few), but keeps the newest one for a play you have open and not yet locked,
+  and fills Down and To go from where the feed ended. With a play locked while the app is behind the game, it skips the
+  older plays and offers the newest one for you to confirm ("Caught up to the newest play").
 - Toggles: **Auto-score clean plays** (on by default) and **Open next play automatically** (**off** by default).
 - **Typical delay: N s**, the median of how long Tank01 took to show the last plays. Auto-open is only safe once
   you have seen it: lag + the 8 s grace + the 12 s open delay should be well under about 25 s.

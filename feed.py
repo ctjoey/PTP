@@ -65,6 +65,7 @@ BASELINE_GAP = 2     # the feed this many plays ahead of the app game on first r
 DISTRUST_FEED_CHANGED = "The feed's list of plays changed earlier: check that this is the right play"
 DISTRUST_RESTARTED = "Live data was connected or restarted mid-game: check that this is the right play"
 DISTRUST_LATE_START = "Live data started late: check that this is the game's first play"
+DISTRUST_CAUGHT_UP = "Caught up to the newest play the feed has: check that it is the play you opened"
 
 ORDINAL = {1: "1st", 2: "2nd", 3: "3rd", 4: "4th"}
 
@@ -740,7 +741,7 @@ class LiveFeed:
             self._ingest(entries or [], body, now)
             if not self._baselined:   # still no plays at all: whatever is locked now was locked before the game began
                 self._mark_waited_for_start()
-            self._consume()
+            self._consume(catch_up=manual)
             if waiting and waiting.play_id in {p.play_id for p in self.pending if not p.resolved} \
                     and self.suggestion is None:
                 waiting.next_check = now + self._interval_after(now - waiting.locked_at)
@@ -895,10 +896,28 @@ class LiveFeed:
 
     # -- matching ---------------------------------------------------------- #
 
-    def _consume(self) -> None:
-        """Match unexamined entries to waiting plays, in order, until one produces a suggestion."""
+    def _newest_play_index(self, start: int) -> int | None:
+        """The index of the newest entry from ``start`` on that is not a skip (None if there is none)."""
+        return next((i for i in range(len(self.entries) - 1, start - 1, -1)
+                     if classify(self.entries[i]).kind != "skip"), None)
+
+    def _consume(self, catch_up: bool = False) -> None:
+        """Match unexamined entries to waiting plays, in order, until one produces a suggestion.
+
+        ``catch_up`` (the host pressed Check now) means "get to the present": the oldest entries are no longer taken in
+        order. A waiting play is matched to the newest play the feed has (for the host to confirm), and an old
+        suggestion that is no longer the newest is dropped.
+        """
         now = self.clock()
         self._twins = [t for t in self._twins if now - t[0] < TWIN_TTL]
+        if catch_up and self.suggestion is not None:
+            stale = self.suggestion
+            if self._newest_play_index(stale.entry_index + 1) is not None:
+                self.suggestion = None
+                self.cursor = stale.entry_index + 1
+                self._log("skip", {"reason": "caught up", "text": stale.parsed.text[:200]}, play_id=stale.play_id,
+                          feed_index=stale.entry_index)
+        newest_orphan: tuple[Any, Parsed] | None = None
         while self.cursor < len(self.entries) and self.suggestion is None:
             idx = self.cursor
             entry = self.entries[idx]
@@ -912,6 +931,8 @@ class LiveFeed:
                 if self._belongs_to_open_play(idx):
                     break   # the host's open play has just happened: its entry waits for the lock, it is not an orphan
                 self._log("orphan", {"text": parsed.text[:200], "kind": parsed.kind}, feed_index=idx)
+                if parsed.kind == "play":
+                    newest_orphan = (entry, parsed)
                 self.cursor += 1
                 continue
             p = self.pending[0]
@@ -919,7 +940,12 @@ class LiveFeed:
                 self._log("void_twin", {"text": parsed.text[:200]}, feed_index=idx)
                 self.cursor += 1
                 continue
+            newest = self._newest_play_index(idx + 1) if catch_up else None
             if p.resolved:
+                if newest is not None:   # the feed is further on than this play: nothing left to compare it with
+                    self._log("verify_dropped", {"reason": "caught up", "play": p.play_id}, play_id=p.play_id)
+                    self.pending.pop(0)
+                    continue
                 if self._dd_conflict(p, entry):
                     self._log("verify_dropped", {"reason": "down and distance differ", "play": p.play_id}, play_id=p.play_id)
                     self.pending.pop(0)
@@ -928,9 +954,18 @@ class LiveFeed:
                 self.pending.pop(0)
                 self.cursor += 1
                 continue
+            if newest is not None:   # the host is live: the older entries are plays they never opened
+                self._log("caught_up", {"from": idx, "to": newest}, play_id=p.play_id, feed_index=newest)
+                idx, entry, parsed = newest, self.entries[newest], classify(self.entries[newest])
+                self._distrust = self._distrust or DISTRUST_CAUGHT_UP
             self._suggest(p, idx, entry, parsed)
-            self.cursor += 1
+            self.cursor = idx + 1
             break
+        if newest_orphan is not None and not self.pending and self.game_id:
+            latest = self.store.latest_play(self.game_id)
+            nd = self._next_down_of(*newest_orphan)
+            if nd and (latest is None or latest["state"] == PlayState.RESOLVED):
+                self.next_down = nd   # the situation the feed ended on: the form follows the game after a catch-up
         self._persist_cursor()
 
     def _belongs_to_open_play(self, idx: int) -> bool:
@@ -1091,7 +1126,9 @@ class LiveFeed:
             self._scored[sug.entry_index] = (play_id, result[:3])
         clean = (not void and not changed and sug.kind == "play" and sug.status in ("ready", "held")
                  and result is not None)
-        self.next_down = self._next_down(sug) if clean else None
+        # The form is filled for any play the host accepted as the feed read it (also after a check); only a clean one
+        # opens the next play by itself.
+        self.next_down = self._next_down(sug) if not void and not changed and sug.kind == "play" and result is not None else None
         if void:
             summary = "No play (voided)"
         else:
@@ -1107,10 +1144,13 @@ class LiveFeed:
         return play
 
     def _next_down(self, sug: Suggestion) -> dict[str, Any] | None:
+        return self._next_down_of(sug.entry, sug.parsed)
+
+    def _next_down_of(self, entry: Any, parsed: Parsed) -> dict[str, Any] | None:
         meta = self._box_meta  # team abbreviations and ids from the last box score
         if not meta:
             return None
-        return next_down_and_distance(sug.entry, sug.parsed, meta.get("home"), meta.get("away"),
+        return next_down_and_distance(entry, parsed, meta.get("home"), meta.get("away"),
                                       meta.get("teamIDHome"), meta.get("teamIDAway"))
 
     # -- auto-open ----------------------------------------------------------- #

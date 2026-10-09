@@ -360,6 +360,56 @@ def test_hand_scored_plays_while_the_feed_was_not_started_keep_the_late_start_ru
     run_rig(tmp_path, scenario)
 
 
+def test_check_now_gets_to_the_present_when_the_app_is_behind(tmp_path):
+    """The host is live but the app works through old plays: Check now must jump to the newest play, not the oldest."""
+    async def scenario(rig: Rig):
+        await new_game_midway(rig, 1)
+        await lock_entry(rig, FIRST_PASS)
+        pid = rig.play()["id"]
+        await show_and_wait(rig, 4)                            # four plays are in the feed; in order, play 1 gets the oldest
+        assert rig.state()["suggestion"]["yards"] == 7
+        await rig.ctrl.feed.check_now()                        # "Check now": catch up
+        sug = rig.state()["suggestion"]
+        assert sug["play_id"] == pid and sug["status"] == "review" and "newest play" in sug["warning"]
+        assert sug["text"].startswith("C.Hubbard left tackle") and rig.feed.cursor == 5
+        assert "caught_up" in kinds(rig)
+
+    run_rig(tmp_path, scenario)
+
+
+def test_check_now_with_nothing_locked_skips_everything_and_fills_the_next_down(tmp_path):
+    async def scenario(rig: Rig):
+        from app import FeedAcceptIn
+
+        await new_game_midway(rig, 1)
+        await lock_entry(rig, FIRST_PASS)
+        await show_and_wait(rig, FIRST_PASS)
+        await rig.ctrl.feed_accept(FeedAcceptIn(play_id=rig.play()["id"]))
+        rig.server.reveal(upto=4)                              # three more plays happened that nobody opened
+        await rig.ctrl.feed.check_now()
+        assert rig.feed.cursor == 5 and kinds(rig).count("orphan") == 3
+        assert rig.state()["suggestion"] is None
+        assert rig.state()["next_down"] == {"down": 2, "distance": "4"}   # entry 4 was 1st & 10 for 6: the situation now
+
+    run_rig(tmp_path, scenario)
+
+
+def test_a_review_the_host_accepted_as_read_still_fills_the_next_down(tmp_path):
+    async def scenario(rig: Rig):
+        from app import FeedAcceptIn
+
+        await new_game_midway(rig, 1)
+        await rig.open_lock(3, "9")                            # the host's down and distance disagree with the feed
+        await show_and_wait(rig, FIRST_PASS)
+        sug = rig.state()["suggestion"]
+        assert sug["status"] == "review" and sug["warning"]
+        await rig.ctrl.feed_accept(FeedAcceptIn(play_id=sug["play_id"]))
+        assert rig.state()["next_down"] == {"down": 2, "distance": "3"}
+        assert rig.state()["auto_open_at"] is None             # but only a clean play opens the next one by itself
+
+    run_rig(tmp_path, scenario)
+
+
 def test_a_voided_late_start_play_clears_the_notice_too(tmp_path):
     async def scenario(rig: Rig):
         await rig.new_game()
