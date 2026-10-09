@@ -64,6 +64,7 @@ LAG_SAMPLES = 5
 BASELINE_GAP = 2     # the feed this many plays ahead of the app game on first read means a late start
 DISTRUST_FEED_CHANGED = "The feed's list of plays changed earlier: check that this is the right play"
 DISTRUST_RESTARTED = "Live data was connected or restarted mid-game: check that this is the right play"
+DISTRUST_LATE_START = "Live data started late: check that this is the game's first play"
 
 ORDINAL = {1: "1st", 2: "2nd", 3: "3rd", 4: "4th"}
 
@@ -311,6 +312,7 @@ class Pending:
     checks: int = 0
     next_check: float = 0.0
     lag_valid: bool = True
+    waited_for_start: bool = False               # locked while the feed had no plays yet (game not started, or an empty list)
 
 
 @dataclass
@@ -441,6 +443,8 @@ class LiveFeed:
         self._texts: list[str] = []
         self._scored: dict[int, tuple[int, tuple[str | None, str | None, str | None]]] = {}  # entry -> (play, result)
         self._distrust: str | None = None   # why the next suggestion must go to the host instead of the timer
+        self._horizon = 0                   # entries below this were already played when the feed first showed any
+        self._horizon_play: int | None = None   # the host's first play, which was matched to the first of them
         self._twins: list[tuple[float, int | None, str | None]] = []
         self._fail_streak = self._read_failures = 0
         self._auth_error = False
@@ -734,6 +738,8 @@ class LiveFeed:
             self._fail_streak, self._auth_error, self._not_started = 0, False, None
             self._quota_hit = False
             self._ingest(entries or [], body, now)
+            if not self._baselined:   # still no plays at all: whatever is locked now was locked before the game began
+                self._mark_waited_for_start()
             self._consume()
             if waiting and waiting.play_id in {p.play_id for p in self.pending if not p.resolved} \
                     and self.suggestion is None:
@@ -749,6 +755,7 @@ class LiveFeed:
                 self._log("verify_dropped", {"reason": "game not started", "plays": dropped})
             for p in self.pending:
                 p.next_check = now + NOT_STARTED_RETRY
+            self._mark_waited_for_start()
         elif kind == "auth":
             self._auth_error = True
             self._log("error", {"kind": kind, "text": result.error_text})
@@ -835,12 +842,23 @@ class LiveFeed:
                     "feed_result": {"play_type": parsed.play_type, "direction": parsed.direction, "yards": parsed.yards,
                                     "yardage": parsed.yardage}}
 
+    def _mark_waited_for_start(self) -> None:
+        """The feed has no plays at all yet: the play waiting now was locked before the game's first play."""
+        for p in self.pending:
+            if not p.resolved:
+                p.waited_for_start = True
+
     def _baseline(self, entries: list[dict[str, Any]]) -> None:
         """The first time the feed is read: if it is already well ahead of the app game (linked mid-game, or the host
         started late), skip what has already happened instead of matching old plays to new ones.
 
         A play the host has locked meanwhile becomes a placeholder: the host scores it by hand, and the next entry
         that fits it (same down and distance) is treated as its own so the following plays stay in step.
+
+        One case is not a late start: the host's first play was locked before the feed had a single play (the usual
+        "open the first play shortly before the snap") and the feed only went live minutes later, showing several plays
+        in one answer. That play is the game's first snap, so it keeps its place at the front of the queue and goes to
+        the host as a suggestion to confirm; the plays that came after it are dropped once it is settled.
         """
         self._baselined = True
         if self.cursor:
@@ -850,14 +868,30 @@ class LiveFeed:
         if seen - played < BASELINE_GAP:
             return
         now = self.clock()
+        first = next((p for p in self.pending if not p.resolved and p.waited_for_start), None)
+        if first is not None and played <= 1:
+            self._horizon, self._horizon_play = len(entries), first.play_id
+            self._distrust = DISTRUST_LATE_START
+            self._log("baseline", {"entries": len(entries), "feed_plays": seen, "app_plays": played, "unmatched": [],
+                                   "first_play": first.play_id})
+            return
         self.cursor = len(entries)
         unmatched = [p.play_id for p in self.pending if not p.resolved]
         for p in self.pending:
             p.resolved, p.resolved_at = True, now
-        hand = " Score this play by hand; the next ones follow automatically." if unmatched else ""
-        self._notice = f"Live data joined late and skipped the {seen} plays already played.{hand}"
+        hand = " Score it by hand (or void it), then open the next play and live data takes over." if unmatched else ""
+        self._notice = f"Live data joined late, so it can't tell which play this one was.{hand}"
         self._log("baseline", {"entries": len(entries), "feed_plays": seen, "app_plays": played, "unmatched": unmatched})
         self._persist_cursor()
+
+    def _skip_to_horizon(self, next_play_id: int) -> None:
+        """The plays the feed already had on its first answer are older than anything the host opens after the first
+        play was settled: leave them behind, so the next play is not matched to one of them."""
+        if self._horizon and next_play_id != self._horizon_play:
+            self.cursor = max(self.cursor, self._horizon)
+            self._log("skipped", {"to": self.cursor, "reason": "plays that came before live data started"})
+            self._horizon, self._horizon_play = 0, None
+            self._persist_cursor()
 
     # -- matching ---------------------------------------------------------- #
 
@@ -1120,6 +1154,7 @@ class LiveFeed:
         self._complete = False  # a play after a "completed" game (overtime?) deserves a fresh look
         self.auto_open_at = None
         self.last_scored = None
+        self._skip_to_horizon(play["id"])
         self.pending = [p for p in self.pending if p.play_id != play["id"]]
         self.pending.append(Pending(play["id"], play["play_number"], play["down"], play["distance"], now,
                                     next_check=now + self._first_delay()))
@@ -1134,6 +1169,7 @@ class LiveFeed:
         """The host scored the play by hand."""
         if not self.linked:
             return
+        self._notice = None
         p = next((x for x in self.pending if x.play_id == play["id"]), None)
         scored = (play["correct_play_type"], play["correct_direction"], play["correct_yardage"])
         sug = self.suggestion
@@ -1160,6 +1196,7 @@ class LiveFeed:
         """The host voided the play: it leaves the queue (its feed entry, if any, is not ours to match)."""
         if not self.linked:
             return
+        self._notice = None
         p = next((x for x in self.pending if x.play_id == play["id"]), None)
         sug = self.suggestion
         had_entry = bool(sug and sug.play_id == play["id"])
@@ -1424,7 +1461,8 @@ class LiveFeed:
         if self.game_final:
             return "done", "The game is over."
         if self._not_started and waiting:
-            return "not_started", f"Waiting for kickoff. {self._not_started} Checking every 2 minutes."
+            return "not_started", (f"Waiting for kickoff. {self._not_started} Checking every 2 minutes. If the game is "
+                                   "already on, Tank01 is running late: score by hand, or wait and it catches up.")
         if self._fail_streak >= ERROR_AFTER:
             return "error", "Having trouble reaching Tank01. Still trying; score by hand if you need to."
         if self.suggestion:

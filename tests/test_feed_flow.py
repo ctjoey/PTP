@@ -285,6 +285,93 @@ def test_linking_late_skips_the_plays_already_played_and_the_host_scores_that_on
     run_rig(tmp_path, scenario)
 
 
+def test_first_play_locked_before_the_feed_went_live_is_matched_to_the_first_snap(tmp_path):
+    """Game night: the host opened play 1 shortly before the snap (the README's advice), Tank01 kept saying "not
+    started" for minutes, and its first real answer already held four plays. That play must not be orphaned."""
+    async def scenario(rig: Rig):
+        from app import FeedAcceptIn
+
+        await rig.new_game()
+        rig.server.not_started = True
+        await rig.open_lock(1, "10")
+        pid = rig.play()["id"]
+        await rig.until(lambda: len(rig.server.hits) == 4, limit=700)       # four "not started" answers, 2 minutes apart
+        assert rig.state()["state"] == "not_started"
+        rig.server.not_started = False
+        rig.server.reveal(upto=4)                                          # the kickoff and four plays at once
+        await rig.until(lambda: rig.state()["suggestion"] is not None, limit=300)
+        s = rig.state()
+        sug = s["suggestion"]
+        assert len(rig.server.hits) == 5 and "joined late" not in s["message"]
+        assert sug["play_id"] == pid and sug["status"] == "review" and sug["yards"] == 7     # entry 1: the first snap
+        assert "started late" in sug["warning"] and sug["text"].startswith("A.Dalton pass short right")
+        base = [r for r in rig.store.feed_log(rig.game["id"]) if r["kind"] == "baseline"]
+        assert base and base[0]["data"]["first_play"] == pid and base[0]["data"]["unmatched"] == []
+        await rig.step(60)
+        assert rig.play()["state"] == "LOCKED"                             # a review never scores by itself
+        await rig.ctrl.feed_accept(FeedAcceptIn(play_id=pid))              # the host confirms with one tap
+        assert (rig.play()["state"], rig.play()["correct_direction"], rig.play()["yards_gained"]) == ("RESOLVED", "RIGHT", 7)
+        # plays 2 to 4 happened while play 1 waited: play 2 is matched to what comes AFTER them
+        await rig.open_lock(*dd(5))
+        assert rig.feed.cursor == 5 and "skipped" in kinds(rig)
+        rig.server.reveal(upto=5)
+        await rig.until(lambda: rig.state()["suggestion"] is not None, limit=300)
+        nxt = rig.state()["suggestion"]
+        assert nxt["play_id"] == rig.play()["id"] and nxt["yardage"] == "LONG" and nxt["warning"] is None
+        assert nxt["status"] == "ready"
+
+    run_rig(tmp_path, scenario)
+
+
+def test_first_play_locked_before_the_feed_had_any_plays_also_covers_an_empty_play_list(tmp_path):
+    async def scenario(rig: Rig):
+        await rig.new_game()                                               # the feed answers, but with no plays yet
+        await rig.open_lock(1, "10")
+        pid = rig.play()["id"]
+        await rig.until(lambda: len(rig.server.hits) >= 3, limit=300)
+        rig.server.reveal(upto=4)
+        await rig.until(lambda: rig.state()["suggestion"] is not None, limit=300)
+        sug = rig.state()["suggestion"]
+        assert sug["play_id"] == pid and sug["status"] == "review" and "started late" in sug["warning"]
+        assert sug["text"].startswith("A.Dalton pass short right") and "joined late" not in rig.state()["message"]
+
+    run_rig(tmp_path, scenario)
+
+
+def test_hand_scored_plays_while_the_feed_was_not_started_keep_the_late_start_rule(tmp_path):
+    """The host kept the game going by hand while Tank01 said "not started": the app is in step with the TV, so when
+    the feed finally shows four plays the locked play is the placeholder, not the first snap."""
+    async def scenario(rig: Rig):
+        await rig.new_game()
+        rig.server.not_started = True
+        await rig.open_lock(1, "10")
+        await rig.until(lambda: len(rig.server.hits) >= 1)
+        await rig.ctrl.resolve_play(ResolveIn(play_type="PASS", direction="RIGHT", yards=7))
+        await rig.open_lock(2, "3")
+        rig.server.not_started = False
+        rig.server.reveal(upto=4)
+        await rig.until(lambda: "baseline" in kinds(rig), limit=300)
+        s = rig.state()
+        assert s["suggestion"] is None and "joined late" in s["message"] and "Score it by hand" in s["message"]
+        assert rig.play()["state"] == "LOCKED"
+        await rig.ctrl.resolve_play(ResolveIn(play_type="RUN", direction="LEFT", yards=4))
+        assert "joined late" not in rig.state()["message"]                 # the instruction goes away once it is done
+
+    run_rig(tmp_path, scenario)
+
+
+def test_a_voided_late_start_play_clears_the_notice_too(tmp_path):
+    async def scenario(rig: Rig):
+        await rig.new_game()
+        await rig.open_lock(*dd(7))
+        rig.server.reveal(upto=7)
+        await rig.until(lambda: "joined late" in rig.state()["message"])
+        await rig.ctrl.void_play()
+        assert "joined late" not in rig.state()["message"]
+
+    run_rig(tmp_path, scenario)
+
+
 def test_a_feed_one_play_ahead_is_not_a_late_start(tmp_path):
     async def scenario(rig: Rig):
         await rig.new_game()
