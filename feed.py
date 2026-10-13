@@ -63,6 +63,7 @@ VERIFY_TTL = 150.0   # a play the host scored first waits this long for its feed
 TWIN_TTL = 150.0
 SCHEDULE_CACHE_TTL = 300.0
 MAX_AUTO_OPEN_DOWN = 3
+AFTER_A_SCORE = {"down": 1, "distance": "10"}   # the next snap after a touchdown (extra point, kickoff)
 LAG_SAMPLES = 5
 BASELINE_GAP = 2     # the feed this many plays ahead of the app game on first read means a late start
 DISTRUST_FEED_CHANGED = "The feed's list of plays changed earlier: check that this is the right play"
@@ -1241,6 +1242,9 @@ class LiveFeed:
         after_void = self._next_down_after_void(sug) if void else None
         self.next_down = after_void if void else (
             self._next_down(sug) if not changed and sug.kind == "play" and result is not None else None)
+        scored = sug.parsed.touchdown   # after a score comes the extra point and a kickoff: the next snap is 1st & 10
+        if scored:
+            self.next_down, after_void = dict(AFTER_A_SCORE), None
         if void:
             summary = "No play (voided)"
         else:
@@ -1251,7 +1255,7 @@ class LiveFeed:
         self._timing_linger()
         self._log("score", {"by": "auto" if auto else "host", "void": void, "result": result, "changed": changed,
                             "next_down": self.next_down}, play_id=play_id, feed_index=sug.entry_index)
-        self._schedule_open(clean or after_void is not None)   # a no-play still moves the game on
+        self._schedule_open((clean or after_void is not None) and not scored)   # never open into a kickoff   # a no-play still moves the game on
         await self.host.feed_broadcast("play_voided" if void else "play_resolved")
         self._changed()
         return play
@@ -1371,7 +1375,11 @@ class LiveFeed:
                 if self._demo and not p.resolved:
                     self._demo.on_play_cancelled()
         self.next_down = self._next_down_after_void(sug) if had_entry and sug else None
-        self._schedule_open(self.next_down is not None)   # the host's Void moves the game on too, when the feed knew the play
+        scored = bool(had_entry and sug and sug.parsed.touchdown)
+        if scored:
+            self.next_down = dict(AFTER_A_SCORE)
+        # The host's Void moves the game on too, when the feed knew the play (never into a kickoff).
+        self._schedule_open(self.next_down is not None and not scored)
         self._log("host_void", {"had_entry": had_entry}, play_id=play["id"])
         self._persist_cursor()
         self._changed()

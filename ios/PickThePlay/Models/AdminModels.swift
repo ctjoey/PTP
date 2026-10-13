@@ -400,6 +400,8 @@ struct FeedState: Equatable {
     var lastScored: FeedLastScored?
     /// Tank01 vs ESPN timing; nil when there is no comparison (or the server is older than this app).
     var timing: FeedTiming?
+    /// The game clock bar under the scorebug (nil from an older server).
+    var clock: FeedClock?
 
     /// True when the server has been waiting a long time for a locked play (injury or replay review?).
     func isQuiet(at now: Double) -> Bool {
@@ -457,10 +459,41 @@ struct FeedState: Equatable {
     var isRecorded: Bool { source == "demo" }
 }
 
+/// `feed.clock`: where the feed is in the game and where the app is, for the host to hold against the TV.
+struct FeedClock: Equatable {
+    /// The clock of the newest play the feed has published: "Q3 3:42".
+    var feed: String?
+    /// The box score's live game clock: "Q3 2:58".
+    var live: String?
+    /// When the feed was last read (server time).
+    var feedAt: Double?
+    /// The clock of the play the app is on.
+    var app: String?
+    /// Plays the feed has beyond the one the app is on.
+    var behind = 0
+}
+
+extension FeedClock: Decodable {
+    private enum CodingKeys: String, CodingKey { case feed, live, feedAt, app, behind }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        func text(_ key: CodingKeys) -> String? {
+            let value = c.lenientString(key)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return value.isEmpty ? nil : value
+        }
+        feed = text(.feed)
+        live = text(.live)
+        feedAt = c.lenientDouble(.feedAt)
+        app = text(.app)
+        behind = max(0, c.lenientInt(.behind) ?? 0)
+    }
+}
+
 extension FeedState: Decodable {
     private enum CodingKeys: String, CodingKey {
         case state, available, linked, source, gameId, message, paused, autoScore, autoOpen, requests, lag, waiting
-        case suggestion, disagreement, nextDown, autoOpenAt, lastScored, timing
+        case suggestion, disagreement, nextDown, autoOpenAt, lastScored, timing, clock
     }
 
     init(from decoder: Decoder) throws {
@@ -483,6 +516,7 @@ extension FeedState: Decodable {
         autoOpenAt = try? c.decodeIfPresent(Double.self, forKey: .autoOpenAt)
         lastScored = try? c.decodeIfPresent(FeedLastScored.self, forKey: .lastScored)
         timing = try? c.decodeIfPresent(FeedTiming.self, forKey: .timing)
+        clock = try? c.decodeIfPresent(FeedClock.self, forKey: .clock)
     }
 }
 

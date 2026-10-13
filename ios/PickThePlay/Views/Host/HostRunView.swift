@@ -12,6 +12,9 @@ struct HostRunView: View {
             VStack(spacing: 14) {
                 if let game = state.game {
                     ScorebugView(game: game, play: state.play)
+                    if let clock = state.feed?.clock, state.feed?.linked == true, clock.hasAnything {
+                        HostGameClockBar(clock: clock, lockedPlay: state.lockedPlayWaitingForFeed)
+                    }
                     HostCrowdLine(state: state)
                 }
                 switch state.stage {
@@ -42,6 +45,49 @@ struct HostRunView: View {
             // A play was opened (here or on another console) while "Start a different game" was showing: back to the play.
             .onChange(of: state.hasActivePlay) { _, active in if active { startingAnother = false } }
         }
+    }
+}
+
+// MARK: - The game clock
+
+/// "FEED'S NEWEST PLAY Q3 3:42 as of 2 s ago · APP IS ON Q3 3:42", the status line and the live clock: to hold the
+/// app against the TV. It is read from the checks that already happen, so it is only as fresh as the last one.
+private struct HostGameClockBar: View {
+    @EnvironmentObject var host: HostState
+    var clock: FeedClock
+    var lockedPlay: Int?
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { _ in
+            VStack(spacing: 8) {
+                HStack(alignment: .firstTextBaseline, spacing: 16) {
+                    item("FEED'S NEWEST PLAY", clock.feed, age: clock.ageText(now: host.now()))
+                    item("APP IS ON", clock.app, age: nil)
+                }
+                Text(clock.statusLine(lockedPlayNumber: lockedPlay))
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(clock.needsAttention(lockedPlayNumber: lockedPlay) ? Theme.warn : Theme.text)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let live = clock.live {
+                    Text("Live clock \(live)").font(.system(size: 12, weight: .semibold)).foregroundStyle(Theme.muted)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+            .padding(.horizontal, 12)
+            .background(Theme.surface3, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private func item(_ label: String, _ value: String?, age: String?) -> some View {
+        VStack(spacing: 2) {
+            Text(label).font(.system(size: 10, weight: .heavy)).tracking(1).foregroundStyle(Theme.muted)
+            Text(value ?? "-").font(.system(size: 20, weight: .heavy)).monospacedDigit().foregroundStyle(Theme.text)
+            if let age { Text(age).font(.system(size: 11, weight: .semibold)).foregroundStyle(Theme.muted) }
+        }
+        .frame(maxWidth: .infinity)
     }
 }
 

@@ -508,6 +508,42 @@ extension FeedTimingRow {
     }
 }
 
+// MARK: - The game clock bar
+
+extension FeedClock {
+    /// Something to show: the feed has read a play, or the app is on one.
+    var hasAnything: Bool { feed != nil || app != nil }
+
+    /// "as of 12 s ago"; once it is old, why: the feed is only read while a play is locked. Same words as the website.
+    func ageText(now: Double) -> String? {
+        guard let feedAt else { return nil }
+        let age = HostText.wholeSeconds(now - feedAt, up: false)
+        if age < 90 { return "as of \(age) s ago" }
+        return "as of \(HostText.wholeSeconds(Double(age) / 60, up: false)) min ago (it only checks while a play is locked)"
+    }
+
+    /// The line beside the clocks, worded like the website: plays to catch up on, a locked play the feed hasn't
+    /// published yet (Check now can't help then), or in step.
+    func statusLine(lockedPlayNumber: Int?) -> String {
+        if behind > 0 { return "\(HostText.count(behind, "play")) ahead of the app: press Check now to catch up" }
+        if let lockedPlayNumber {
+            return "Play \(lockedPlayNumber) is waiting for the feed to publish it. Nothing newer yet, so Check now cannot help."
+        }
+        return "In step with the feed"
+    }
+
+    /// The status line asks for attention (amber) when the app is behind or a locked play is waiting.
+    func needsAttention(lockedPlayNumber: Int?) -> Bool { behind > 0 || lockedPlayNumber != nil }
+}
+
+extension AdminState {
+    /// The locked play the feed hasn't published yet (no suggestion for it): the clock bar says so.
+    var lockedPlayWaitingForFeed: Int? {
+        guard let play, play.state == .locked, !play.voided, feed?.suggestion == nil else { return nil }
+        return play.playNumber
+    }
+}
+
 // MARK: - Small helpers
 
 enum HostText {

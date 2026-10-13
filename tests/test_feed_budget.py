@@ -780,3 +780,22 @@ def test_the_hosts_own_void_moves_the_game_on_when_the_feed_had_read_the_play(tm
         assert play["play_number"] == 2 and play["state"] == "OPEN" and (play["down"], play["distance"]) == (3, "10")
 
     run_rig(tmp_path, scenario)
+
+
+def test_after_a_touchdown_the_next_play_is_1st_and_10_and_is_not_opened_into_the_kickoff(tmp_path):
+    from tests.test_feed import dd, new_game_midway
+
+    async def scenario(rig: Rig):
+        await new_game_midway(rig, 48)                         # "B.Robinson up the middle for 8 yards, TOUCHDOWN."
+        rig.ctrl.feed.set_options(auto_open=True)
+        await rig.open_lock(*dd(48))
+        rig.server.reveal(upto=48)
+        await rig.until(lambda: rig.state()["suggestion"] is not None, limit=60)
+        await rig.step(5)                                      # scored by the feed
+        assert rig.play()["state"] == "RESOLVED" and rig.play()["play_number"] == 1
+        assert rig.state()["next_down"] == {"down": 1, "distance": "10"}
+        assert rig.state()["auto_open_at"] is None             # the extra point and the kickoff come first
+        await rig.step(60)
+        assert rig.play()["play_number"] == 1
+
+    run_rig(tmp_path, scenario)
