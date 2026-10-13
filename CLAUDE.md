@@ -141,13 +141,12 @@ node --check static/js/*.js            # after any JS change
   log (`timing_seen`, `timing`, `espn` rows). It never changes the game and adds no Tank01 requests.
   `ESPN_COMPARE=0` turns it off.
 - TestFlight: build 39 (Oct 9) has the after-the-game list. **Build 41** was dispatched Oct 13 for commit
-  `fde1898` (feed timing, iPhone game clock, 1st & 10 after a touchdown). Its build step passed on the real SDK.
-  Check that the upload finished (`actions_list` with `resource_id ios.yml`, `perPage 2`).
+  `fde1898` (feed timing, iPhone game clock, 1st & 10 after a touchdown). It passed build and tests and was
+  **uploaded to TestFlight on Oct 13** (run id 38392188569).
 
 ## In progress right now
 
-- No half-done code. The working tree is clean apart from this file.
-- TestFlight build 41 (run id 38392188569) was still running when this was written.
+- No half-done code. Everything is committed and pushed, and TestFlight build 41 is uploaded.
 - The Tank01 vs ESPN comparison has **never seen real ESPN data**. It was built from ESPN's community-documented
   JSON shape (`drives.previous[].plays[]`, `start.downDistanceText`, `clock.displayValue`, `period.number`,
   `wallclock`). Its first real run is **Thursday Oct 15, 2026**.
