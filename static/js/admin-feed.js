@@ -1,7 +1,7 @@
 /* Pick the Play — host console: Live data (the Tank01 play-by-play feed).
  *
  * Draws the Live data panel, the suggestion card, the disagreement banner, the "Pick today's game"
- * picker and the Fix result editor. admin.js creates it with PTPFeed.create(ctx) and calls
+ * picker, the Fix result editor and the Feed timing table (Tank01 vs ESPN, under Settings and details). admin.js creates it with PTPFeed.create(ctx) and calls
  * feed.render(state) for every admin_state. Everything here is optional: with no `feed` key in
  * admin_state (an older server) the panel stays hidden and the console works exactly as before.
  *
@@ -37,6 +37,9 @@ const PTPFeed = (() => {
     done: "The game is finished.",
   };
   const BADGE = { ready: "FEED SUGGESTS", void: "FEED SAYS NO PLAY", review: "NEEDS YOUR CHECK", held: "ON HOLD" };
+  const TIMING_SHOWN = 8; // newest plays listed under Feed timing
+  const TIMING_TONE = { on: "good", looking: "wait", error: "bad", off: "off" };
+  const FEED_NAME = { tank01: "Tank01", espn: "ESPN" };
 
   const setText = (node, text) => { if (node.textContent !== text) node.textContent = text; };
   const pad = (n) => String(n).padStart(2, "0");
@@ -50,6 +53,29 @@ const PTPFeed = (() => {
     const parts = [p.play_type, p.direction].filter(Boolean);
     if (p.yardage) parts.push(p.yards === null || p.yards === undefined ? p.yardage : `${p.yardage} (${yardsText(p.yards)})`);
     return parts.join(" · ");
+  }
+
+  /** "ESPN was first on 7 of 9 plays, about 31 s sooner on average." from feed.timing.summary ("" before any play). */
+  function timingVerdict(s) {
+    if (!s || !(s.plays >= 1)) return "";
+    const plays = `${s.plays} ${s.plays === 1 ? "play" : "plays"}`;
+    const winner = s.espn_first > s.tank01_first ? "espn" : s.tank01_first > s.espn_first ? "tank01" : null;
+    if (!winner) return `Both feeds were about the same on ${plays}.`;
+    // avg_gap is Tank01 minus ESPN: positive means ESPN was sooner. Left out when it disagrees with the count.
+    const gap = typeof s.avg_gap === "number" ? s.avg_gap : 0;
+    const sooner = Math.round(winner === "espn" ? gap : -gap);
+    const about = sooner >= 1 ? `, about ${sooner} s sooner on average` : "";
+    return `${FEED_NAME[winner]} was first on ${winner === "espn" ? s.espn_first : s.tank01_first} of ${plays}${about}.`;
+  }
+
+  /** One feed's cell in a Feed timing row: its delay ("58 s"); without ESPN's wallclock "first" for the sooner feed and
+   * "+36 s" for the later one; "-" while that feed hasn't shown the play. */
+  function timingCell(row, side) {
+    const delay = row[side];
+    if (typeof delay === "number") return `${Math.round(delay)} s`;
+    if (typeof row.gap !== "number") return row[`${side}_shown`] ? "first" : "-";   // only this feed has it so far
+    const late = Math.round(side === "tank01" ? row.gap : -row.gap);
+    return late > 0 ? `+${late} s` : late === 0 ? "same" : "first";
   }
 
   /** The editable result of a Play log row, in the same shape. */
@@ -78,7 +104,7 @@ const PTPFeed = (() => {
       cardSig: null, bar: { key: null, total: 1 }, holdKey: null, live: { panel: null, card: null, disagree: null },
       ddKey: null, ddTouched: false, ddFromFeed: false, inflight: {},
       sched: { date: null, games: [], demo: null, loading: false, error: null, loaded: false },
-      picked: null, fix: null, mounted: false,
+      picked: null, fix: null, mounted: false, timingSig: null,
     };
     const editor = $("#fix-editor");
     editor.remove(); // parked here until Fix result opens it inside a Play log row
@@ -211,6 +237,43 @@ const PTPFeed = (() => {
         : "Typical delay: not measured yet");
       $("#feed-log").hidden = !linked;
       $("#feed-unlink").hidden = !linked;
+      renderTiming(feed);
+    }
+
+    /** Feed timing: Tank01 vs ESPN, side by side. Only a log for the owner: it never changes the game. Hidden when
+     * the server sends no `timing` (live data off, the practice game, ESPN_COMPARE=0, or an older server). */
+    function renderTiming(feed) {
+      const t = feed.timing || null;
+      $("#feed-timing").hidden = !t;
+      if (!t) { S.timingSig = null; return; }
+      const sig = JSON.stringify(t);
+      if (sig === S.timingSig) return;
+      S.timingSig = sig;
+      const espn = t.espn || {};
+      const dot = $("#ft-dot");
+      const tone = TIMING_TONE[espn.state] || "off";
+      if (dot.dataset.tone !== tone) dot.dataset.tone = tone;
+      setText($("#ft-status"), espn.message || "");
+      const verdict = timingVerdict(t.summary);
+      $("#ft-verdict").hidden = !verdict;
+      setText($("#ft-verdict"), verdict);
+      const rows = Array.isArray(t.rows) ? t.rows.slice(0, TIMING_SHOWN) : [];
+      $("#ft-table").hidden = !rows.length;
+      $("#ft-rows").replaceChildren(...rows.map(timingRow));
+    }
+
+    function timingRow(row) {
+      const cell = (side) => {
+        const sooner = row.lead === side; // the feed that showed it first is highlighted (a tie: neither)
+        return el("td", { class: sooner ? "sooner" : null }, timingCell(row, side),
+          sooner ? el("span", { class: "visually-hidden" }, " (sooner)") : null);
+      };
+      // Both feeds have it but one wasn't being checked when it appeared: shown faded, and left out of the verdict.
+      const unfair = row.fair === false && typeof row.gap === "number";
+      return el("tr", {
+        class: unfair ? "unfair" : null,
+        title: unfair ? "Not a fair race: one feed wasn't being checked when this play appeared, so it isn't counted." : null,
+      }, el("th", { scope: "row" }, row.label || ""), cell("tank01"), cell("espn"));
     }
 
     /** Show the server's value unless the host's own toggle is still on its way to the server. */

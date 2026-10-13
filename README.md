@@ -279,6 +279,9 @@ already holds costs nothing.
 | `TANK01_OPEN_DELAY` | `0` | Seconds after a clean score until auto-open opens the next play |
 | `TANK01_TIMEOUT` | `15` | Seconds before a request to Tank01 is given up on |
 | `TANK01_DEMO_LAG` | `12` | Seconds the practice game takes to "show" a locked play |
+| `ESPN_COMPARE` | `1` | `0` turns off [feed timing](#feed-timing-tank01-vs-espn) (the ESPN comparison) |
+| `ESPN_BASE_URL` | `https://site.api.espn.com` | Only changed in tests |
+| `ESPN_INTERVAL` | `4` | Seconds between ESPN reads while a play waits |
 
 #### Setting the key on Render
 
@@ -301,6 +304,18 @@ are recorded in the `feed_log` table (the last 5,000 rows per game). **Download 
 `GET /api/admin/feed/log?game_id=`) returns it as JSON. After the first live game it shows the real status and clock
 values Tank01 sends at halftime and in overtime, how late entries appear, and whether earlier entries are ever
 revised: what to tune next. One line per poll also goes to the normal log.
+
+### Feed timing: Tank01 vs ESPN
+
+To find out whether a faster feed exists, a game linked to Tank01 is also compared with ESPN's play-by-play. ESPN's is
+free and needs no key, but it is unofficial: undocumented, and it can change or stop at any time. It is only a log: Tank01
+still does all the matching and scoring, and the comparison uses **none** of your Tank01 requests. ESPN is read every
+4 s while a locked play waits (and for 90 s after it is scored), never between plays and never for the practice game.
+Under **Settings and details**, **Feed timing: Tank01 vs ESPN** lists the newest plays with how long each feed took to
+show them (or "first" and "+36 s" when ESPN gives no time for the play), the sooner feed highlighted, and a verdict such
+as *ESPN was first on 7 of 9 plays, about 31 s sooner on average.* Only fair races count: both feeds being checked
+when the play appeared (faded rows don't count). Each play also goes to the feed log as a `timing` row. If ESPN is
+down you only see *ESPN isn't answering right now*. Set `ESPN_COMPARE=0` to turn it off.
 
 ### First live game checklist
 
@@ -340,9 +355,18 @@ epoch seconds, like `locks_at` (use `server_time` for the clock offset).
                    "feed_result": {"play_type": "PASS", "direction": "RIGHT", "yards": 7, "yardage": "MEDIUM"}},
   "next_down": {"down": 2, "distance": "3"},
   "auto_open_at": null,
-  "last_scored": {"play_id": 6, "by": "feed", "auto": true, "summary": "PASS - RIGHT - MEDIUM (7 yds)", "at": 1791504912.0, "voided": false}
+  "last_scored": {"play_id": 6, "by": "feed", "auto": true, "summary": "PASS - RIGHT - MEDIUM (7 yds)", "at": 1791504912.0, "voided": false},
+  "timing": {                         // feed timing; null when live data is off, for the practice game, or ESPN_COMPARE=0
+    "espn": {"state": "on", "message": "Comparing with ESPN. It is free and uses none of your Tank01 requests."},  // looking | on | error | off
+    "rows": [{"key": "2|3:42|2|6", "label": "Q2 3:42 · 2nd & 6", "tank01": 58.0, "espn": 22.0, "gap": 36.0,
+              "lead": "espn", "fair": true}],   // newest first, at most 12; delays need ESPN's time of the play
+    "summary": {"plays": 9, "espn_first": 7, "tank01_first": 1, "ties": 1, "avg_gap": 31.4, "avg_tank01": 61.2, "avg_espn": 24.8}
+  }
 }
 ```
+
+In `timing`, `gap` is Tank01's first sighting minus ESPN's (positive: ESPN was sooner; within 3 s is a `tie`), and
+`summary` counts only fair rows that both feeds have shown.
 
 `suggestion.status` is `ready` (clean, counting down while `auto_at` is set), `review`, `void` or `held`. Each play
 object in `history` also has `resolved_by` (`host` · `feed` · `void` · `host-fix`, `null` on old rows) and `feed_text`;
@@ -434,6 +458,7 @@ Inside a lounge you play the same live game, with a private leaderboard tab of e
 ├── teams.py            # Team presets for the admin: 32 city names with team colors and Tank01 abbreviations
 ├── playparse.py        # Live data: reads one play-by-play entry (skip / void / play / review) and the next down
 ├── feed.py             # Live data: Tank01 client, recorded demo feed, the poller/matcher, budget caps, recorder
+├── espn.py             # Feed timing: ESPN's public play-by-play (client, game lookup, play key), compared with Tank01
 ├── demo/               # The recorded game the practice mode replays (a real, finished game)
 ├── static/
 │   ├── css/style.css   # Dark (default) and light, mobile-first styles shared by all pages
@@ -616,9 +641,9 @@ alias, migrating databases from every earlier version, the Rules page and its li
 trademark filter, and full end-to-end flows over the real HTTP and WebSocket endpoints (including the
 auto-lock timer).
 
-Live data is tested without ever touching Tank01: a fake Tank01 (a local HTTP server, `tests/fakefeed.py`) serves a
-real recorded game and real response fixtures, and a manual clock makes the polling schedule run in
-milliseconds. The suite covers the play-by-play parser (on the whole recorded game, many other phrasings, and fuzzed input
+Live data is tested without ever touching Tank01 or ESPN: a fake Tank01 and a fake ESPN (local HTTP servers,
+`tests/fakefeed.py`) serve a real recorded game and real response fixtures, and a manual clock makes the polling
+schedule run in milliseconds. The suite covers the play-by-play parser (on the whole recorded game, many other phrasings, and fuzzed input
 that must never raise), the poller (zero requests while idle, the schedule, matching in order, orphans, voids, restarts,
 caps, errors and backoff, pause/resume/check now, auto-score, hold, auto-open), a full-game replay through the real
 controller with picks scored against `score_prediction`, the admin socket and REST protocol, migrations, Fix result, and the

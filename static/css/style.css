@@ -835,6 +835,25 @@ a { color: var(--blue); }
 .feed-details-body { display: flex; flex-direction: column; gap: 10px; padding-top: 6px; }
 .feed-details-body p { margin: 0; }
 .feed-detail-actions { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+
+/* Feed timing: Tank01 vs ESPN (under Settings and details) */
+.feed-timing { display: flex; flex-direction: column; gap: 6px; padding-top: 10px; border-top: 1px dashed var(--border); }
+.ft-title { margin: 0; font-size: 14px; font-weight: 800; }
+.ft-status { display: flex; align-items: baseline; gap: 8px; color: var(--muted); }
+.ft-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--dim); transform: translateY(-1px); }
+.ft-dot[data-tone="good"] { background: var(--accent); }
+.ft-dot[data-tone="wait"] { background: var(--warn-fill); }
+.ft-dot[data-tone="bad"] { background: var(--danger); }
+.ft-verdict { font-size: 14px; font-weight: 700; line-height: 1.35; }
+.ft-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.ft-table th, .ft-table td { padding: 5px 6px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--border); }
+.ft-table thead th { padding-top: 0; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.ft-table th:first-child { padding-left: 0; text-align: left; }
+.ft-table tbody th { font-weight: 600; }
+.ft-table td { width: 4.6em; }
+.ft-table td.sooner { color: var(--accent); font-weight: 800; background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.ft-table tbody tr:last-child > * { border-bottom: 0; }
+.ft-table tr.unfair th, .ft-table tr.unfair td { color: var(--muted); background: none; font-weight: inherit; }
 .switch { position: relative; display: flex; align-items: flex-start; gap: 12px; cursor: pointer; }
 .switch input { position: absolute; left: 0; top: 0; width: 44px; height: 26px; margin: 0; opacity: 0; cursor: pointer; }
 .switch-ui {

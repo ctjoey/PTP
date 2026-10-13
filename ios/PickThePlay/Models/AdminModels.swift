@@ -28,7 +28,16 @@ extension KeyedDecodingContainer {
     /// A whole number that the server may send as 7 or 7.0.
     func lenientInt(_ key: Key) -> Int? {
         if let value = try? decodeIfPresent(Int.self, forKey: key) { return value }
-        if let number = try? decodeIfPresent(Double.self, forKey: key) { return Int(number) }
+        if let number = try? decodeIfPresent(Double.self, forKey: key), number.isFinite, abs(number) < 1e15 { return Int(number) }
+        return nil
+    }
+
+    /// A number of seconds that the server may send as 58, 58.0 or "58"; nil when missing, null or not a number.
+    func lenientDouble(_ key: Key) -> Double? {
+        if let value = try? decodeIfPresent(Double.self, forKey: key) { return value.isFinite ? value : nil }
+        if let number = try? decodeIfPresent(Int.self, forKey: key) { return Double(number) }
+        if let text = try? decodeIfPresent(String.self, forKey: key),
+           let value = Double(text.trimmingCharacters(in: .whitespaces)), value.isFinite { return value }
         return nil
     }
 }
@@ -230,6 +239,144 @@ struct FeedLastScored: Decodable, Equatable {
     var voided: Bool?
 }
 
+/// `admin_state.feed.timing`: the side-by-side timing log. While a game follows Tank01, the server also reads ESPN's
+/// free play-by-play for the same game and notes when each feed first showed each play. It never changes the game.
+/// nil when live data is off, the source is the practice game, or the comparison is turned off on the server.
+struct FeedTiming: Equatable {
+    /// One feed, as the timing rows name them.
+    enum Feed: String { case tank01, espn }
+
+    /// The ESPN side: looking for the game, comparing, not answering, or switched off.
+    var espn: FeedTimingStatus
+    /// Newest game time first (the server sends at most 12).
+    var rows: [FeedTimingRow]
+    var summary: FeedTimingSummary
+
+    /// A gap of this many seconds or less either way counts as a tie (the server uses the same band).
+    static let tieSeconds = 3.0
+}
+
+extension FeedTiming: Decodable {
+    private enum CodingKeys: String, CodingKey { case espn, rows, summary }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        espn = (try? c.decodeIfPresent(FeedTimingStatus.self, forKey: .espn)) ?? FeedTimingStatus(stateText: "looking", message: nil)
+        // Row by row, so one odd row doesn't empty the list.
+        rows = (try? c.decodeIfPresent([LossyRow<FeedTimingRow>].self, forKey: .rows))?.compactMap(\.value) ?? []
+        summary = (try? c.decodeIfPresent(FeedTimingSummary.self, forKey: .summary)) ?? FeedTimingSummary()
+    }
+}
+
+struct FeedTimingStatus: Equatable {
+    enum Phase: String { case looking, on, error, off }
+
+    /// looking · on · error · off
+    var stateText: String
+    var message: String?
+
+    /// An unknown state reads as "looking": the comparison is running, it just isn't comparing yet.
+    var phase: Phase { Phase(rawValue: stateText) ?? .looking }
+}
+
+extension FeedTimingStatus: Decodable {
+    private enum CodingKeys: String, CodingKey { case state, message }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        stateText = (try? c.decodeIfPresent(String.self, forKey: .state)) ?? "looking"
+        message = try? c.decodeIfPresent(String.self, forKey: .message)
+    }
+}
+
+/// One play as both feeds saw it: "Q2 3:42 · 2nd & 6", Tank01 58 s, ESPN 22 s.
+struct FeedTimingRow: Equatable {
+    /// "2|3:42|2|6": quarter, clock, down, distance.
+    var key: String
+    /// "Q2 3:42 · 2nd & 6"
+    var label: String
+    /// Seconds from the play to Tank01 first showing it; nil without ESPN's time of the play, or not shown yet.
+    var tank01: Double?
+    /// Seconds from the play to ESPN first showing it; nil without ESPN's time of the play, or not shown yet.
+    var espn: Double?
+    /// Tank01's first sighting minus ESPN's (positive: ESPN was sooner); nil until both feeds have shown it.
+    var gap: Double?
+    /// The sooner feed, or a tie (within 3 s); nil until both feeds have shown it.
+    var leadText: String?
+    /// Both feeds were being checked when the play appeared, so the row counts in the summary.
+    var fair: Bool
+    /// Whether each feed has shown the play yet (an older server leaves them out: then a delay or a gap says so).
+    var tank01Shown: Bool?
+    var espnShown: Bool?
+
+    enum Lead: String { case espn, tank01, tie }
+
+    /// The server's word, or worked out from the gap when it sent something odd.
+    var lead: Lead? {
+        if let leadText, let lead = Lead(rawValue: leadText) { return lead }
+        guard let gap else { return nil }
+        if gap > FeedTiming.tieSeconds { return .espn }
+        if gap < -FeedTiming.tieSeconds { return .tank01 }
+        return .tie
+    }
+
+    func delay(_ feed: FeedTiming.Feed) -> Double? {
+        switch feed {
+        case .tank01: return tank01
+        case .espn: return espn
+        }
+    }
+}
+
+extension FeedTimingRow: Decodable {
+    private enum CodingKeys: String, CodingKey { case key, label, tank01, espn, gap, lead, fair, tank01Shown, espnShown }
+
+    private struct Unreadable: Error {}
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        key = c.lenientString(.key)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let sent = c.lenientString(.label)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        label = sent.isEmpty ? key : sent
+        // A row with nothing to name it by can't be shown.
+        if label.isEmpty { throw Unreadable() }
+        tank01 = c.lenientDouble(.tank01)
+        espn = c.lenientDouble(.espn)
+        gap = c.lenientDouble(.gap)
+        leadText = try? c.decodeIfPresent(String.self, forKey: .lead)
+        fair = c.lenientBool(.fair) ?? false
+        tank01Shown = c.lenientBool(.tank01Shown)
+        espnShown = c.lenientBool(.espnShown)
+    }
+}
+
+/// The fair rows where both feeds showed the play: who was first, and by how much on average.
+struct FeedTimingSummary: Equatable {
+    var plays = 0
+    var espnFirst = 0
+    var tank01First = 0
+    var ties = 0
+    /// Average of Tank01's sighting minus ESPN's (positive: ESPN was sooner).
+    var avgGap: Double?
+    var avgTank01: Double?
+    var avgEspn: Double?
+}
+
+extension FeedTimingSummary: Decodable {
+    private enum CodingKeys: String, CodingKey { case plays, espnFirst, tank01First, ties, avgGap, avgTank01, avgEspn }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        plays = max(0, c.lenientInt(.plays) ?? 0)
+        espnFirst = max(0, c.lenientInt(.espnFirst) ?? 0)
+        tank01First = max(0, c.lenientInt(.tank01First) ?? 0)
+        ties = max(0, c.lenientInt(.ties) ?? 0)
+        avgGap = c.lenientDouble(.avgGap)
+        avgTank01 = c.lenientDouble(.avgTank01)
+        avgEspn = c.lenientDouble(.avgEspn)
+    }
+}
+
 /// `admin_state.feed`: everything about the live-data connection.
 struct FeedState: Equatable {
     /// off · idle · waiting · paused · capped · error · not_started · done
@@ -251,6 +398,8 @@ struct FeedState: Equatable {
     var nextDown: NextDown?
     var autoOpenAt: Double?
     var lastScored: FeedLastScored?
+    /// Tank01 vs ESPN timing; nil when there is no comparison (or the server is older than this app).
+    var timing: FeedTiming?
 
     /// True when the server has been waiting a long time for a locked play (injury or replay review?).
     func isQuiet(at now: Double) -> Bool {
@@ -311,7 +460,7 @@ struct FeedState: Equatable {
 extension FeedState: Decodable {
     private enum CodingKeys: String, CodingKey {
         case state, available, linked, source, gameId, message, paused, autoScore, autoOpen, requests, lag, waiting
-        case suggestion, disagreement, nextDown, autoOpenAt, lastScored
+        case suggestion, disagreement, nextDown, autoOpenAt, lastScored, timing
     }
 
     init(from decoder: Decoder) throws {
@@ -333,6 +482,7 @@ extension FeedState: Decodable {
         nextDown = try? c.decodeIfPresent(NextDown.self, forKey: .nextDown)
         autoOpenAt = try? c.decodeIfPresent(Double.self, forKey: .autoOpenAt)
         lastScored = try? c.decodeIfPresent(FeedLastScored.self, forKey: .lastScored)
+        timing = try? c.decodeIfPresent(FeedTiming.self, forKey: .timing)
     }
 }
 

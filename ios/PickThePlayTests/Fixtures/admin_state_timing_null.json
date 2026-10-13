@@ -1,0 +1,138 @@
+{
+  "admins_online": 1,
+  "announcement": null,
+  "event": "feed",
+  "feed": {
+    "auto_open": false,
+    "auto_open_at": null,
+    "auto_score": true,
+    "available": true,
+    "disagreement": null,
+    "game_id": "20261012_BUF@LAR",
+    "lag": {
+      "last": 58.0,
+      "median": 61.0,
+      "samples": 10
+    },
+    "last_scored": {
+      "at": 1791873301.5,
+      "auto": true,
+      "by": "feed",
+      "play_id": 11,
+      "summary": "PASS - RIGHT - SHORT (4 yds)",
+      "voided": false
+    },
+    "linked": true,
+    "message": "Ready. Checking starts when a play locks.",
+    "next_down": {
+      "distance": "6",
+      "down": 2
+    },
+    "paused": false,
+    "requests": {
+      "day_cap": 1000,
+      "game": 214,
+      "game_cap": 900,
+      "plan_limit": 1000,
+      "plan_remaining": 786,
+      "today": 214
+    },
+    "source": "tank01",
+    "state": "idle",
+    "suggestion": null,
+    "timing": null,
+    "waiting": null
+  },
+  "game": {
+    "away_name": "Buffalo",
+    "away_primary": "#00338D",
+    "away_score": 10,
+    "away_secondary": "#C60C30",
+    "created_at": 1791869400.25,
+    "feed_auto_open": 0,
+    "feed_auto_score": 1,
+    "feed_cap_extra": 0,
+    "feed_cursor": 212,
+    "feed_game_id": "20261012_BUF@LAR",
+    "feed_paused": 0,
+    "feed_requests": 214,
+    "home_name": "Los Angeles",
+    "home_primary": "#003594",
+    "home_score": 7,
+    "home_secondary": "#FFA300",
+    "id": 3,
+    "score_at": 1791873290.0,
+    "status": "LIVE"
+  },
+  "history": [
+    {
+      "correct_direction": "RIGHT",
+      "correct_play_type": "PASS",
+      "correct_yardage": "SHORT",
+      "distance": "10",
+      "down": 1,
+      "exact_hits": 2,
+      "feed_text": "J.Allen pass short right to K.Shakir to BUF 39 for 4 yards (Q.Lake).",
+      "id": 11,
+      "picks": 5,
+      "play_number": 11,
+      "resolved_by": "feed",
+      "state": "RESOLVED",
+      "voided": 0,
+      "yards_gained": 4
+    }
+  ],
+  "leaderboard": [
+    {
+      "exact_hits": 2,
+      "picks": 11,
+      "rank": 1,
+      "score": 260,
+      "user_id": 2,
+      "username": "Sam"
+    },
+    {
+      "exact_hits": 1,
+      "picks": 11,
+      "rank": 2,
+      "score": 210,
+      "user_id": 1,
+      "username": "JoeyC"
+    }
+  ],
+  "pick_stats": {
+    "LEFT": 0,
+    "LONG": 0,
+    "MEDIUM": 0,
+    "MIDDLE": 0,
+    "PASS": 0,
+    "RIGHT": 0,
+    "RUN": 0,
+    "SHORT": 0,
+    "exact": 0,
+    "scored": 0,
+    "total": 0
+  },
+  "play": {
+    "correct_direction": "RIGHT",
+    "correct_play_type": "PASS",
+    "correct_yardage": "SHORT",
+    "distance": "10",
+    "down": 1,
+    "game_id": 3,
+    "id": 11,
+    "locks_at": 1791873230.5,
+    "opened_at": 1791873215.5,
+    "play_number": 11,
+    "state": "RESOLVED",
+    "voided": false,
+    "yards_gained": 4
+  },
+  "players_online": 5,
+  "ranked_players": 2,
+  "registered_players": 6,
+  "server_time": 1791873302.75,
+  "spectators_online": 1,
+  "type": "admin_state",
+  "window_seconds": 15.0
+}

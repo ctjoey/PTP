@@ -210,6 +210,16 @@
                   <small>Off by default. Opens the next play for you after a clean score on 1st to 3rd down. Only turn it on once you have seen the typical delay below on a few plays: if the feed runs slow, the next play could open too late.</small></span>
               </label>
               <p class="feed-delay small" id="feed-delay"></p>
+              <!-- Feed timing: Tank01 vs ESPN (a side-by-side log for the owner; it never changes the game) -->
+              <section class="feed-timing" id="feed-timing" aria-labelledby="ft-title" hidden>
+                <h3 class="ft-title" id="ft-title">Feed timing: Tank01 vs ESPN</h3>
+                <p class="ft-status small"><span class="ft-dot" id="ft-dot" data-tone="off" aria-hidden="true"></span><span id="ft-status"></span></p>
+                <p class="ft-verdict" id="ft-verdict" hidden></p>
+                <table class="ft-table" id="ft-table" hidden>
+                  <thead><tr><th scope="col">Play</th><th scope="col">Tank01</th><th scope="col">ESPN</th></tr></thead>
+                  <tbody id="ft-rows"></tbody>
+                </table>
+              </section>
               <p class="feed-detail-actions">
                 <button class="link-btn" type="button" id="feed-log">Download feed log</button>
                 <button class="link-btn danger" type="button" id="feed-unlink">Turn off live data for this game</button>

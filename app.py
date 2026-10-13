@@ -63,6 +63,7 @@ from models import (
     resolve_yardage,
     score_prediction,
 )
+from espn import DEFAULT_BASE_URL as ESPN_BASE_URL
 from feed import DEFAULT_BASE_URL, FEED_ID_RE, LiveFeed
 from teams import DEFAULT_AWAY, DEFAULT_HOME, TEAM_PRESETS
 
@@ -114,6 +115,12 @@ class Settings:
     tank01_open_delay: float = field(default_factory=lambda: _env_number("TANK01_OPEN_DELAY", 0.0))
     tank01_timeout: float = field(default_factory=lambda: _env_number("TANK01_TIMEOUT", 15.0))
     tank01_demo_lag: float = field(default_factory=lambda: _env_number("TANK01_DEMO_LAG", 12.0))  # practice game's delay
+    # Feed timing: also read ESPN's free public play-by-play for a live game and log which feed showed each play first.
+    # It never changes the game and uses none of the Tank01 requests. ESPN_COMPARE=0 turns it off.
+    espn_compare: bool = field(
+        default_factory=lambda: os.environ.get("ESPN_COMPARE", "").strip().lower() not in ("0", "false", "no", "off"))
+    espn_base_url: str = field(default_factory=lambda: os.environ.get("ESPN_BASE_URL", "").strip() or ESPN_BASE_URL)
+    espn_interval: float = field(default_factory=lambda: _env_number("ESPN_INTERVAL", 4.0))  # seconds between ESPN reads
 
 
 # --------------------------------------------------------------------------- #
@@ -395,7 +402,7 @@ class GameController:
                     "requests": {"game": 0, "today": 0, "game_cap": 0, "day_cap": 0, "plan_remaining": None,
                                  "plan_limit": None},
                     "lag": {"median": None, "last": None, "samples": 0}, "waiting": None, "suggestion": None,
-                    "disagreement": None, "next_down": None, "auto_open_at": None, "last_scored": None}
+                    "disagreement": None, "next_down": None, "auto_open_at": None, "last_scored": None, "timing": None}
 
     async def recover(self) -> None:
         """After a restart: re-arm the auto-lock timer for a play left OPEN, and pick live data back up."""

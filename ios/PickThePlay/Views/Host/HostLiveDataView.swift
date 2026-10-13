@@ -369,7 +369,7 @@ private struct FeedStatusSection: View {
             }
             .buttonStyle(.plain)
             .accessibilityValue(showSettings ? "expanded" : "collapsed")
-            .accessibilityHint("Shows the live data switches")
+            .accessibilityHint("Shows the live data switches and the Tank01 vs ESPN timing")
 
             if showSettings {
                 FeedSwitchRow(
@@ -386,6 +386,9 @@ private struct FeedStatusSection: View {
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(Theme.text)
                     .fixedSize(horizontal: false, vertical: true)
+                if let timing = feed.timing {
+                    FeedTimingSection(timing: timing)
+                }
                 if feed.linked {
                     QuietButton(title: "Turn off live data for this game", color: Theme.danger) {
                         confirmTurnOff = true
@@ -442,6 +445,96 @@ private struct FeedSwitchRow: View {
             }
             if attempt == mine { chosen = nil }
         }
+    }
+}
+
+// MARK: - Feed timing: Tank01 vs ESPN
+
+/// In "Settings and details": when each feed first showed each play. Tank01 runs the game; the server only watches
+/// ESPN's free play-by-play beside it, to see which one is sooner. Nothing here changes the game.
+private struct FeedTimingSection: View {
+    var timing: FeedTiming
+
+    /// Wide enough for "+120 s" in the cell font, narrow enough to leave the play its room on a small phone.
+    static let cellWidth: CGFloat = 62
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Feed timing: Tank01 vs ESPN")
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(Theme.text)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+            HostHint(timing.espn.text, color: timing.espn.phase == .error ? Theme.warn : Theme.muted)
+            if let verdict = timing.summary.verdict {
+                Text(verdict)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Theme.text)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            let rows = timing.recentRows
+            if !rows.isEmpty {
+                VStack(spacing: 4) {
+                    columnTitles
+                    ForEach(Array(rows.enumerated()), id: \.offset) { entry in
+                        FeedTimingRowView(row: entry.element)
+                    }
+                }
+            }
+        }
+        .padding(.top, 4)
+    }
+
+    private var columnTitles: some View {
+        HStack(spacing: 6) {
+            title("Play").frame(maxWidth: .infinity, alignment: .leading)
+            title("Tank01").frame(width: Self.cellWidth)
+            title("ESPN").frame(width: Self.cellWidth)
+        }
+        .accessibilityHidden(true)
+    }
+
+    private func title(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 11, weight: .heavy)).tracking(0.6)
+            .foregroundStyle(Theme.muted)
+            .lineLimit(1)
+    }
+}
+
+/// One play: "Q2 3:42 · 2nd & 6", then Tank01's cell and ESPN's. The sooner feed's cell is lit in the accent colour;
+/// a play left out of the verdict (a feed wasn't being checked when it happened) has a dimmed name.
+private struct FeedTimingRowView: View {
+    var row: FeedTimingRow
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text(row.label)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(row.leftOut ? Theme.dim : Theme.text)
+                .lineLimit(2)
+                .minimumScaleFactor(0.85)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            cell(.tank01)
+            cell(.espn)
+        }
+        .frame(minHeight: 28)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(row.spoken)
+    }
+
+    private func cell(_ feed: FeedTiming.Feed) -> some View {
+        let lit = row.sooner == feed
+        let value = row.cell(feed)
+        let color = lit ? Theme.accent : (value == .notShown ? Theme.dim : Theme.text)
+        return Text(value.text)
+            .font(.system(size: 13, weight: .heavy).monospacedDigit())
+            .foregroundStyle(color)
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+            .frame(width: FeedTimingSection.cellWidth, height: 26)
+            .background(lit ? Theme.accent.opacity(0.16) : Color.clear,
+                        in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }
 

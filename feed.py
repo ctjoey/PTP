@@ -13,7 +13,8 @@ How it works (the "smart method"):
 ``GameController``, to apply results. All timing goes through an injectable ``clock`` so tests run in milliseconds.
 
 Pieces: ``Tank01Client`` (the real HTTP client), ``DemoFeed`` (a recorded game for rehearsal, no requests),
-``LiveFeed`` (poller, matcher, suggestions, budget guards and recorder).
+``LiveFeed`` (poller, matcher, suggestions, budget guards and recorder), ``FeedTiming`` (feed timing: reads ESPN's
+free public play-by-play beside Tank01 and logs which one showed each play first; it never touches the game).
 """
 
 from __future__ import annotations
@@ -34,6 +35,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Protocol
 
+from espn import DEFAULT_BASE_URL as ESPN_BASE_URL
+from espn import EspnClient, clock_seconds, find_event, nearby_dates, summary_plays, tank01_matchup, tank01_play
 from models import GameError, GameStatus, PlayState, Store, resolve_yardage
 from playparse import Parsed, classify, next_down_after_void, next_down_and_distance, parse_down_and_distance
 from teams import feed_matchup, feed_team
@@ -393,6 +396,10 @@ class LiveFeed:
         self.store, self.host, self.settings = store, host, settings
         self.clock, self.sleep, self.autorun = clock, sleep, autorun
         self.tank01 = client or Tank01Client(settings.tank01_api_key, settings.tank01_base_url, settings.tank01_timeout)
+        # Feed timing: ESPN's free public play-by-play, read beside Tank01 only to log which one is faster (FeedTiming).
+        self.espn = EspnClient(getattr(settings, "espn_base_url", "") or ESPN_BASE_URL)
+        self._espn_wake = asyncio.Event()
+        self._espn_task: asyncio.Task | None = None
         self._demo: DemoFeed | None = None
         self._wake = asyncio.Event()
         self._task: asyncio.Task | None = None
@@ -467,13 +474,17 @@ class LiveFeed:
         self._polling = False
         self._demo = None
         self._box_meta: dict[str, Any] | None = None
+        compare = self.source == "tank01" and bool(getattr(self.settings, "espn_compare", False))
+        self.timing: FeedTiming | None = (
+            FeedTiming(self, self.espn, getattr(self.settings, "espn_interval", 4.0)) if compare else None)
         self._load_usage()
 
     def attach(self, game: dict[str, Any] | None) -> None:
         """Start following ``game`` (a new game, or the current one after a restart). Rebuilds what was in flight."""
-        if self._task and not self._task.done():
-            self._task.cancel()
-        self._task = None
+        for task in (self._task, self._espn_task):
+            if task and not task.done():
+                task.cancel()
+        self._task = self._espn_task = None
         self._reset(game)
         if not game or not self.feed_id:
             self.host.feed_changed()
@@ -499,16 +510,20 @@ class LiveFeed:
                              "pending": [p.play_id for p in self.pending]})
         if self.autorun:
             self._task = asyncio.get_running_loop().create_task(self.run())
+            if self.timing is not None:
+                self._espn_task = asyncio.get_running_loop().create_task(self._espn_run())
         self._wake.set()
         self.host.feed_changed()
 
     async def stop(self) -> None:
-        """Stop the polling task (shutdown)."""
-        task, self._task = self._task, None
+        """Stop the polling task and the feed timing task (shutdown)."""
+        tasks = [t for t in (self._task, self._espn_task) if t and not t.done()]
+        self._task = self._espn_task = None
         self._gen += 1
-        if task and not task.done():
+        for task in tasks:
             task.cancel()
-            await asyncio.gather(task, return_exceptions=True)
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
 
     @property
     def linked(self) -> bool:
@@ -591,6 +606,7 @@ class LiveFeed:
     def _changed(self) -> None:
         self.host.feed_changed()
         self._wake.set()
+        self._espn_wake.set()   # a lock (or anything else) may open or close the feed timing window
 
     # -- the schedule ------------------------------------------------------ #
 
@@ -634,8 +650,8 @@ class LiveFeed:
                 delay = 5.0
             await self._nap(delay)
 
-    async def _nap(self, delay: float | None) -> None:
-        tasks: set[asyncio.Future] = {asyncio.ensure_future(self._wake.wait())}
+    async def _nap(self, delay: float | None, wake: asyncio.Event | None = None) -> None:
+        tasks: set[asyncio.Future] = {asyncio.ensure_future((wake or self._wake).wait())}
         if delay is not None:
             tasks.add(asyncio.ensure_future(self.sleep(max(0.02, delay))))
         try:
@@ -664,6 +680,28 @@ class LiveFeed:
             if waiting and now >= waiting.next_check:
                 await self._poll()
         return self._time_to_next()
+
+    async def espn_tick(self) -> float | None:
+        """Feed timing: one ESPN read when one is due (see ``FeedTiming``). Returns seconds until the next one is due
+        (None: nothing until something changes). Never raises and never touches the game."""
+        self._espn_wake.clear()
+        timing = self.timing
+        if timing is None:
+            return None
+        try:
+            return await timing.tick()
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001 - the comparison must never get in the game's way
+            log.exception("feed timing check failed")
+            return 30.0
+
+    async def _espn_run(self) -> None:
+        """The feed timing task, beside the polling task: read ESPN when due, then sleep until the next read or a change."""
+        gen = self._gen
+        while gen == self._gen:
+            delay = await self.espn_tick()
+            await self._nap(delay, self._espn_wake)
 
     def _time_to_next(self) -> float | None:
         now = self.clock()
@@ -745,7 +783,9 @@ class LiveFeed:
         if result.ok:
             self._fail_streak, self._auth_error, self._not_started = 0, False, None
             self._quota_hit = False
+            known = len(self._texts)
             self._ingest(entries or [], body, now)
+            self._timing_saw_tank01(known, now)
             self._note_clock(body, now)
             if not self._baselined:   # still no plays at all: whatever is locked now was locked before the game began
                 self._mark_waited_for_start()
@@ -786,6 +826,22 @@ class LiveFeed:
                 self._set_paused(True)
                 self._auto_paused = True
                 self._log("pause", {"auto": True, "reason": "too many failures"})
+
+    def _timing_saw_tank01(self, known: int, now: float) -> None:
+        """Feed timing: note the plays this Tank01 answer showed for the first time (entries from ``known`` on)."""
+        if self.timing is not None:
+            try:
+                self.timing.saw_tank01(known, now)
+            except Exception:  # noqa: BLE001 - the comparison must never get in the game's way
+                log.exception("feed timing could not note Tank01's plays")
+
+    def _timing_linger(self) -> None:
+        """Feed timing: a play was matched or scored, so keep reading ESPN a little longer (a slower ESPN still counts)."""
+        if self.timing is not None:
+            try:
+                self.timing.linger()
+            except Exception:  # noqa: BLE001
+                log.exception("feed timing could not note the play")
 
     def _burst_limit(self, result: FeedResult) -> bool:
         """A 429 that is about going too fast (the plan still has plenty left), not about the plan being used up."""
@@ -1107,6 +1163,7 @@ class LiveFeed:
         self._app_clock = parsed.clock or self._app_clock
         self.suggestion = sug
         self._notice = None
+        self._timing_linger()
         self._log("bind", {"lag": round(lag, 1), "kind": parsed.kind}, play_id=p.play_id, feed_index=idx)
         self._log("suggest", {"status": status, "warning": warning, "type": parsed.play_type, "direction": parsed.direction,
                               "yards": parsed.yards, "yardage": parsed.yardage, "flags": flags, "text": parsed.text[:300]},
@@ -1191,6 +1248,7 @@ class LiveFeed:
             summary = f"{result_label(*result[:3])}" + (f" ({result[3]} yds)" if result[3] is not None else "")
         self.last_scored = {"play_id": play_id, "by": "feed", "auto": auto, "summary": summary, "at": self.clock(),
                             "voided": void}
+        self._timing_linger()
         self._log("score", {"by": "auto" if auto else "host", "void": void, "result": result, "changed": changed,
                             "next_down": self.next_down}, play_id=play_id, feed_index=sug.entry_index)
         self._schedule_open(clean or after_void is not None)   # a no-play still moves the game on
@@ -1272,6 +1330,7 @@ class LiveFeed:
         if not self.linked:
             return
         self._notice = None
+        self._timing_linger()
         p = next((x for x in self.pending if x.play_id == play["id"]), None)
         scored = (play["correct_play_type"], play["correct_direction"], play["correct_yardage"])
         sug = self.suggestion
@@ -1299,6 +1358,7 @@ class LiveFeed:
         if not self.linked:
             return
         self._notice = None
+        self._timing_linger()
         p = next((x for x in self.pending if x.play_id == play["id"]), None)
         sug = self.suggestion
         had_entry = bool(sug and sug.play_id == play["id"])
@@ -1536,7 +1596,19 @@ class LiveFeed:
             "auto_open_at": self.auto_open_at,
             "last_scored": self.last_scored,
             "clock": self._clock_view(),
+            "timing": self._timing_view(),
         }
+
+    def _timing_view(self) -> dict[str, Any] | None:
+        """The ``timing`` object (None with no comparison: live data off, the practice game, or ESPN_COMPARE=0).
+        A fault in it never breaks the panel."""
+        if self.timing is None or not self.linked:
+            return None
+        try:
+            return self.timing.view()
+        except Exception:  # noqa: BLE001
+            log.exception("feed timing view failed")
+            return None
 
     def _suggestion_view(self) -> dict[str, Any]:
         sug = self.suggestion
@@ -1585,3 +1657,307 @@ class LiveFeed:
         if self._complete:
             return "done", "The feed says the game is over."
         return "idle", "Connected. It checks the feed only while a play is locked."
+
+
+# --------------------------------------------------------------------------- #
+# Feed timing: Tank01 vs ESPN, side by side (it never touches the game)
+# --------------------------------------------------------------------------- #
+
+ESPN_LINGER = 90.0          # keep reading ESPN this long after a play is matched or scored, so a slower ESPN still counts
+ESPN_LOOKUP_RETRY = 30.0    # seconds between looks for the game on ESPN's scoreboard
+ESPN_BACKOFF_MAX = 30.0
+FAIR_WITHIN = 12.0          # a feed was being checked when its previous answer came at most this long before a sighting
+TIE_WITHIN = 3.0            # a gap this small (seconds) is a tie
+WALLCLOCK_MAX_AGE = 900.0   # ESPN's "when it happened" is believed only within 15 minutes before ESPN showed the play
+TIMING_SHOWN = 12           # rows in the ``timing`` object (the console lists the newest 8)
+TIMING_KEEP = 400           # plays remembered per game (a game has about 150)
+NOT_ON_SCOREBOARD = "This game isn't on ESPN's scoreboard."
+ESPN_MESSAGES = {
+    "looking": "Looking for this game on ESPN...",
+    "on": "Comparing with ESPN. It is free and uses none of your Tank01 requests.",
+    "error": "ESPN isn't answering right now. Tank01 still runs the game.",
+    "off": "The ESPN comparison is off.",
+}
+
+
+def _since(seen: float | None, prev: float | None) -> float | None:
+    return round(seen - prev, 1) if seen is not None and prev is not None else None
+
+
+@dataclass
+class TimingRow:
+    """One play as both feeds showed it: when each one first had it, and when that feed's answer before it came."""
+
+    key: str                            # "2|3:42|2|6": quarter, game clock at the snap, down, yards to go
+    label: str                          # "Q2 3:42 · 2nd & 6"
+    order: int                          # the order plays were first noticed in: the tie-break after game time
+    tank01_seen: float | None = None
+    tank01_prev: float | None = None    # Tank01's previous answer (which did not have it); None: there was none
+    tank01_index: int | None = None     # its entry in Tank01's list
+    espn_seen: float | None = None
+    espn_prev: float | None = None
+    wallclock: float | None = None      # when ESPN says the play happened, if that is believable
+    espn_text: str = ""
+    logged: bool = False
+
+    @property
+    def both(self) -> bool:
+        return self.tank01_seen is not None and self.espn_seen is not None
+
+    def delay(self, seen: float | None) -> float | None:
+        """How long after the play a feed showed it (only known with ESPN's wallclock)."""
+        if seen is None or self.wallclock is None:
+            return None
+        return round(max(0.0, seen - self.wallclock), 1)
+
+    @property
+    def gap(self) -> float | None:
+        """Tank01's first sighting minus ESPN's: positive means ESPN was sooner."""
+        if self.tank01_seen is None or self.espn_seen is None:
+            return None
+        return round(self.tank01_seen - self.espn_seen, 1)
+
+    @property
+    def lead(self) -> str | None:
+        gap = self.gap
+        if gap is None:
+            return None
+        return "espn" if gap > TIE_WITHIN else "tank01" if gap < -TIE_WITHIN else "tie"
+
+    @property
+    def fair(self) -> bool:
+        """Both feeds were being checked when the play appeared: each one's previous answer (the one without it) came
+        at most ``FAIR_WITHIN`` seconds before it first showed the play."""
+        t01, espn = _since(self.tank01_seen, self.tank01_prev), _since(self.espn_seen, self.espn_prev)
+        return t01 is not None and espn is not None and t01 <= FAIR_WITHIN and espn <= FAIR_WITHIN
+
+    @property
+    def game_time(self) -> tuple[int, int, int]:
+        """Later plays sort higher: the quarter, then less time left on the clock, then noticed later."""
+        period, clock, _, _ = self.key.split("|")
+        return int(period), -clock_seconds(clock), self.order
+
+    def view(self) -> dict[str, Any]:
+        return {"key": self.key, "label": self.label, "tank01": self.delay(self.tank01_seen),
+                "espn": self.delay(self.espn_seen), "gap": self.gap, "lead": self.lead, "fair": self.fair,
+                "tank01_shown": self.tank01_seen is not None, "espn_shown": self.espn_seen is not None}
+
+    def log_view(self) -> dict[str, Any]:
+        """The feed log's "timing" row: the view plus the raw times, for tuning later."""
+        return {**self.view(), "tank01_seen": self.tank01_seen, "espn_seen": self.espn_seen, "wallclock": self.wallclock,
+                "tank01_since_check": _since(self.tank01_seen, self.tank01_prev),
+                "espn_since_check": _since(self.espn_seen, self.espn_prev), "text": self.espn_text}
+
+
+class FeedTiming:
+    """Feed timing: when Tank01 and when ESPN first showed each play of a linked Tank01 game, side by side.
+
+    Tank01's sightings come from the checks ``LiveFeed`` makes anyway (``saw_tank01``: no extra Tank01 requests).
+    ESPN is read by its own small loop (``tick``), every ``ESPN_INTERVAL`` seconds, only while Tank01 is waiting for
+    a locked play and for ``ESPN_LINGER`` seconds after a play is matched or scored: never between plays, never for
+    the practice game, never after the game is over. Nothing here can change the game. It only keeps this table, a
+    status line and rows in the feed log; an ESPN failure just shows in the status line.
+    """
+
+    def __init__(self, feed: LiveFeed, client: EspnClient, interval: Any) -> None:
+        self.feed, self.client = feed, client
+        try:
+            self.interval = min(60.0, max(1.0, float(interval)))
+        except (TypeError, ValueError):
+            self.interval = 4.0
+        self.state = "looking" if feed.available else "off"   # no Tank01 key: Tank01 checks nothing, nothing to compare
+        self.error: str | None = None
+        self.event_id: str | None = None
+        self.rows: dict[str, TimingRow] = {}
+        self._order = 0
+        self.next_at = 0.0
+        self.linger_until = 0.0
+        self.fail_streak = 0
+        self.tank01_last: float | None = None   # when Tank01's previous answer came
+        self.espn_last: float | None = None     # when ESPN's previous answer came
+
+    def _current(self) -> bool:
+        """Still the comparison for the game being followed (an answer can arrive after the game changed)."""
+        return self.feed.timing is self
+
+    # -- when ESPN is read --------------------------------------------------- #
+
+    def linger(self) -> None:
+        """A play was matched or scored: keep reading ESPN for ``ESPN_LINGER`` seconds more."""
+        self.linger_until = max(self.linger_until, self.feed.clock() + ESPN_LINGER)
+
+    def active(self, now: float) -> bool:
+        """ESPN is read now: Tank01 is waiting for a locked play (the same windows it polls in), or a play was matched
+        or scored less than ``ESPN_LINGER`` seconds ago."""
+        f = self.feed
+        if not f.linked or f.source != "tank01" or f.game_final or not f.available:
+            return False
+        return f._want_poll() or now < self.linger_until
+
+    async def tick(self) -> float | None:
+        """One ESPN read when it is due. Returns seconds until the next one (None: none until something changes)."""
+        f = self.feed
+        now = f.clock()
+        if f.game_final and self.state in ("looking", "error"):
+            self._set_state("off")   # nothing more will be read for this game
+        if not self.active(now):
+            return None
+        if now < self.next_at:
+            return self.next_at - now
+        if self.event_id is None:
+            await self._lookup()
+        if self.event_id is not None and self._current() and f.clock() >= self.next_at:
+            await self._read()
+        if not self._current():
+            return None
+        return max(0.0, self.next_at - f.clock())
+
+    async def _lookup(self) -> None:
+        """Find the game on ESPN's scoreboard: its date, then the day after and before (one request each)."""
+        matchup = tank01_matchup(self.feed.feed_id)
+        dates = nearby_dates(matchup[0]) if matchup else []
+        for day in dates:
+            result = await self.client.scoreboard(day)
+            if not self._current():
+                return
+            if not result.ok:
+                self._failed(result.error_text, ESPN_LOOKUP_RETRY)
+                return
+            event_id = find_event(result.body, matchup[1], matchup[2])   # type: ignore[index]
+            if event_id:
+                self.event_id, self.fail_streak = event_id, 0
+                self.feed._log("espn", {"found": event_id, "date": day, "ms": result.elapsed_ms})
+                return
+        # ESPN answered but does not list the game (yet): keep looking, which is what the host is told.
+        if self.error != NOT_ON_SCOREBOARD:
+            self.feed._log("espn", {"not_found": self.feed.feed_id, "dates": dates})
+        self.error, self.next_at = NOT_ON_SCOREBOARD, self.feed.clock() + ESPN_LOOKUP_RETRY
+
+    async def _read(self) -> None:
+        """One read of the game's summary: note every play ESPN shows for the first time."""
+        result = await self.client.summary(self.event_id or "")
+        if not self._current():
+            return
+        now = self.feed.clock()
+        if not result.ok:
+            self._failed(result.error_text)
+            return
+        changed = self._saw_espn(summary_plays(result.body), now)
+        self.espn_last, self.fail_streak = now, 0
+        self.next_at = now + self.interval
+        if not self._set_state("on") and changed:
+            self._push()
+
+    def _failed(self, why: str, retry: float | None = None) -> None:
+        """ESPN did not help this time: say so in the status line and try again later (backing off, politely)."""
+        self.fail_streak += 1
+        if retry is None:
+            retry = min(ESPN_BACKOFF_MAX, self.interval * 2 ** (self.fail_streak - 1))
+        self.next_at = self.feed.clock() + retry
+        if self.fail_streak >= 2 or self.state == "error":   # one stray failure does not flip the status line
+            self._set_state("error", why)
+        else:
+            self.error = why
+
+    def _set_state(self, state: str, error: str | None = None) -> bool:
+        """Change the status line; True when it changed (then it is logged and the consoles hear of it)."""
+        self.error = error
+        if state == self.state:
+            return False
+        self.state = state
+        self.feed._log("espn", {"state": state, "error": error, "event_id": self.event_id})
+        self._push()
+        return True
+
+    def _push(self) -> None:
+        try:
+            self.feed.host.feed_changed()   # the consoles only: never wakes the Tank01 poller
+        except Exception:  # noqa: BLE001
+            log.exception("feed timing could not update the consoles")
+
+    # -- sightings -------------------------------------------------------------- #
+
+    def _add(self, key: str, label: str) -> TimingRow:
+        self._order += 1
+        row = self.rows[key] = TimingRow(key, label, self._order)
+        if len(self.rows) > TIMING_KEEP:
+            del self.rows[min(self.rows.values(), key=lambda r: r.order).key]
+        return row
+
+    def _first_sighting(self, source: str, row: TimingRow) -> None:
+        """Every first sighting goes to the feed log, also one the other feed never matches (a play the two feeds
+        wrote differently would otherwise leave no trace to check)."""
+        espn = source == "espn"
+        self.feed._log("timing_seen", {"source": source, "key": row.key, "label": row.label,
+                                       "seen": row.espn_seen if espn else row.tank01_seen,
+                                       "wallclock": row.wallclock if espn else None,
+                                       "text": row.espn_text if espn else None},
+                       feed_index=None if espn else row.tank01_index)
+
+    def _complete(self, row: TimingRow) -> None:
+        """Both feeds have shown the play: write it to the feed log once."""
+        if row.both and not row.logged:
+            row.logged = True
+            self.feed._log("timing", row.log_view(), feed_index=row.tank01_index)
+
+    def saw_tank01(self, known: int, now: float) -> None:
+        """A Tank01 answer came (from a check ``LiveFeed`` made anyway): note the plays it showed for the first time.
+        ``known`` is how many entries were known before it. First sighting wins: a key seen again later is ignored."""
+        f = self.feed
+        prev, self.tank01_last = self.tank01_last, now
+        for i in range(known, min(len(f._texts), len(f.entries))):
+            picked = tank01_play(f.entries[i])
+            if not picked:
+                continue
+            row = self.rows.get(picked[0])
+            if row is not None and row.tank01_seen is not None:
+                continue
+            row = row or self._add(*picked)
+            row.tank01_seen, row.tank01_prev, row.tank01_index = f._seen_at.get(i, now), prev, i
+            self._first_sighting("tank01", row)
+            self._complete(row)
+
+    def _saw_espn(self, plays: list[Any], now: float) -> bool:
+        """Note the plays this ESPN answer showed for the first time; True when the table changed."""
+        prev, changed = self.espn_last, False
+        for play in plays:
+            key = play.raw_key
+            if key is None:
+                continue
+            row = self.rows.get(key)
+            if (row is not None and row.espn_seen is not None) or not play.scrimmage:
+                continue
+            row = row or self._add(key, play.label)
+            wall = play.wallclock   # believed only when it is not in the future and not long before ESPN showed it
+            row.espn_seen, row.espn_prev, row.espn_text = now, prev, play.text[:200]
+            row.wallclock = wall if wall is not None and 0.0 <= now - wall <= WALLCLOCK_MAX_AGE else None
+            changed = True
+            self._first_sighting("espn", row)
+            self._complete(row)
+        return changed
+
+    # -- what the host sees ----------------------------------------------------- #
+
+    def view(self) -> dict[str, Any]:
+        """The ``timing`` object of the feed state (see README, "Feed timing")."""
+        both = [r for r in self.rows.values() if r.both]
+        newest = max((r.game_time for r in both), default=None)
+        # A play only one feed has shown so far is listed while it is newer than every compared play (the race is still
+        # on); with no compared play at all, every one-sided play is listed, so feeds that never match are plain to see.
+        shown = both + [r for r in self.rows.values() if not r.both and (newest is None or r.game_time > newest)]
+        shown.sort(key=lambda r: r.game_time, reverse=True)
+        return {"espn": {"state": self.state, "message": ESPN_MESSAGES.get(self.state, ESPN_MESSAGES["error"])},
+                "rows": [r.view() for r in shown[:TIMING_SHOWN]],
+                "summary": self.summary([r for r in both if r.fair])}
+
+    @staticmethod
+    def summary(rows: list[TimingRow]) -> dict[str, Any]:
+        """Counts and averages over fair rows that both feeds have shown."""
+        def avg(values: list[float]) -> float | None:
+            return round(statistics.fmean(values), 1) if values else None
+
+        leads = [r.lead for r in rows]
+        return {"plays": len(rows), "espn_first": leads.count("espn"), "tank01_first": leads.count("tank01"),
+                "ties": leads.count("tie"), "avg_gap": avg([r.gap for r in rows if r.gap is not None]),
+                "avg_tank01": avg([d for r in rows if (d := r.delay(r.tank01_seen)) is not None]),
+                "avg_espn": avg([d for r in rows if (d := r.delay(r.espn_seen)) is not None])}

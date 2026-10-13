@@ -1,23 +1,35 @@
-"""A fake Tank01 for tests: a local HTTP server (stdlib, in a thread), recorded fixtures, and a manual clock.
+"""A fake Tank01 (and a fake ESPN) for tests: local HTTP servers (stdlib, in a thread), recorded fixtures, and a
+manual clock.
 
-Nothing here ever talks to rapidapi.com. ``FakeTank01`` answers ``getNFLBoxScore`` and ``getNFLGamesForDate`` the
-way the real service does (``{"statusCode": 200, "body": ...}`` plus the rate-limit headers) from data the test
-controls: reveal entries one at a time, queue a one-off error, change the plan allowance.
+Nothing here ever talks to rapidapi.com or espn.com. ``FakeTank01`` answers ``getNFLBoxScore`` and
+``getNFLGamesForDate`` the way the real service does (``{"statusCode": 200, "body": ...}`` plus the rate-limit
+headers) from data the test controls: reveal entries one at a time, queue a one-off error, change the plan allowance.
+``FakeEspn`` answers ESPN's scoreboard and game summary for the same recorded game (the feed timing check), with its
+own ``visible`` count so a test decides which feed shows a play first.
 """
 
 from __future__ import annotations
 
 import asyncio
 import json
+import os
 import threading
 import time
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Awaitable, Callable
 from urllib.parse import parse_qs, urlsplit
 
-from app import GameController, Hub, Settings
-from models import Store
+# Live data also reads ESPN beside Tank01 (the feed timing check, on by default). Tests never reach the real ESPN: an
+# app made in a test without its own FakeEspn talks to a local port where nothing listens, so every ESPN read fails,
+# which the game must not notice. Set before the app's Settings read the environment.
+OFFLINE_ESPN = "http://127.0.0.1:9"
+os.environ["ESPN_BASE_URL"] = OFFLINE_ESPN
+
+from app import GameController, Hub, Settings  # noqa: E402
+from espn import SCOREBOARD_PATH, SUMMARY_PATH  # noqa: E402
+from models import Store  # noqa: E402
 
 FIXTURE = Path(__file__).resolve().parents[1] / "demo" / "box_CAR_WSH_20241020.json"
 GAME_BODY = json.loads(FIXTURE.read_text())["body"]
@@ -156,6 +168,168 @@ class FakeTank01:
 
 
 # --------------------------------------------------------------------------- #
+# A fake ESPN (the feed timing check reads it beside Tank01)
+# --------------------------------------------------------------------------- #
+
+ESPN_EVENT_ID = "401671745"   # made up, in the shape of ESPN's event ids
+ESPN_DATE = "20241020"        # the recorded game's date (FEED_ID)
+_ORD = {1: "1st", 2: "2nd", 3: "3rd", 4: "4th"}
+_ESPN_TYPES = {"kickoff": "Kickoff", "punt": "Punt", "field_goal": "Field Goal Good", "extra_point": "Extra Point Good",
+               "timeout": "Timeout", "end_period": "End Period", "warning": "Two-minute warning", "coin_toss": "Coin Toss",
+               "two_point": "Two-point Conversion", "kneel": "Rush", "spike": "Pass Incompletion"}
+
+
+def iso(epoch: float) -> str:
+    """Epoch seconds as ESPN writes a play's ``wallclock``: "2027-01-15T08:00:05Z"."""
+    return datetime.fromtimestamp(epoch, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def espn_play(i: int, entry: dict[str, Any], wallclock: float | str | None = None, pad_clock: bool = False) -> dict[str, Any]:
+    """Recorded Tank01 entry ``i`` written the way ESPN's summary lists a play (same text, clock and situation)."""
+    from playparse import classify, parse_down_and_distance
+
+    parsed = classify(entry)
+    dd = parse_down_and_distance(entry.get("downAndDistance"))
+    period = {"Q1": 1, "Q2": 2, "Q3": 3, "Q4": 4, "OT": 5}.get(str(entry.get("playPeriod")), 1)
+    clock = str(entry.get("playClock") or "")
+    if pad_clock and len(clock) == 4:
+        clock = f"0{clock}"                                 # "03:18"
+    kind = _ESPN_TYPES.get(parsed.reason) or {"PASS": "Pass Reception", "RUN": "Rush"}.get(
+        parsed.play_type or "", "Penalty" if parsed.kind == "void" else "Play")
+    start: dict[str, Any] = {"down": 0, "distance": 0, "yardLine": 65}   # kickoffs and markers have no down
+    if dd:
+        goal = dd["to_go"] == "goal"
+        to_go = dd["spot"] if goal else int(dd["to_go"]) if dd["to_go"].isdigit() else 1
+        start = {"down": dd["down"], "distance": to_go, "yardLine": dd["spot"] or 50,
+                 "downDistanceText": entry["downAndDistance"],
+                 "shortDownDistanceText": f"{_ORD[dd['down']]} & {'Goal' if goal else to_go}"}
+    play: dict[str, Any] = {
+        "id": f"{ESPN_EVENT_ID}{i:04d}", "sequenceNumber": str(100 + 10 * i), "text": entry.get("play"),
+        "type": {"text": kind}, "period": {"number": period}, "clock": {"displayValue": clock}, "start": start,
+        "statYardage": parsed.yards or 0, "scoringPlay": parsed.touchdown,
+    }
+    if wallclock is not None:
+        play["wallclock"] = iso(wallclock) if isinstance(wallclock, (int, float)) else wallclock
+    return play
+
+
+def espn_event(event_id: str = ESPN_EVENT_ID, away: str = "CAR", home: str = "WSH", away_city: str = "Carolina",
+               home_city: str = "Washington", state: str = "in") -> dict[str, Any]:
+    """One game on ESPN's scoreboard."""
+    def side(home_away: str, abbr: str, city: str) -> dict[str, Any]:
+        return {"homeAway": home_away, "score": "0",
+                "team": {"abbreviation": abbr, "displayName": city, "shortDisplayName": city, "location": city}}
+
+    return {"id": event_id, "date": "2024-10-20T17:00Z",
+            "competitions": [{"competitors": [side("home", home, home_city), side("away", away, away_city)],
+                              "status": {"type": {"state": state}}}]}
+
+
+class FakeEspn:
+    """ESPN's public site API on 127.0.0.1: the scoreboard and the recorded game's summary.
+
+    ``visible`` plays are listed (grouped into drives), each with ``wallclock[i]`` (epoch seconds, or any string as
+    is) when one is set. ``events`` is what the scoreboard lists on ``date`` (other dates list nothing); ``queue``
+    makes the next answers odd, as on ``FakeTank01``.
+    """
+
+    def __init__(self, entries: list[dict[str, Any]] | None = None) -> None:
+        self.entries = list(ENTRIES if entries is None else entries)
+        self.visible = 0
+        self.wallclock: dict[int, float | str] = {}
+        self.pad_clock = False
+        self.repeat_current = False          # also list the drive in progress among the previous ones
+        self.event_id = ESPN_EVENT_ID
+        self.date = ESPN_DATE
+        self.events: Any = [espn_event()]
+        self.hits: list[dict[str, Any]] = []
+        self._queue: list[dict[str, Any]] = []
+        self._lock = threading.Lock()
+        outer = self
+
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *args: Any) -> None:  # quiet
+                pass
+
+            def do_GET(self) -> None:  # noqa: N802
+                outer._handle(self)
+
+        self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self.url = f"http://127.0.0.1:{self.server.server_address[1]}"
+        self.thread = threading.Thread(target=self.server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
+        self.thread.start()
+
+    # -- test controls -------------------------------------------------- #
+
+    def reveal(self, n: int = 1, upto: int | None = None) -> None:
+        """Show ``n`` more plays (or everything up to index ``upto`` inclusive)."""
+        self.visible = min(len(self.entries), (upto + 1) if upto is not None else self.visible + n)
+
+    def queue(self, status: int = 200, body: Any = None, raw: bytes | None = None, delay: float = 0.0,
+              times: int = 1) -> None:
+        """The next ``times`` requests get this answer instead of the normal one."""
+        with self._lock:
+            self._queue.extend({"status": status, "body": body, "raw": raw, "delay": delay} for _ in range(times))
+
+    @property
+    def summary_hits(self) -> list[dict[str, Any]]:
+        return [h for h in self.hits if h["path"] == SUMMARY_PATH]
+
+    @property
+    def scoreboard_hits(self) -> list[dict[str, Any]]:
+        return [h for h in self.hits if h["path"] == SCOREBOARD_PATH]
+
+    def close(self) -> None:
+        if not getattr(self, "_closed", False):
+            self._closed = True
+            self.server.shutdown()
+            self.server.server_close()
+
+    # -- the service ------------------------------------------------------ #
+
+    def summary(self) -> dict[str, Any]:
+        body: dict[str, Any] = {"header": {"id": self.event_id}}
+        drives: list[dict[str, Any]] = []
+        team: Any = object()
+        for i, entry in enumerate(self.entries[: self.visible]):
+            if not drives or entry.get("teamID") != team:
+                team = entry.get("teamID")
+                drives.append({"id": str(len(drives) + 1), "plays": []})
+            drives[-1]["plays"].append(espn_play(i, entry, self.wallclock.get(i), self.pad_clock))
+        if drives:
+            body["drives"] = {"previous": drives if self.repeat_current else drives[:-1], "current": drives[-1]}
+        return body
+
+    def _handle(self, h: BaseHTTPRequestHandler) -> None:
+        url = urlsplit(h.path)
+        query = {k: v[0] for k, v in parse_qs(url.query).items()}
+        record = {"raw": h.path, "path": url.path, "query": query, "headers": {k.lower(): v for k, v in h.headers.items()},
+                  "time": time.time()}
+        with self._lock:
+            self.hits.append(record)
+            override = self._queue.pop(0) if self._queue else None
+        if override and override["delay"]:
+            time.sleep(override["delay"])
+        if override:
+            status = override["status"]
+            payload = override["raw"] if override["raw"] is not None else json.dumps(override["body"]).encode()
+        elif url.path == SCOREBOARD_PATH:
+            status, payload = 200, json.dumps({"events": self.events if query.get("dates") == self.date else []}).encode()
+        elif url.path == SUMMARY_PATH and query.get("event") == self.event_id:
+            status, payload = 200, json.dumps(self.summary()).encode()
+        else:
+            status, payload = 404, json.dumps({"code": 404, "message": "Not found"}).encode()
+        try:
+            h.send_response(status)
+            h.send_header("content-type", "application/json")
+            h.send_header("content-length", str(len(payload)))
+            h.end_headers()
+            h.wfile.write(payload)
+        except OSError:   # the client gave up (a timeout test)
+            pass
+
+
+# --------------------------------------------------------------------------- #
 # A rig: store + controller + fake service + clock, driven by hand
 # --------------------------------------------------------------------------- #
 
@@ -169,9 +343,11 @@ class Rig:
     def __init__(self, tmp_path: Path, **overrides: Any) -> None:
         self.tmp_path = tmp_path
         self.server = FakeTank01()
+        self.espn = FakeEspn()
         self.clock = Clock()
         defaults = dict(db_path=str(tmp_path / "rig.db"), admin_key="k", window_seconds=15,
-                        tank01_api_key=SENTINEL_KEY, tank01_base_url=self.server.url)
+                        tank01_api_key=SENTINEL_KEY, tank01_base_url=self.server.url,
+                        espn_compare=True, espn_base_url=self.espn.url)
         self.settings = Settings(**{**defaults, **overrides})
         self.store = Store(self.settings.db_path)
         self.ctrl = GameController(self.store, Hub(), self.settings)
@@ -205,7 +381,9 @@ class Rig:
 
     async def step(self, seconds: float = 1.0) -> float | None:
         self.clock.advance(seconds)
-        return await self.feed.tick()
+        delay = await self.feed.tick()
+        await self.feed.espn_tick()   # the feed timing check (ESPN), when one is due: it never changes the game
+        return delay
 
     async def until(self, predicate: Callable[[], bool], limit: float = 700.0, step: float = 1.0) -> float:
         """Advance the clock ``step`` at a time (ticking the feed) until ``predicate()``; returns seconds advanced."""
@@ -230,6 +408,7 @@ class Rig:
 
     def close(self) -> None:
         self.server.close()
+        self.espn.close()
         self.store.close()
 
 

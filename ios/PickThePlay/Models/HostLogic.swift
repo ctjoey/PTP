@@ -371,6 +371,143 @@ struct FixDraft: Equatable {
     var canSave: Bool { result.isComplete && isChanged }
 }
 
+// MARK: - Feed timing: Tank01 vs ESPN
+
+extension FeedTiming {
+    /// The list under "Settings and details" shows the newest plays only.
+    static let rowsShown = 8
+
+    var recentRows: [FeedTimingRow] { Array(rows.prefix(Self.rowsShown)) }
+}
+
+extension FeedTiming.Feed {
+    /// "Tank01" · "ESPN"
+    var name: String {
+        switch self {
+        case .tank01: return "Tank01"
+        case .espn: return "ESPN"
+        }
+    }
+}
+
+extension FeedTimingStatus {
+    /// The status line: the server's sentence, or the same words it sends for that state.
+    var text: String {
+        let sent = message?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !sent.isEmpty { return sent }
+        switch phase {
+        case .looking: return "Looking for this game on ESPN..."
+        case .on: return "Comparing with ESPN. It is free and uses none of your Tank01 requests."
+        case .error: return "ESPN isn't answering right now. Tank01 still runs the game."
+        case .off: return "The ESPN comparison is off."
+        }
+    }
+}
+
+extension FeedTimingSummary {
+    /// "ESPN was first on 7 of 9 plays, about 31 s sooner on average." nil until a play has been compared.
+    /// Same rule as the website: the feed that was first on more plays leads; the average is added only when it
+    /// points the same way and is at least a second.
+    var verdict: String? {
+        guard plays >= 1 else { return nil }
+        let total = HostText.count(plays, "play")
+        let leader: FeedTiming.Feed? = espnFirst > tank01First ? .espn : (tank01First > espnFirst ? .tank01 : nil)
+        guard let leader else { return "Both feeds were about the same on \(total)." }
+        var text = "\(leader.name) was first on \(leader == .espn ? espnFirst : tank01First) of \(total)"
+        if let avgGap {
+            let sooner = HostText.wholeSeconds(leader == .espn ? avgGap : -avgGap, up: false)
+            if sooner >= 1 { text += ", about \(sooner) s sooner on average" }
+        }
+        return text + "."
+    }
+}
+
+extension FeedTimingRow {
+    /// What one feed's cell in the timing list says.
+    enum Cell: Equatable {
+        /// Seconds from the play to this feed showing it: "58 s".
+        case delay(Int)
+        /// No time of the play from ESPN: this feed showed it sooner.
+        case first
+        /// No time of the play from ESPN: this feed showed it this many seconds after the other: "+36 s".
+        case behind(Int)
+        /// Both showed it within the same second.
+        case level
+        /// The server named the sooner feed but sent no gap: this feed was the later one.
+        case later
+        /// This feed hasn't shown the play yet: "-".
+        case notShown
+
+        var text: String {
+            switch self {
+            case .delay(let seconds): return "\(seconds) s"
+            case .first: return "first"
+            case .behind(let seconds): return "+\(seconds) s"
+            case .level: return "same"
+            case .later: return "later"
+            case .notShown: return "-"
+            }
+        }
+
+        var spoken: String {
+            switch self {
+            case .delay(let seconds): return HostText.count(seconds, "second")
+            case .first: return "first"
+            case .behind(let seconds): return HostText.count(seconds, "second") + " later"
+            case .level: return "at the same time"
+            case .later: return "later"
+            case .notShown: return "not shown yet"
+            }
+        }
+    }
+
+    /// The feed whose cell is highlighted: the sooner one. nil for a tie, or until both feeds have shown the play.
+    var sooner: FeedTiming.Feed? {
+        switch lead {
+        case .espn: return .espn
+        case .tank01: return .tank01
+        case .tie, nil: return nil
+        }
+    }
+
+    /// One feed's cell: its delay when ESPN gave the time of the play; otherwise "first" for the sooner feed and
+    /// "+36 s" for the later one; "-" while that feed hasn't shown the play.
+    func cell(_ feed: FeedTiming.Feed) -> Cell {
+        if let delay = delay(feed) { return .delay(HostText.wholeSeconds(delay, up: false)) }
+        if let gap {
+            // gap = Tank01's sighting minus ESPN's, so ESPN is behind when it is negative.
+            let behind = feed == .tank01 ? gap : -gap
+            let seconds = HostText.wholeSeconds(abs(behind), up: false)
+            if seconds == 0 { return .level }
+            return behind > 0 ? .behind(seconds) : .first
+        }
+        switch lead {
+        case .tie: return .level
+        case .espn: return feed == .espn ? .first : .later
+        case .tank01: return feed == .tank01 ? .first : .later
+        case nil: return shown(feed) ? .first : .notShown   // only this feed has it so far
+        }
+    }
+
+    /// This feed has shown the play (the server says so; an older one only through a delay).
+    func shown(_ feed: FeedTiming.Feed) -> Bool {
+        (feed == .tank01 ? tank01Shown : espnShown) ?? (delay(feed) != nil)
+    }
+
+    /// Both feeds showed it, but one wasn't being checked when it appeared: left out of the verdict, shown dimmed.
+    /// (A play only one feed has shown is still in the race, not left out.)
+    var leftOut: Bool { !fair && gap != nil }
+
+    /// What VoiceOver reads for the row: "Q2 3:42 · 2nd & 6. Tank01: 58 seconds. ESPN: 22 seconds. ESPN was sooner."
+    var spoken: String {
+        var parts = [label.replacingOccurrences(of: " · ", with: ", "), "Tank01: \(cell(.tank01).spoken)",
+                     "ESPN: \(cell(.espn).spoken)"]
+        if let sooner { parts.append("\(sooner.name) was sooner") }
+        if leftOut { parts.append("Not counted: a feed wasn't being checked when this play happened") }
+        return parts.joined(separator: ". ") + "."
+    }
+}
+
 // MARK: - Small helpers
 
 enum HostText {
