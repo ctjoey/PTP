@@ -1,0 +1,652 @@
+++ find build/Build/Products -name PickThePlay.app -path '*iphonesimulator*'
+++ head -1
++ APP=build/Build/Products/Debug-iphonesimulator/PickThePlay.app
++ '[' -z build/Build/Products/Debug-iphonesimulator/PickThePlay.app ']'
+++ defaults read /Users/runner/work/PTP/PTP/ios/build/Build/Products/Debug-iphonesimulator/PickThePlay.app/Info CFBundleIdentifier
++ BID=com.nfl-gtr.PickThePlay
+++ xcrun simctl list runtimes -j
+++ python3 -c 'import json,sys;print([r['\''identifier'\''] for r in json.load(sys.stdin)['\''runtimes'\''] if r['\''isAvailable'\''] and '\''iOS'\'' in r['\''name'\'']][-1])'
++ RUNTIME=com.apple.CoreSimulator.SimRuntime.iOS-26-5
+++ xcrun simctl list devicetypes -j
+++ python3 -c 'import json,re,sys;c=[x['\''identifier'\''] for x in json.load(sys.stdin)['\''devicetypes'\''] if '\''Pro-Max'\'' in x['\''identifier'\'']];print(sorted(c,key=lambda i:int(re.search(r'\''iPhone-(\d+)'\'',i).group(1)))[-1])'
++ DEVTYPE=com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro-Max
+++ xcrun simctl create shots com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro-Max com.apple.CoreSimulator.SimRuntime.iOS-26-5
++ UDID=CB4F6863-8F44-4D8C-B089-80B774AFFD6A
++ xcrun simctl boot CB4F6863-8F44-4D8C-B089-80B774AFFD6A
++ xcrun simctl bootstatus CB4F6863-8F44-4D8C-B089-80B774AFFD6A -b
+Monitoring boot status for shots (CB4F6863-8F44-4D8C-B089-80B774AFFD6A).
+[2026-10-13 11:52:38 +0000] Status=2, isTerminal=NO, Elapsed=01:20.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.-0LaunchServicesMigrator (00LaunchServicesMigrator.migrator, user-agnostic)
+		Migration Elapsed:01:09 seconds
+
+[2026-10-13 11:52:39 +0000] Status=2, isTerminal=NO, Elapsed=01:21.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.-0LaunchServicesMigrator (00LaunchServicesMigrator.migrator, user-agnostic)
+		Migration Elapsed:01:10 seconds
+
+[2026-10-13 11:52:40 +0000] Status=2, isTerminal=NO, Elapsed=01:22.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.-0LaunchServicesMigrator (00LaunchServicesMigrator.migrator, user-agnostic)
+		Migration Elapsed:01:11 seconds
+
+[2026-10-13 11:52:41 +0000] Status=2, isTerminal=NO, Elapsed=01:24.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.-0LaunchServicesMigrator (00LaunchServicesMigrator.migrator, user-agnostic)
+		Migration Elapsed:01:12 seconds
+
+[2026-10-13 11:52:42 +0000] Status=2, isTerminal=NO, Elapsed=01:24.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.-0LaunchServicesMigrator (00LaunchServicesMigrator.migrator, user-agnostic)
+		Migration Elapsed:01:13 seconds
+
+[2026-10-13 11:52:43 +0000] Status=2, isTerminal=NO, Elapsed=01:25.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.-0LaunchServicesMigrator (00LaunchServicesMigrator.migrator, user-agnostic)
+		Migration Elapsed:01:14 seconds
+
+[2026-10-13 11:52:44 +0000] Status=2, isTerminal=NO, Elapsed=01:26.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.-0LaunchServicesMigrator (00LaunchServicesMigrator.migrator, user-agnostic)
+		Migration Elapsed:01:15 seconds
+
+[2026-10-13 11:52:45 +0000] Status=2, isTerminal=NO, Elapsed=01:27.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.-0LaunchServicesMigrator (00LaunchServicesMigrator.migrator, user-agnostic)
+		Migration Elapsed:01:16 seconds
+
+[2026-10-13 11:52:46 +0000] Status=2, isTerminal=NO, Elapsed=01:28.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.-0LaunchServicesMigrator (00LaunchServicesMigrator.migrator, user-agnostic)
+		Migration Elapsed:01:17 seconds
+
+[2026-10-13 11:52:47 +0000] Status=2, isTerminal=NO, Elapsed=01:30.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.-0LaunchServicesMigrator (00LaunchServicesMigrator.migrator, user-agnostic)
+		Migration Elapsed:01:18 seconds
+
+[2026-10-13 11:52:48 +0000] Status=2, isTerminal=NO, Elapsed=01:30.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.-0LaunchServicesMigrator (00LaunchServicesMigrator.migrator, user-agnostic)
+		Migration Elapsed:01:19 seconds
+
+[2026-10-13 11:52:49 +0000] Status=2, isTerminal=NO, Elapsed=01:31.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.-0LaunchServicesMigrator (00LaunchServicesMigrator.migrator, user-agnostic)
+		Migration Elapsed:01:20 seconds
+
+[2026-10-13 11:52:50 +0000] Status=2, isTerminal=NO, Elapsed=01:33.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.-0LaunchServicesMigrator (00LaunchServicesMigrator.migrator, user-agnostic)
+		Migration Elapsed:01:21 seconds
+
+[2026-10-13 11:52:51 +0000] Status=2, isTerminal=NO, Elapsed=01:34.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.-0LaunchServicesMigrator (00LaunchServicesMigrator.migrator, user-agnostic)
+		Migration Elapsed:01:22 seconds
+
+[2026-10-13 11:52:52 +0000] Status=2, isTerminal=NO, Elapsed=01:35.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.-0LaunchServicesMigrator (00LaunchServicesMigrator.migrator, user-agnostic)
+		Migration Elapsed:01:23 seconds
+
+[2026-10-13 11:52:53 +0000] Status=2, isTerminal=NO, Elapsed=01:35.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.-0LaunchServicesMigrator (00LaunchServicesMigrator.migrator, user-agnostic)
+		Migration Elapsed:01:24 seconds
+
+[2026-10-13 11:52:54 +0000] Status=2, isTerminal=NO, Elapsed=01:36.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.-0LaunchServicesMigrator (00LaunchServicesMigrator.migrator, user-agnostic)
+		Migration Elapsed:01:25 seconds
+
+[2026-10-13 11:52:55 +0000] Status=2, isTerminal=NO, Elapsed=01:37.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.-0LaunchServicesMigrator (00LaunchServicesMigrator.migrator, user-agnostic)
+		Migration Elapsed:01:26 seconds
+
+[2026-10-13 11:52:56 +0000] Status=2, isTerminal=NO, Elapsed=01:38.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.-0LaunchServicesMigrator (00LaunchServicesMigrator.migrator, user-agnostic)
+		Migration Elapsed:01:27 seconds
+
+[2026-10-13 11:52:57 +0000] Status=2, isTerminal=NO, Elapsed=01:39.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.-0LaunchServicesMigrator (00LaunchServicesMigrator.migrator, user-agnostic)
+		Migration Elapsed:01:28 seconds
+
+[2026-10-13 11:52:58 +0000] Status=2, isTerminal=NO, Elapsed=01:40.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.-0LaunchServicesMigrator (00LaunchServicesMigrator.migrator, user-agnostic)
+		Migration Elapsed:01:29 seconds
+
+[2026-10-13 11:52:59 +0000] Status=2, isTerminal=NO, Elapsed=01:41.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.-0LaunchServicesMigrator (00LaunchServicesMigrator.migrator, user-agnostic)
+		Migration Elapsed:01:30 seconds
+
+[2026-10-13 11:53:00 +0000] Status=2, isTerminal=NO, Elapsed=01:43.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.-0LaunchServicesMigrator (00LaunchServicesMigrator.migrator, user-agnostic)
+		Migration Elapsed:01:31 seconds
+
+[2026-10-13 11:53:01 +0000] Status=2, isTerminal=NO, Elapsed=01:43.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.-0LaunchServicesMigrator (00LaunchServicesMigrator.migrator, user-agnostic)
+		Migration Elapsed:01:32 seconds
+
+[2026-10-13 11:53:09 +0000] Status=2, isTerminal=NO, Elapsed=01:52.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.securityd.KeychainMigrator (KeychainMigrator.migrator, user-agnostic)
+		Migration Elapsed:01:34 seconds
+
+[2026-10-13 11:53:10 +0000] Status=2, isTerminal=NO, Elapsed=01:53.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.managedconfiguration.migrator (MCProfile.migrator, user-agnostic)
+		Migration Elapsed:01:41 seconds
+
+[2026-10-13 11:53:10 +0000] Status=2, isTerminal=NO, Elapsed=01:53.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.managedconfiguration.migrator (MCProfile.migrator, user-agnostic)
+		Migration Elapsed:01:42 seconds
+
+[2026-10-13 11:53:13 +0000] Status=2, isTerminal=NO, Elapsed=01:56.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.managedconfiguration.migrator (MCProfile.migrator, user-agnostic)
+		Migration Elapsed:01:42 seconds
+
+[2026-10-13 11:53:15 +0000] Status=2, isTerminal=NO, Elapsed=01:57.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.managedconfiguration.migrator (MCProfile.migrator, user-agnostic)
+		Migration Elapsed:01:45 seconds
+
+[2026-10-13 11:53:16 +0000] Status=2, isTerminal=NO, Elapsed=01:58.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.managedconfiguration.migrator (MCProfile.migrator, user-agnostic)
+		Migration Elapsed:01:46 seconds
+
+[2026-10-13 11:53:17 +0000] Status=2, isTerminal=NO, Elapsed=02:00.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.managedconfiguration.migrator (MCProfile.migrator, user-agnostic)
+		Migration Elapsed:01:47 seconds
+
+[2026-10-13 11:53:19 +0000] Status=2, isTerminal=NO, Elapsed=02:02.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.managedconfiguration.migrator (MCProfile.migrator, user-agnostic)
+		Migration Elapsed:01:49 seconds
+
+[2026-10-13 11:53:21 +0000] Status=2, isTerminal=NO, Elapsed=02:04.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.addressbook.migrator (AddressBookLegacy.migrator)
+		Migration Elapsed:01:51 seconds
+
+[2026-10-13 11:53:22 +0000] Status=2, isTerminal=NO, Elapsed=02:05.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.MobileSafari.migrator (MobileSafari.migrator)
+		Migration Elapsed:01:53 seconds
+
+[2026-10-13 11:53:28 +0000] Status=2, isTerminal=NO, Elapsed=02:10.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.message.AccountsMigrator (MessageAccountsMigrator.migrator)
+		Migration Elapsed:01:54 seconds
+
+[2026-10-13 11:53:32 +0000] Status=4, isTerminal=NO, Elapsed=02:14.
+	Waiting on System App
+
+[2026-10-13 11:53:33 +0000] Status=4, isTerminal=NO, Elapsed=02:15.
+	Waiting on System App
+
+[2026-10-13 11:53:35 +0000] Status=4, isTerminal=NO, Elapsed=02:18.
+	Waiting on System App
+
+[2026-10-13 11:53:37 +0000] Status=4, isTerminal=NO, Elapsed=02:20.
+	Waiting on System App
+
+[2026-10-13 11:53:46 +0000] Status=4, isTerminal=NO, Elapsed=02:28.
+	Waiting on System App
+
+[2026-10-13 11:53:56 +0000] Status=4294967295, isTerminal=YES, Elapsed=02:39.
+	Finished
+
++ for t in '"2026-09-13T09:41:00Z"' '"9:41"'
++ xcrun simctl status_bar CB4F6863-8F44-4D8C-B089-80B774AFFD6A override --time 2026-09-13T09:41:00Z --cellularBars 4 --wifiBars 3 --batteryState charged --batteryLevel 100
+An error was encountered processing the command (domain=NSPOSIXErrorDomain, code=22):
+Simulator device failed to complete the requested operation.
+Invalid argument
+Underlying error (domain=NSPOSIXErrorDomain, code=22):
+	Invalid, non-ISO date/time string
+	Invalid argument
++ for t in '"2026-09-13T09:41:00Z"' '"9:41"'
++ xcrun simctl status_bar CB4F6863-8F44-4D8C-B089-80B774AFFD6A override --time 9:41 --cellularBars 4 --wifiBars 3 --batteryState charged --batteryLevel 100
++ break
++ xcrun simctl install CB4F6863-8F44-4D8C-B089-80B774AFFD6A build/Build/Products/Debug-iphonesimulator/PickThePlay.app
++ mkdir -p screenshots/raw
++ shoot open 01-call-the-play
++ xcrun simctl terminate CB4F6863-8F44-4D8C-B089-80B774AFFD6A com.nfl-gtr.PickThePlay
+An error was encountered processing the command (domain=NSPOSIXErrorDomain, code=3):
+Simulator device failed to terminate com.nfl-gtr.PickThePlay.
+found nothing to terminate
+Underlying error (domain=NSPOSIXErrorDomain, code=3):
+	The request to terminate "com.nfl-gtr.PickThePlay" failed. found nothing to terminate
+	found nothing to terminate
++ true
++ SIMCTL_CHILD_SCREENSHOT=open
++ xcrun simctl launch CB4F6863-8F44-4D8C-B089-80B774AFFD6A com.nfl-gtr.PickThePlay
+com.nfl-gtr.PickThePlay: 22864
++ sleep 10
++ xcrun simctl io CB4F6863-8F44-4D8C-B089-80B774AFFD6A screenshot screenshots/raw/01-call-the-play.png
+Detected file type from extension: PNG
+Note: No display specified. Defaulting to display: CD63715A-83D0-4218-AA86-F68B5AA93555 (screenID: 1, name: LCD)
+Wrote screenshot to: /Users/runner/work/PTP/PTP/ios/screenshots/raw/01-call-the-play.png
++ shoot result 02-result
++ xcrun simctl terminate CB4F6863-8F44-4D8C-B089-80B774AFFD6A com.nfl-gtr.PickThePlay
++ SIMCTL_CHILD_SCREENSHOT=result
++ xcrun simctl launch CB4F6863-8F44-4D8C-B089-80B774AFFD6A com.nfl-gtr.PickThePlay
+com.nfl-gtr.PickThePlay: 23857
++ sleep 10
++ xcrun simctl io CB4F6863-8F44-4D8C-B089-80B774AFFD6A screenshot screenshots/raw/02-result.png
+Detected file type from extension: PNG
+Note: No display specified. Defaulting to display: CD63715A-83D0-4218-AA86-F68B5AA93555 (screenID: 1, name: LCD)
+Wrote screenshot to: /Users/runner/work/PTP/PTP/ios/screenshots/raw/02-result.png
++ shoot locked 03-locked
++ xcrun simctl terminate CB4F6863-8F44-4D8C-B089-80B774AFFD6A com.nfl-gtr.PickThePlay
++ SIMCTL_CHILD_SCREENSHOT=locked
++ xcrun simctl launch CB4F6863-8F44-4D8C-B089-80B774AFFD6A com.nfl-gtr.PickThePlay
+com.nfl-gtr.PickThePlay: 25421
++ sleep 10
++ xcrun simctl io CB4F6863-8F44-4D8C-B089-80B774AFFD6A screenshot screenshots/raw/03-locked.png
+Detected file type from extension: PNG
+Note: No display specified. Defaulting to display: CD63715A-83D0-4218-AA86-F68B5AA93555 (screenID: 1, name: LCD)
+Wrote screenshot to: /Users/runner/work/PTP/PTP/ios/screenshots/raw/03-locked.png
++ shoot board 04-leaderboard
++ xcrun simctl terminate CB4F6863-8F44-4D8C-B089-80B774AFFD6A com.nfl-gtr.PickThePlay
++ SIMCTL_CHILD_SCREENSHOT=board
++ xcrun simctl launch CB4F6863-8F44-4D8C-B089-80B774AFFD6A com.nfl-gtr.PickThePlay
+com.nfl-gtr.PickThePlay: 26283
++ sleep 10
++ xcrun simctl io CB4F6863-8F44-4D8C-B089-80B774AFFD6A screenshot screenshots/raw/04-leaderboard.png
+Detected file type from extension: PNG
+Note: No display specified. Defaulting to display: CD63715A-83D0-4218-AA86-F68B5AA93555 (screenID: 1, name: LCD)
+Wrote screenshot to: /Users/runner/work/PTP/PTP/ios/screenshots/raw/04-leaderboard.png
++ shoot lounges 05-lounges
++ xcrun simctl terminate CB4F6863-8F44-4D8C-B089-80B774AFFD6A com.nfl-gtr.PickThePlay
++ SIMCTL_CHILD_SCREENSHOT=lounges
++ xcrun simctl launch CB4F6863-8F44-4D8C-B089-80B774AFFD6A com.nfl-gtr.PickThePlay
+com.nfl-gtr.PickThePlay: 26712
++ sleep 10
++ xcrun simctl io CB4F6863-8F44-4D8C-B089-80B774AFFD6A screenshot screenshots/raw/05-lounges.png
+Detected file type from extension: PNG
+Note: No display specified. Defaulting to display: CD63715A-83D0-4218-AA86-F68B5AA93555 (screenID: 1, name: LCD)
+Wrote screenshot to: /Users/runner/work/PTP/PTP/ios/screenshots/raw/05-lounges.png
++ shoot points 06-points
++ xcrun simctl terminate CB4F6863-8F44-4D8C-B089-80B774AFFD6A com.nfl-gtr.PickThePlay
++ SIMCTL_CHILD_SCREENSHOT=points
++ xcrun simctl launch CB4F6863-8F44-4D8C-B089-80B774AFFD6A com.nfl-gtr.PickThePlay
+com.nfl-gtr.PickThePlay: 29308
++ sleep 10
++ xcrun simctl io CB4F6863-8F44-4D8C-B089-80B774AFFD6A screenshot screenshots/raw/06-points.png
+Detected file type from extension: PNG
+Note: No display specified. Defaulting to display: CD63715A-83D0-4218-AA86-F68B5AA93555 (screenID: 1, name: LCD)
+Wrote screenshot to: /Users/runner/work/PTP/PTP/ios/screenshots/raw/06-points.png
++ shoot directions 07-directions
++ xcrun simctl terminate CB4F6863-8F44-4D8C-B089-80B774AFFD6A com.nfl-gtr.PickThePlay
++ SIMCTL_CHILD_SCREENSHOT=directions
++ xcrun simctl launch CB4F6863-8F44-4D8C-B089-80B774AFFD6A com.nfl-gtr.PickThePlay
+com.nfl-gtr.PickThePlay: 30576
++ sleep 10
++ xcrun simctl io CB4F6863-8F44-4D8C-B089-80B774AFFD6A screenshot screenshots/raw/07-directions.png
+Detected file type from extension: PNG
+Note: No display specified. Defaulting to display: CD63715A-83D0-4218-AA86-F68B5AA93555 (screenID: 1, name: LCD)
+Wrote screenshot to: /Users/runner/work/PTP/PTP/ios/screenshots/raw/07-directions.png
++ shoot open 08-light-call-the-play -ptp-appearance light
++ xcrun simctl terminate CB4F6863-8F44-4D8C-B089-80B774AFFD6A com.nfl-gtr.PickThePlay
++ SIMCTL_CHILD_SCREENSHOT=open
++ xcrun simctl launch CB4F6863-8F44-4D8C-B089-80B774AFFD6A com.nfl-gtr.PickThePlay -ptp-appearance light
+com.nfl-gtr.PickThePlay: 32428
++ sleep 10
++ xcrun simctl io CB4F6863-8F44-4D8C-B089-80B774AFFD6A screenshot screenshots/raw/08-light-call-the-play.png
+Detected file type from extension: PNG
+Note: No display specified. Defaulting to display: CD63715A-83D0-4218-AA86-F68B5AA93555 (screenID: 1, name: LCD)
+Wrote screenshot to: /Users/runner/work/PTP/PTP/ios/screenshots/raw/08-light-call-the-play.png
++ shoot result 09-light-result -ptp-appearance light
++ xcrun simctl terminate CB4F6863-8F44-4D8C-B089-80B774AFFD6A com.nfl-gtr.PickThePlay
++ SIMCTL_CHILD_SCREENSHOT=result
++ xcrun simctl launch CB4F6863-8F44-4D8C-B089-80B774AFFD6A com.nfl-gtr.PickThePlay -ptp-appearance light
+com.nfl-gtr.PickThePlay: 33337
++ sleep 10
++ xcrun simctl io CB4F6863-8F44-4D8C-B089-80B774AFFD6A screenshot screenshots/raw/09-light-result.png
+Detected file type from extension: PNG
+Note: No display specified. Defaulting to display: CD63715A-83D0-4218-AA86-F68B5AA93555 (screenID: 1, name: LCD)
+Wrote screenshot to: /Users/runner/work/PTP/PTP/ios/screenshots/raw/09-light-result.png
++ shoot directions 10-light-directions -ptp-appearance light
++ xcrun simctl terminate CB4F6863-8F44-4D8C-B089-80B774AFFD6A com.nfl-gtr.PickThePlay
++ SIMCTL_CHILD_SCREENSHOT=directions
++ xcrun simctl launch CB4F6863-8F44-4D8C-B089-80B774AFFD6A com.nfl-gtr.PickThePlay -ptp-appearance light
+com.nfl-gtr.PickThePlay: 34115
++ sleep 10
++ xcrun simctl io CB4F6863-8F44-4D8C-B089-80B774AFFD6A screenshot screenshots/raw/10-light-directions.png
+Detected file type from extension: PNG
+Note: No display specified. Defaulting to display: CD63715A-83D0-4218-AA86-F68B5AA93555 (screenID: 1, name: LCD)
+Wrote screenshot to: /Users/runner/work/PTP/PTP/ios/screenshots/raw/10-light-directions.png
++ shoot hostSignIn h1-host-signin
++ xcrun simctl terminate CB4F6863-8F44-4D8C-B089-80B774AFFD6A com.nfl-gtr.PickThePlay
++ SIMCTL_CHILD_SCREENSHOT=hostSignIn
++ xcrun simctl launch CB4F6863-8F44-4D8C-B089-80B774AFFD6A com.nfl-gtr.PickThePlay
+com.nfl-gtr.PickThePlay: 34596
++ sleep 10
++ xcrun simctl io CB4F6863-8F44-4D8C-B089-80B774AFFD6A screenshot screenshots/raw/h1-host-signin.png
+Detected file type from extension: PNG
+Note: No display specified. Defaulting to display: CD63715A-83D0-4218-AA86-F68B5AA93555 (screenID: 1, name: LCD)
+Wrote screenshot to: /Users/runner/work/PTP/PTP/ios/screenshots/raw/h1-host-signin.png
++ shoot hostRun h2-host-play-open
++ xcrun simctl terminate CB4F6863-8F44-4D8C-B089-80B774AFFD6A com.nfl-gtr.PickThePlay
++ SIMCTL_CHILD_SCREENSHOT=hostRun
++ xcrun simctl launch CB4F6863-8F44-4D8C-B089-80B774AFFD6A com.nfl-gtr.PickThePlay
+com.nfl-gtr.PickThePlay: 35256
++ sleep 10
++ xcrun simctl io CB4F6863-8F44-4D8C-B089-80B774AFFD6A screenshot screenshots/raw/h2-host-play-open.png
+Detected file type from extension: PNG
+Note: No display specified. Defaulting to display: CD63715A-83D0-4218-AA86-F68B5AA93555 (screenID: 1, name: LCD)
+Wrote screenshot to: /Users/runner/work/PTP/PTP/ios/screenshots/raw/h2-host-play-open.png
++ shoot hostLive h3-host-suggestion
++ xcrun simctl terminate CB4F6863-8F44-4D8C-B089-80B774AFFD6A com.nfl-gtr.PickThePlay
++ SIMCTL_CHILD_SCREENSHOT=hostLive
++ xcrun simctl launch CB4F6863-8F44-4D8C-B089-80B774AFFD6A com.nfl-gtr.PickThePlay
+com.nfl-gtr.PickThePlay: 35696
++ sleep 10
++ xcrun simctl io CB4F6863-8F44-4D8C-B089-80B774AFFD6A screenshot screenshots/raw/h3-host-suggestion.png
+Detected file type from extension: PNG
+Note: No display specified. Defaulting to display: CD63715A-83D0-4218-AA86-F68B5AA93555 (screenID: 1, name: LCD)
+Wrote screenshot to: /Users/runner/work/PTP/PTP/ios/screenshots/raw/h3-host-suggestion.png
++ shoot hostLog h4-host-log
++ xcrun simctl terminate CB4F6863-8F44-4D8C-B089-80B774AFFD6A com.nfl-gtr.PickThePlay
++ SIMCTL_CHILD_SCREENSHOT=hostLog
++ xcrun simctl launch CB4F6863-8F44-4D8C-B089-80B774AFFD6A com.nfl-gtr.PickThePlay
+com.nfl-gtr.PickThePlay: 36785
++ sleep 10
++ xcrun simctl io CB4F6863-8F44-4D8C-B089-80B774AFFD6A screenshot screenshots/raw/h4-host-log.png
+Detected file type from extension: PNG
+Note: No display specified. Defaulting to display: CD63715A-83D0-4218-AA86-F68B5AA93555 (screenID: 1, name: LCD)
+Wrote screenshot to: /Users/runner/work/PTP/PTP/ios/screenshots/raw/h4-host-log.png
++ xcrun simctl shutdown CB4F6863-8F44-4D8C-B089-80B774AFFD6A
++ xcrun simctl delete CB4F6863-8F44-4D8C-B089-80B774AFFD6A
++ ls -l screenshots/raw
+total 22096
+-rw-r--r--@ 1 runner  staff  1032836 Oct 13 11:58 01-call-the-play.png
+-rw-r--r--@ 1 runner  staff   765963 Oct 13 11:58 02-result.png
+-rw-r--r--@ 1 runner  staff   670111 Oct 13 11:59 03-locked.png
+-rw-r--r--@ 1 runner  staff   282620 Oct 13 11:59 04-leaderboard.png
+-rw-r--r--@ 1 runner  staff   329891 Oct 13 12:00 05-lounges.png
+-rw-r--r--@ 1 runner  staff    88815 Oct 13 12:00 06-points.png
+-rw-r--r--@ 1 runner  staff  3724062 Oct 13 12:01 07-directions.png
+-rw-r--r--@ 1 runner  staff  1176158 Oct 13 12:01 08-light-call-the-play.png
+-rw-r--r--@ 1 runner  staff   846019 Oct 13 12:02 09-light-result.png
+-rw-r--r--@ 1 runner  staff   607874 Oct 13 12:02 10-light-directions.png
+-rw-r--r--@ 1 runner  staff   207839 Oct 13 12:02 h1-host-signin.png
+-rw-r--r--@ 1 runner  staff   596598 Oct 13 12:03 h2-host-play-open.png
+-rw-r--r--@ 1 runner  staff   627982 Oct 13 12:03 h3-host-suggestion.png
+-rw-r--r--@ 1 runner  staff   323920 Oct 13 12:03 h4-host-log.png
++ for size in '"1290x2796:6.9-inch"' '"1284x2778:6.5-inch"'
++ px=1290x2796
++ dir=screenshots/6.9-inch
++ mkdir -p screenshots/6.9-inch
++ for f in 'screenshots/raw/*.png'
+++ basename screenshots/raw/01-call-the-play.png
++ sips -s format png --resampleHeightWidth 2796 1290 screenshots/raw/01-call-the-play.png --out screenshots/6.9-inch/01-call-the-play.png
+/Users/runner/work/PTP/PTP/ios/screenshots/raw/01-call-the-play.png
+  /Users/runner/work/PTP/PTP/ios/screenshots/6.9-inch/01-call-the-play.png
++ for f in 'screenshots/raw/*.png'
+++ basename screenshots/raw/02-result.png
++ sips -s format png --resampleHeightWidth 2796 1290 screenshots/raw/02-result.png --out screenshots/6.9-inch/02-result.png
+/Users/runner/work/PTP/PTP/ios/screenshots/raw/02-result.png
+  /Users/runner/work/PTP/PTP/ios/screenshots/6.9-inch/02-result.png
++ for f in 'screenshots/raw/*.png'
+++ basename screenshots/raw/03-locked.png
++ sips -s format png --resampleHeightWidth 2796 1290 screenshots/raw/03-locked.png --out screenshots/6.9-inch/03-locked.png
+/Users/runner/work/PTP/PTP/ios/screenshots/raw/03-locked.png
+  /Users/runner/work/PTP/PTP/ios/screenshots/6.9-inch/03-locked.png
++ for f in 'screenshots/raw/*.png'
+++ basename screenshots/raw/04-leaderboard.png
++ sips -s format png --resampleHeightWidth 2796 1290 screenshots/raw/04-leaderboard.png --out screenshots/6.9-inch/04-leaderboard.png
+/Users/runner/work/PTP/PTP/ios/screenshots/raw/04-leaderboard.png
+  /Users/runner/work/PTP/PTP/ios/screenshots/6.9-inch/04-leaderboard.png
++ for f in 'screenshots/raw/*.png'
+++ basename screenshots/raw/05-lounges.png
++ sips -s format png --resampleHeightWidth 2796 1290 screenshots/raw/05-lounges.png --out screenshots/6.9-inch/05-lounges.png
+/Users/runner/work/PTP/PTP/ios/screenshots/raw/05-lounges.png
+  /Users/runner/work/PTP/PTP/ios/screenshots/6.9-inch/05-lounges.png
++ for f in 'screenshots/raw/*.png'
+++ basename screenshots/raw/06-points.png
++ sips -s format png --resampleHeightWidth 2796 1290 screenshots/raw/06-points.png --out screenshots/6.9-inch/06-points.png
+/Users/runner/work/PTP/PTP/ios/screenshots/raw/06-points.png
+  /Users/runner/work/PTP/PTP/ios/screenshots/6.9-inch/06-points.png
++ for f in 'screenshots/raw/*.png'
+++ basename screenshots/raw/07-directions.png
++ sips -s format png --resampleHeightWidth 2796 1290 screenshots/raw/07-directions.png --out screenshots/6.9-inch/07-directions.png
+/Users/runner/work/PTP/PTP/ios/screenshots/raw/07-directions.png
+  /Users/runner/work/PTP/PTP/ios/screenshots/6.9-inch/07-directions.png
++ for f in 'screenshots/raw/*.png'
+++ basename screenshots/raw/08-light-call-the-play.png
++ sips -s format png --resampleHeightWidth 2796 1290 screenshots/raw/08-light-call-the-play.png --out screenshots/6.9-inch/08-light-call-the-play.png
+/Users/runner/work/PTP/PTP/ios/screenshots/raw/08-light-call-the-play.png
+  /Users/runner/work/PTP/PTP/ios/screenshots/6.9-inch/08-light-call-the-play.png
++ for f in 'screenshots/raw/*.png'
+++ basename screenshots/raw/09-light-result.png
++ sips -s format png --resampleHeightWidth 2796 1290 screenshots/raw/09-light-result.png --out screenshots/6.9-inch/09-light-result.png
+/Users/runner/work/PTP/PTP/ios/screenshots/raw/09-light-result.png
+  /Users/runner/work/PTP/PTP/ios/screenshots/6.9-inch/09-light-result.png
++ for f in 'screenshots/raw/*.png'
+++ basename screenshots/raw/10-light-directions.png
++ sips -s format png --resampleHeightWidth 2796 1290 screenshots/raw/10-light-directions.png --out screenshots/6.9-inch/10-light-directions.png
+/Users/runner/work/PTP/PTP/ios/screenshots/raw/10-light-directions.png
+  /Users/runner/work/PTP/PTP/ios/screenshots/6.9-inch/10-light-directions.png
++ for f in 'screenshots/raw/*.png'
+++ basename screenshots/raw/h1-host-signin.png
++ sips -s format png --resampleHeightWidth 2796 1290 screenshots/raw/h1-host-signin.png --out screenshots/6.9-inch/h1-host-signin.png
+/Users/runner/work/PTP/PTP/ios/screenshots/raw/h1-host-signin.png
+  /Users/runner/work/PTP/PTP/ios/screenshots/6.9-inch/h1-host-signin.png
++ for f in 'screenshots/raw/*.png'
+++ basename screenshots/raw/h2-host-play-open.png
++ sips -s format png --resampleHeightWidth 2796 1290 screenshots/raw/h2-host-play-open.png --out screenshots/6.9-inch/h2-host-play-open.png
+/Users/runner/work/PTP/PTP/ios/screenshots/raw/h2-host-play-open.png
+  /Users/runner/work/PTP/PTP/ios/screenshots/6.9-inch/h2-host-play-open.png
++ for f in 'screenshots/raw/*.png'
+++ basename screenshots/raw/h3-host-suggestion.png
++ sips -s format png --resampleHeightWidth 2796 1290 screenshots/raw/h3-host-suggestion.png --out screenshots/6.9-inch/h3-host-suggestion.png
+/Users/runner/work/PTP/PTP/ios/screenshots/raw/h3-host-suggestion.png
+  /Users/runner/work/PTP/PTP/ios/screenshots/6.9-inch/h3-host-suggestion.png
++ for f in 'screenshots/raw/*.png'
+++ basename screenshots/raw/h4-host-log.png
++ sips -s format png --resampleHeightWidth 2796 1290 screenshots/raw/h4-host-log.png --out screenshots/6.9-inch/h4-host-log.png
+/Users/runner/work/PTP/PTP/ios/screenshots/raw/h4-host-log.png
+  /Users/runner/work/PTP/PTP/ios/screenshots/6.9-inch/h4-host-log.png
++ for size in '"1290x2796:6.9-inch"' '"1284x2778:6.5-inch"'
++ px=1284x2778
++ dir=screenshots/6.5-inch
++ mkdir -p screenshots/6.5-inch
++ for f in 'screenshots/raw/*.png'
+++ basename screenshots/raw/01-call-the-play.png
++ sips -s format png --resampleHeightWidth 2778 1284 screenshots/raw/01-call-the-play.png --out screenshots/6.5-inch/01-call-the-play.png
+/Users/runner/work/PTP/PTP/ios/screenshots/raw/01-call-the-play.png
+  /Users/runner/work/PTP/PTP/ios/screenshots/6.5-inch/01-call-the-play.png
++ for f in 'screenshots/raw/*.png'
+++ basename screenshots/raw/02-result.png
++ sips -s format png --resampleHeightWidth 2778 1284 screenshots/raw/02-result.png --out screenshots/6.5-inch/02-result.png
+/Users/runner/work/PTP/PTP/ios/screenshots/raw/02-result.png
+  /Users/runner/work/PTP/PTP/ios/screenshots/6.5-inch/02-result.png
++ for f in 'screenshots/raw/*.png'
+++ basename screenshots/raw/03-locked.png
++ sips -s format png --resampleHeightWidth 2778 1284 screenshots/raw/03-locked.png --out screenshots/6.5-inch/03-locked.png
+/Users/runner/work/PTP/PTP/ios/screenshots/raw/03-locked.png
+  /Users/runner/work/PTP/PTP/ios/screenshots/6.5-inch/03-locked.png
++ for f in 'screenshots/raw/*.png'
+++ basename screenshots/raw/04-leaderboard.png
++ sips -s format png --resampleHeightWidth 2778 1284 screenshots/raw/04-leaderboard.png --out screenshots/6.5-inch/04-leaderboard.png
+/Users/runner/work/PTP/PTP/ios/screenshots/raw/04-leaderboard.png
+  /Users/runner/work/PTP/PTP/ios/screenshots/6.5-inch/04-leaderboard.png
++ for f in 'screenshots/raw/*.png'
+++ basename screenshots/raw/05-lounges.png
++ sips -s format png --resampleHeightWidth 2778 1284 screenshots/raw/05-lounges.png --out screenshots/6.5-inch/05-lounges.png
+/Users/runner/work/PTP/PTP/ios/screenshots/raw/05-lounges.png
+  /Users/runner/work/PTP/PTP/ios/screenshots/6.5-inch/05-lounges.png
++ for f in 'screenshots/raw/*.png'
+++ basename screenshots/raw/06-points.png
++ sips -s format png --resampleHeightWidth 2778 1284 screenshots/raw/06-points.png --out screenshots/6.5-inch/06-points.png
+/Users/runner/work/PTP/PTP/ios/screenshots/raw/06-points.png
+  /Users/runner/work/PTP/PTP/ios/screenshots/6.5-inch/06-points.png
++ for f in 'screenshots/raw/*.png'
+++ basename screenshots/raw/07-directions.png
++ sips -s format png --resampleHeightWidth 2778 1284 screenshots/raw/07-directions.png --out screenshots/6.5-inch/07-directions.png
+/Users/runner/work/PTP/PTP/ios/screenshots/raw/07-directions.png
+  /Users/runner/work/PTP/PTP/ios/screenshots/6.5-inch/07-directions.png
++ for f in 'screenshots/raw/*.png'
+++ basename screenshots/raw/08-light-call-the-play.png
++ sips -s format png --resampleHeightWidth 2778 1284 screenshots/raw/08-light-call-the-play.png --out screenshots/6.5-inch/08-light-call-the-play.png
+/Users/runner/work/PTP/PTP/ios/screenshots/raw/08-light-call-the-play.png
+  /Users/runner/work/PTP/PTP/ios/screenshots/6.5-inch/08-light-call-the-play.png
++ for f in 'screenshots/raw/*.png'
+++ basename screenshots/raw/09-light-result.png
++ sips -s format png --resampleHeightWidth 2778 1284 screenshots/raw/09-light-result.png --out screenshots/6.5-inch/09-light-result.png
+/Users/runner/work/PTP/PTP/ios/screenshots/raw/09-light-result.png
+  /Users/runner/work/PTP/PTP/ios/screenshots/6.5-inch/09-light-result.png
++ for f in 'screenshots/raw/*.png'
+++ basename screenshots/raw/10-light-directions.png
++ sips -s format png --resampleHeightWidth 2778 1284 screenshots/raw/10-light-directions.png --out screenshots/6.5-inch/10-light-directions.png
+/Users/runner/work/PTP/PTP/ios/screenshots/raw/10-light-directions.png
+  /Users/runner/work/PTP/PTP/ios/screenshots/6.5-inch/10-light-directions.png
++ for f in 'screenshots/raw/*.png'
+++ basename screenshots/raw/h1-host-signin.png
++ sips -s format png --resampleHeightWidth 2778 1284 screenshots/raw/h1-host-signin.png --out screenshots/6.5-inch/h1-host-signin.png
+/Users/runner/work/PTP/PTP/ios/screenshots/raw/h1-host-signin.png
+  /Users/runner/work/PTP/PTP/ios/screenshots/6.5-inch/h1-host-signin.png
++ for f in 'screenshots/raw/*.png'
+++ basename screenshots/raw/h2-host-play-open.png
++ sips -s format png --resampleHeightWidth 2778 1284 screenshots/raw/h2-host-play-open.png --out screenshots/6.5-inch/h2-host-play-open.png
+/Users/runner/work/PTP/PTP/ios/screenshots/raw/h2-host-play-open.png
+  /Users/runner/work/PTP/PTP/ios/screenshots/6.5-inch/h2-host-play-open.png
++ for f in 'screenshots/raw/*.png'
+++ basename screenshots/raw/h3-host-suggestion.png
++ sips -s format png --resampleHeightWidth 2778 1284 screenshots/raw/h3-host-suggestion.png --out screenshots/6.5-inch/h3-host-suggestion.png
+/Users/runner/work/PTP/PTP/ios/screenshots/raw/h3-host-suggestion.png
+  /Users/runner/work/PTP/PTP/ios/screenshots/6.5-inch/h3-host-suggestion.png
++ for f in 'screenshots/raw/*.png'
+++ basename screenshots/raw/h4-host-log.png
++ sips -s format png --resampleHeightWidth 2778 1284 screenshots/raw/h4-host-log.png --out screenshots/6.5-inch/h4-host-log.png
+/Users/runner/work/PTP/PTP/ios/screenshots/raw/h4-host-log.png
+  /Users/runner/work/PTP/PTP/ios/screenshots/6.5-inch/h4-host-log.png
++ rm -rf screenshots/raw
++ find screenshots -name '*.png'
++ sort
+screenshots/6.5-inch/01-call-the-play.png
+screenshots/6.5-inch/02-result.png
+screenshots/6.5-inch/03-locked.png
+screenshots/6.5-inch/04-leaderboard.png
+screenshots/6.5-inch/05-lounges.png
+screenshots/6.5-inch/06-points.png
+screenshots/6.5-inch/07-directions.png
+screenshots/6.5-inch/08-light-call-the-play.png
+screenshots/6.5-inch/09-light-result.png
+screenshots/6.5-inch/10-light-directions.png
+screenshots/6.5-inch/h1-host-signin.png
+screenshots/6.5-inch/h2-host-play-open.png
+screenshots/6.5-inch/h3-host-suggestion.png
+screenshots/6.5-inch/h4-host-log.png
+screenshots/6.9-inch/01-call-the-play.png
+screenshots/6.9-inch/02-result.png
+screenshots/6.9-inch/03-locked.png
+screenshots/6.9-inch/04-leaderboard.png
+screenshots/6.9-inch/05-lounges.png
+screenshots/6.9-inch/06-points.png
+screenshots/6.9-inch/07-directions.png
+screenshots/6.9-inch/08-light-call-the-play.png
+screenshots/6.9-inch/09-light-result.png
+screenshots/6.9-inch/10-light-directions.png
+screenshots/6.9-inch/h1-host-signin.png
+screenshots/6.9-inch/h2-host-play-open.png
+screenshots/6.9-inch/h3-host-suggestion.png
+screenshots/6.9-inch/h4-host-log.png
++ find screenshots -name '*.png' -exec sips -g pixelWidth -g pixelHeight '{}' +
+/Users/runner/work/PTP/PTP/ios/screenshots/6.9-inch/h1-host-signin.png
+  pixelWidth: 1290
+  pixelHeight: 2796
+/Users/runner/work/PTP/PTP/ios/screenshots/6.9-inch/06-points.png
+  pixelWidth: 1290
+  pixelHeight: 2796
+/Users/runner/work/PTP/PTP/ios/screenshots/6.9-inch/h2-host-play-open.png
+  pixelWidth: 1290
+  pixelHeight: 2796
+/Users/runner/work/PTP/PTP/ios/screenshots/6.9-inch/03-locked.png
+  pixelWidth: 1290
+  pixelHeight: 2796
+/Users/runner/work/PTP/PTP/ios/screenshots/6.9-inch/05-lounges.png
+  pixelWidth: 1290
+  pixelHeight: 2796
+/Users/runner/work/PTP/PTP/ios/screenshots/6.9-inch/10-light-directions.png
+  pixelWidth: 1290
+  pixelHeight: 2796
+/Users/runner/work/PTP/PTP/ios/screenshots/6.9-inch/02-result.png
+  pixelWidth: 1290
+  pixelHeight: 2796
+/Users/runner/work/PTP/PTP/ios/screenshots/6.9-inch/08-light-call-the-play.png
+  pixelWidth: 1290
+  pixelHeight: 2796
+/Users/runner/work/PTP/PTP/ios/screenshots/6.9-inch/04-leaderboard.png
+  pixelWidth: 1290
+  pixelHeight: 2796
+/Users/runner/work/PTP/PTP/ios/screenshots/6.9-inch/h4-host-log.png
+  pixelWidth: 1290
+  pixelHeight: 2796
+/Users/runner/work/PTP/PTP/ios/screenshots/6.9-inch/09-light-result.png
+  pixelWidth: 1290
+  pixelHeight: 2796
+/Users/runner/work/PTP/PTP/ios/screenshots/6.9-inch/07-directions.png
+  pixelWidth: 1290
+  pixelHeight: 2796
+/Users/runner/work/PTP/PTP/ios/screenshots/6.9-inch/h3-host-suggestion.png
+  pixelWidth: 1290
+  pixelHeight: 2796
+/Users/runner/work/PTP/PTP/ios/screenshots/6.9-inch/01-call-the-play.png
+  pixelWidth: 1290
+  pixelHeight: 2796
+/Users/runner/work/PTP/PTP/ios/screenshots/6.5-inch/h1-host-signin.png
+  pixelWidth: 1284
+  pixelHeight: 2778
+/Users/runner/work/PTP/PTP/ios/screenshots/6.5-inch/06-points.png
+  pixelWidth: 1284
+  pixelHeight: 2778
+/Users/runner/work/PTP/PTP/ios/screenshots/6.5-inch/h2-host-play-open.png
+  pixelWidth: 1284
+  pixelHeight: 2778
+/Users/runner/work/PTP/PTP/ios/screenshots/6.5-inch/03-locked.png
+  pixelWidth: 1284
+  pixelHeight: 2778
+/Users/runner/work/PTP/PTP/ios/screenshots/6.5-inch/05-lounges.png
+  pixelWidth: 1284
+  pixelHeight: 2778
+/Users/runner/work/PTP/PTP/ios/screenshots/6.5-inch/10-light-directions.png
+  pixelWidth: 1284
+  pixelHeight: 2778
+/Users/runner/work/PTP/PTP/ios/screenshots/6.5-inch/02-result.png
+  pixelWidth: 1284
+  pixelHeight: 2778
+/Users/runner/work/PTP/PTP/ios/screenshots/6.5-inch/08-light-call-the-play.png
+  pixelWidth: 1284
+  pixelHeight: 2778
+/Users/runner/work/PTP/PTP/ios/screenshots/6.5-inch/04-leaderboard.png
+  pixelWidth: 1284
+  pixelHeight: 2778
+/Users/runner/work/PTP/PTP/ios/screenshots/6.5-inch/h4-host-log.png
+  pixelWidth: 1284
+  pixelHeight: 2778
+/Users/runner/work/PTP/PTP/ios/screenshots/6.5-inch/09-light-result.png
+  pixelWidth: 1284
+  pixelHeight: 2778
+/Users/runner/work/PTP/PTP/ios/screenshots/6.5-inch/07-directions.png
+  pixelWidth: 1284
+  pixelHeight: 2778
+/Users/runner/work/PTP/PTP/ios/screenshots/6.5-inch/h3-host-suggestion.png
+  pixelWidth: 1284
+  pixelHeight: 2778
+/Users/runner/work/PTP/PTP/ios/screenshots/6.5-inch/01-call-the-play.png
+  pixelWidth: 1284
+  pixelHeight: 2778
