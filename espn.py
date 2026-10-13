@@ -16,6 +16,7 @@ Pieces: ``EspnClient`` (HTTP in a worker thread), ``find_event`` (a day's scoreb
 from __future__ import annotations
 
 import asyncio
+import email.utils
 import http.client
 import json
 import re
@@ -391,6 +392,34 @@ class EspnResult:
     elapsed_ms: int = 0
     error_kind: str | None = None
     error_text: str = ""
+    cache: dict[str, Any] | None = None   # how old ESPN's copy was (``cache_info``); None when no answer came
+
+
+def _header_time(value: Any) -> float | None:
+    """An HTTP date ("Tue, 13 Oct 2026 12:00:00 GMT") as epoch seconds, or None."""
+    try:
+        when = email.utils.parsedate_to_datetime(str(value)) if value else None
+    except (TypeError, ValueError, IndexError):
+        return None
+    if when is None:
+        return None
+    return (when if when.tzinfo else when.replace(tzinfo=timezone.utc)).timestamp()
+
+
+def cache_info(headers: Any) -> dict[str, Any]:
+    """How old ESPN's answer was when it came, from its headers: ``age`` (seconds a cache had held this copy, from the
+    ``Age`` header), ``stale`` (seconds between ``Last-Modified`` and ``Date``) and ``cache_control`` as sent. Missing
+    or odd headers give None (``cache_control``: ""). A copy held for many seconds would make ESPN look slower than it
+    is, so the feed log keeps this beside each play ESPN first showed. Never raises."""
+    try:
+        get = headers.get if headers is not None else (lambda _name: None)
+        age = _int(get("age"))
+        date, modified = _header_time(get("date")), _header_time(get("last-modified"))
+        stale = round(date - modified) if date is not None and modified is not None and date >= modified else None
+        return {"age": age if age is not None and age >= 0 else None, "stale": stale,
+                "cache_control": _text(get("cache-control"), 80)}
+    except Exception:  # noqa: BLE001
+        return {"age": None, "stale": None, "cache_control": ""}
 
 
 def _ms(started: float) -> int:
@@ -444,6 +473,7 @@ class EspnClient:
         try:
             with self._opener().open(urllib.request.Request(url, headers=headers), timeout=self.timeout) as resp:
                 status, encoding = resp.status, str(resp.headers.get("content-encoding") or "").lower()
+                cache = cache_info(resp.headers)
                 raw = resp.read(MAX_RESPONSE_BYTES + 1)
         except urllib.error.HTTPError as exc:
             try:
@@ -459,7 +489,7 @@ class EspnClient:
         except Exception as exc:  # noqa: BLE001 - nothing may escape the worker thread
             return EspnResult(elapsed_ms=_ms(started), error_kind="network",
                               error_text=f"ESPN request failed: {type(exc).__name__}.")
-        result = EspnResult(http_status=status, elapsed_ms=_ms(started))
+        result = EspnResult(http_status=status, elapsed_ms=_ms(started), cache=cache)
         if "gzip" in encoding and len(raw) <= MAX_RESPONSE_BYTES:
             try:
                 raw = zlib.decompressobj(16 + zlib.MAX_WBITS).decompress(raw, MAX_RESPONSE_BYTES + 1)

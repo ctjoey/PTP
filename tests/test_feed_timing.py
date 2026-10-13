@@ -804,3 +804,21 @@ def test_the_website_shows_feed_timing_as_specified():
     assert out["one"]["verdict"] == "ESPN was first on 1 of 1 play."
     assert out["mixed"]["verdict"] == "ESPN was first on 3 of 5 plays."      # the average points the other way: no claim
     assert out["error"]["tone"] == "bad" and out["error"]["status"].startswith("ESPN isn't answering")
+
+
+def test_how_old_espn_s_copy_was_goes_to_the_feed_log(tmp_path):
+    async def scenario(rig: Rig):
+        await rig.new_game()
+        rig.espn.headers = {"Age": "9", "Cache-Control": "max-age=15"}
+        await race(rig, FIRST_PASS, tank01_at=40, espn_at=19, snap_at=6)
+        log = rig.store.feed_log(rig.game["id"])
+        cache = {"age": 9, "stale": None, "cache_control": "max-age=15"}
+        seen = [x["data"] for x in log if x["kind"] == "timing_seen" and x["data"]["source"] == "espn"]
+        assert seen and seen[0]["key"] == KEY1 and seen[0]["cache"] == cache
+        assert [x["data"]["espn_cache"] for x in log if x["kind"] == "timing"] == [cache]
+        espn_rows = [x["data"] for x in log if x["kind"] == "espn"]
+        assert [r for r in espn_rows if "cache_control" in r] == [{"cache_control": "max-age=15"}]   # logged once
+        assert "cache" not in rows(rig)[KEY1]                                    # the consoles show nothing new
+        assert rig.play()["resolved_by"] == "feed"
+
+    run_rig(tmp_path, scenario)

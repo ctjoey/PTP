@@ -1706,6 +1706,7 @@ class TimingRow:
     espn_prev: float | None = None
     wallclock: float | None = None      # when ESPN says the play happened, if that is believable
     espn_text: str = ""
+    espn_cache: dict[str, Any] | None = None   # how old ESPN's copy was when it first showed the play (``cache_info``)
     logged: bool = False
 
     @property
@@ -1754,7 +1755,8 @@ class TimingRow:
         """The feed log's "timing" row: the view plus the raw times, for tuning later."""
         return {**self.view(), "tank01_seen": self.tank01_seen, "espn_seen": self.espn_seen, "wallclock": self.wallclock,
                 "tank01_since_check": _since(self.tank01_seen, self.tank01_prev),
-                "espn_since_check": _since(self.espn_seen, self.espn_prev), "text": self.espn_text}
+                "espn_since_check": _since(self.espn_seen, self.espn_prev), "text": self.espn_text,
+                "espn_cache": self.espn_cache}
 
 
 class FeedTiming:
@@ -1783,6 +1785,7 @@ class FeedTiming:
         self.fail_streak = 0
         self.tank01_last: float | None = None   # when Tank01's previous answer came
         self.espn_last: float | None = None     # when ESPN's previous answer came
+        self.cache_control = ""                 # ESPN's Cache-Control as last logged (logged again only if it changes)
 
     def _current(self) -> bool:
         """Still the comparison for the game being followed (an answer can arrive after the game changed)."""
@@ -1850,7 +1853,11 @@ class FeedTiming:
         if not result.ok:
             self._failed(result.error_text)
             return
-        changed = self._saw_espn(summary_plays(result.body), now)
+        cache = result.cache or {}
+        if cache.get("cache_control") and cache["cache_control"] != self.cache_control:
+            self.cache_control = cache["cache_control"]
+            self.feed._log("espn", {"cache_control": self.cache_control})
+        changed = self._saw_espn(summary_plays(result.body), now, result.cache)
         self.espn_last, self.fail_streak = now, 0
         self.next_at = now + self.interval
         if not self._set_state("on") and changed:
@@ -1899,7 +1906,8 @@ class FeedTiming:
         self.feed._log("timing_seen", {"source": source, "key": row.key, "label": row.label,
                                        "seen": row.espn_seen if espn else row.tank01_seen,
                                        "wallclock": row.wallclock if espn else None,
-                                       "text": row.espn_text if espn else None},
+                                       "text": row.espn_text if espn else None,
+                                       "cache": row.espn_cache if espn else None},
                        feed_index=None if espn else row.tank01_index)
 
     def _complete(self, row: TimingRow) -> None:
@@ -1925,8 +1933,9 @@ class FeedTiming:
             self._first_sighting("tank01", row)
             self._complete(row)
 
-    def _saw_espn(self, plays: list[Any], now: float) -> bool:
-        """Note the plays this ESPN answer showed for the first time; True when the table changed."""
+    def _saw_espn(self, plays: list[Any], now: float, cache: dict[str, Any] | None = None) -> bool:
+        """Note the plays this ESPN answer showed for the first time (``cache``: how old that answer was, from its
+        headers); True when the table changed."""
         prev, changed = self.espn_last, False
         for play in plays:
             key = play.raw_key
@@ -1937,7 +1946,7 @@ class FeedTiming:
                 continue
             row = row or self._add(key, play.label)
             wall = play.wallclock   # believed only when it is not in the future and not long before ESPN showed it
-            row.espn_seen, row.espn_prev, row.espn_text = now, prev, play.text[:200]
+            row.espn_seen, row.espn_prev, row.espn_text, row.espn_cache = now, prev, play.text[:200], cache
             row.wallclock = wall if wall is not None and 0.0 <= now - wall <= WALLCLOCK_MAX_AGE else None
             changed = True
             self._first_sighting("espn", row)

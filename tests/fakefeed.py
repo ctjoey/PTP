@@ -239,6 +239,7 @@ class FakeEspn:
         self.wallclock: dict[int, float | str] = {}
         self.pad_clock = False
         self.repeat_current = False          # also list the drive in progress among the previous ones
+        self.headers: dict[str, str] = {}    # extra headers on every answer (Age, Cache-Control ...)
         self.event_id = ESPN_EVENT_ID
         self.date = ESPN_DATE
         self.events: Any = [espn_event()]
@@ -323,6 +324,8 @@ class FakeEspn:
             h.send_response(status)
             h.send_header("content-type", "application/json")
             h.send_header("content-length", str(len(payload)))
+            for name, value in self.headers.items():
+                h.send_header(name, value)
             h.end_headers()
             h.wfile.write(payload)
         except OSError:   # the client gave up (a timeout test)

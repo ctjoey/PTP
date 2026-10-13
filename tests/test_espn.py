@@ -324,3 +324,26 @@ def test_client_caps_the_answer_size_and_reads_gzip(fake, monkeypatch):
         assert result.ok and find_event(result.body, "CAR", "WSH") == ESPN_EVENT_ID
     finally:
         zipped.close()
+
+
+@pytest.mark.parametrize("headers, expected", [
+    ({"Age": "12", "Date": "Tue, 13 Oct 2026 12:00:30 GMT", "Last-Modified": "Tue, 13 Oct 2026 12:00:00 GMT",
+      "Cache-Control": "max-age=15, public"}, {"age": 12, "stale": 30, "cache_control": "max-age=15, public"}),
+    ({}, {"age": None, "stale": None, "cache_control": ""}),
+    ({"Age": "-3", "Date": "garbage", "Last-Modified": "Tue, 13 Oct 2026 12:00:00 GMT"},
+     {"age": None, "stale": None, "cache_control": ""}),
+    ({"Age": "soon", "Date": "Tue, 13 Oct 2026 12:00:00 GMT", "Last-Modified": "Tue, 13 Oct 2026 12:00:09 GMT"},
+     {"age": None, "stale": None, "cache_control": ""}),                       # modified after the date: not believed
+])
+def test_cache_info_reads_how_old_the_copy_was(headers, expected):
+    assert espn.cache_info({k.lower(): v for k, v in headers.items()}) == expected
+    assert espn.cache_info(None) == {"age": None, "stale": None, "cache_control": ""}
+
+
+def test_client_reports_how_old_espn_s_copy_was(fake):
+    fake.headers = {"Age": "7", "Cache-Control": "max-age=10"}
+    result = run(EspnClient(fake.url).summary(ESPN_EVENT_ID))
+    assert result.ok and result.cache["age"] == 7 and result.cache["cache_control"] == "max-age=10"
+    fake.headers = {}
+    assert run(EspnClient(fake.url).summary(ESPN_EVENT_ID)).cache == {"age": None, "stale": None, "cache_control": ""}
+    assert run(EspnClient(OFFLINE_ESPN, timeout=0.5).summary(ESPN_EVENT_ID)).cache is None

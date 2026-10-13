@@ -314,7 +314,9 @@ still does all the matching and scoring, and the comparison uses **none** of you
 Under **Settings and details**, **Feed timing: Tank01 vs ESPN** lists the newest plays with how long each feed took to
 show them (or "first" and "+36 s" when ESPN gives no time for the play), the sooner feed highlighted, and a verdict such
 as *ESPN was first on 7 of 9 plays, about 31 s sooner on average.* Only fair races count: both feeds being checked
-when the play appeared (faded rows don't count). Each play also goes to the feed log as a `timing` row. If ESPN is
+when the play appeared (faded rows don't count). Each play also goes to the feed log as a `timing` row. Each ESPN
+sighting also logs how old ESPN's copy was (`cache`: its `Age` header, `Last-Modified` to `Date`, `Cache-Control`),
+so a cached copy can be told apart from a slow feed. If ESPN is
 down you only see *ESPN isn't answering right now*. Set `ESPN_COMPARE=0` to turn it off.
 
 ### First live game checklist

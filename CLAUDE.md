@@ -158,6 +158,8 @@ node --check static/js/*.js            # after any JS change
    with the `X-Admin-Key` header). If the section only ever said "Looking for this game on ESPN..." or listed plays
    with ESPN "-" all the way down, the play keys don't match: compare `timing_seen` rows from both sources and
    fix `espn.play_key` / `tank01_play` / `EspnPlay`.
+   Also read the `cache` field on ESPN `timing_seen` rows (and `espn_cache` on `timing` rows): a large `age` or
+   `stale` means ESPN's CDN served an old copy, so ESPN may be faster than it looked (try a fresher request).
 2. **Decide ESPN or Tank01** with the owner. If ESPN is faster and steady, make it a real live source: add a
    source `"espn"` to `LiveFeed` beside `"tank01"` and `"demo"` (reuse `EspnClient`, `summary_plays`), map ESPN plays
    into what `playparse.classify` expects (or teach it ESPN's wording, using `type.text`), pick games from ESPN's
