@@ -810,7 +810,11 @@ def test_how_old_espn_s_copy_was_goes_to_the_feed_log(tmp_path):
     async def scenario(rig: Rig):
         await rig.new_game()
         rig.espn.headers = {"Age": "9", "Cache-Control": "max-age=15"}
+        await rig.step(0)
+        rig.espn.headers = {"Age": "9", "Cache-Control": "max-age=15"}
         await race(rig, FIRST_PASS, tank01_at=40, espn_at=19, snap_at=6)
+        rig.espn.headers = {"Age": "9", "Cache-Control": "max-age=3"}   # ESPN's max-age counts down: not logged again
+        await rig.step(5)
         log = rig.store.feed_log(rig.game["id"])
         cache = {"age": 9, "stale": None, "cache_control": "max-age=15"}
         seen = [x["data"] for x in log if x["kind"] == "timing_seen" and x["data"]["source"] == "espn"]

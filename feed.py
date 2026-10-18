@@ -1853,7 +1853,7 @@ class FeedTiming:
         self.fail_streak = 0
         self.tank01_last: float | None = None   # when Tank01's previous answer came
         self.espn_last: float | None = None     # when ESPN's previous answer came
-        self.cache_control = ""                 # ESPN's Cache-Control as last logged (logged again only if it changes)
+        self.cache_control = ""                 # ESPN's first Cache-Control (logged once; each sighting keeps its own)
 
     def _current(self) -> bool:
         """Still the comparison for the game being followed (an answer can arrive after the game changed)."""
@@ -1922,7 +1922,7 @@ class FeedTiming:
             self._failed(result.error_text)
             return
         cache = result.cache or {}
-        if cache.get("cache_control") and cache["cache_control"] != self.cache_control:
+        if cache.get("cache_control") and not self.cache_control:   # once a game: its max-age counts down every read
             self.cache_control = cache["cache_control"]
             self.feed._log("espn", {"cache_control": self.cache_control})
         changed = self._saw_espn(summary_plays(result.body), now, result.cache)
