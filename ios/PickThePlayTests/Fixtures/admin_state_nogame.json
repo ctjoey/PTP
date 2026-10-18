@@ -1,12 +1,20 @@
 {
   "admins_online": 1,
   "announcement": null,
+  "called": null,
   "event": "sync",
   "feed": {
     "auto_open": false,
     "auto_open_at": null,
     "auto_score": true,
     "available": false,
+    "clock": {
+      "app": null,
+      "behind": 0,
+      "feed": null,
+      "feed_at": null,
+      "live": null
+    },
     "disagreement": null,
     "game_id": null,
     "lag": {
@@ -30,6 +38,7 @@
     "source": null,
     "state": "off",
     "suggestion": null,
+    "timing": null,
     "waiting": null
   },
   "game": null,
@@ -40,7 +49,7 @@
   "players_online": 0,
   "ranked_players": 0,
   "registered_players": 2,
-  "server_time": 1791478390.5000756,
+  "server_time": 1792346479.3740127,
   "spectators_online": 0,
   "type": "admin_state",
   "window_seconds": 15.0

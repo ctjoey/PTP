@@ -38,6 +38,11 @@ struct HostRunView: View {
                         HostLiveDataCard()
                         if state.hasActivePlay { ScoreItYourselfCard(state: state) }
                     }
+                    if let called = state.called, called.total > 0 {
+                        CalledBars(called: called,
+                                   note: "What the offense really ran on the plays scored so far (no-plays left out). Players see this too.")
+                            .card()
+                    }
                     GameFooterCard(state: state, startAnother: { startingAnother = true })
                 }
             }

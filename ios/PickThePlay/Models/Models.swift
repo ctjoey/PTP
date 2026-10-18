@@ -142,10 +142,12 @@ struct Game: Codable, Equatable {
     var awayScore: Int?
     /// Server clock seconds (epoch) of the check the score came from.
     var scoreAt: Double?
+    /// "home" or "away": the team with the ball as of the live feed's last check (nil when not known).
+    var possession: String?
 
     enum CodingKeys: String, CodingKey {
         case id, homeName, homePrimary, homeSecondary, awayName, awayPrimary, awaySecondary, status
-        case homeScore, awayScore, scoreAt
+        case homeScore, awayScore, scoreAt, possession
     }
 }
 
@@ -169,6 +171,8 @@ extension Game {
         awayScore = Game.lenientScore(c, .awayScore)
         let at = try? c.decodeIfPresent(Double.self, forKey: .scoreAt)
         scoreAt = at.flatMap { $0.isFinite && $0 > 0 ? $0 : nil }
+        let side = try? c.decodeIfPresent(String.self, forKey: .possession)
+        possession = side == "home" || side == "away" ? side : nil
     }
 
     private static func lenientScore(_ c: KeyedDecodingContainer<CodingKeys>, _ key: CodingKeys) -> Int? {
@@ -458,6 +462,40 @@ struct StateSnapshot: Codable, Equatable {
     var crowd: Crowd?
     var lounge: Lounge?
     var scoring: Scoring
+    /// How the real offense called the game's scored plays so far (not the players' picks).
+    var called: Called? = nil
+}
+
+/// "Called this game": how many of the game's scored plays (no-plays left out) were runs, passes, left ... long, and
+/// losses. Every count is lenient: a missing or odd one reads as 0.
+struct Called: Codable, Equatable {
+    var total: Int
+    var run: Int
+    var pass: Int
+    var left: Int
+    var middle: Int
+    var right: Int
+    var short: Int
+    var medium: Int
+    var long: Int
+    var loss: Int
+
+    enum CodingKeys: String, CodingKey {
+        case total
+        case run = "RUN", pass = "PASS", left = "LEFT", middle = "MIDDLE", right = "RIGHT"
+        case short = "SHORT", medium = "MEDIUM", long = "LONG", loss = "LOSS"
+    }
+}
+
+extension Called {
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        func count(_ key: CodingKeys) -> Int { max(0, (try? c.decodeIfPresent(Int.self, forKey: key)) ?? 0) }
+        total = count(.total)
+        run = count(.run); pass = count(.pass)
+        left = count(.left); middle = count(.middle); right = count(.right)
+        short = count(.short); medium = count(.medium); long = count(.long); loss = count(.loss)
+    }
 }
 
 // MARK: - REST payloads

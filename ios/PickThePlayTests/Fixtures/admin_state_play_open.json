@@ -1,12 +1,31 @@
 {
   "admins_online": 1,
   "announcement": null,
+  "called": {
+    "LEFT": 0,
+    "LONG": 0,
+    "LOSS": 0,
+    "MEDIUM": 0,
+    "MIDDLE": 0,
+    "PASS": 0,
+    "RIGHT": 0,
+    "RUN": 0,
+    "SHORT": 0,
+    "total": 0
+  },
   "event": "stats",
   "feed": {
     "auto_open": false,
     "auto_open_at": null,
     "auto_score": true,
     "available": false,
+    "clock": {
+      "app": null,
+      "behind": 0,
+      "feed": null,
+      "feed_at": null,
+      "live": null
+    },
     "disagreement": null,
     "game_id": "demo",
     "lag": {
@@ -30,13 +49,15 @@
     "source": "demo",
     "state": "idle",
     "suggestion": null,
+    "timing": null,
     "waiting": null
   },
   "game": {
     "away_name": "Carolina",
     "away_primary": "#0085CA",
+    "away_score": null,
     "away_secondary": "#101820",
-    "created_at": 1791478390.5143154,
+    "created_at": 1792346479.382565,
     "feed_auto_open": 0,
     "feed_auto_score": 1,
     "feed_cap_extra": 0,
@@ -46,8 +67,11 @@
     "feed_requests": 0,
     "home_name": "Washington",
     "home_primary": "#5A1414",
+    "home_score": null,
     "home_secondary": "#FFB612",
     "id": 1,
+    "possession": null,
+    "score_at": null,
     "status": "LIVE"
   },
   "history": [
@@ -107,8 +131,8 @@
     "down": 1,
     "game_id": 1,
     "id": 1,
-    "locks_at": 1791478405.5242796,
-    "opened_at": 1791478390.5242796,
+    "locks_at": 1792346494.3915734,
+    "opened_at": 1792346479.3915734,
     "play_number": 1,
     "state": "OPEN",
     "voided": false,
@@ -117,7 +141,7 @@
   "players_online": 1,
   "ranked_players": 2,
   "registered_players": 2,
-  "server_time": 1791478390.8243706,
+  "server_time": 1792346479.6919677,
   "spectators_online": 0,
   "type": "admin_state",
   "window_seconds": 15.0

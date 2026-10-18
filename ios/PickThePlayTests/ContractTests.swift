@@ -90,6 +90,24 @@ final class ContractTests: XCTestCase {
         XCTAssertEqual(s.play?.state, .open)
     }
 
+    func testEveryoneGetsHowTheGameWasReallyCalled() throws {
+        // After a pass over the middle for 7 (Medium) and a pass for a loss of 4; the voided play does not count.
+        let called = try XCTUnwrap(try snapshot("state_play_resolved_loss").called)
+        XCTAssertEqual(called.total, 2)
+        XCTAssertEqual(called.pass, 2)
+        XCTAssertEqual(called.run, 0)
+        XCTAssertEqual(called.middle, 1)
+        XCTAssertEqual(called.right, 1)
+        XCTAssertEqual(called.medium, 1)
+        XCTAssertEqual(called.loss, 1)
+        XCTAssertEqual(try snapshot("state_play_voided").called?.total, 2)
+        XCTAssertEqual(try snapshot("state_play_opened").called?.total, 0, "nothing scored yet: the card stays hidden")
+        XCTAssertNil(try snapshot("state_sync_nogame").called)
+        XCTAssertEqual(try adminState("admin_state_play_resolved").called?.total, 1)
+        // Live data has not read the game in these fixtures: nobody is shown with the ball.
+        XCTAssertNil(try snapshot("state_play_resolved").game?.possession)
+    }
+
     func testOpenPlayHidesCrowdAndHasTimer() throws {
         let s = try snapshot("state_play_opened")
         let play = try XCTUnwrap(s.play)

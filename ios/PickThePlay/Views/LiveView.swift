@@ -28,6 +28,10 @@ struct LiveView: View {
                                 StatTile(label: "Season pts", value: "\(me.totalScore)")
                             }
                         }
+                        if let called = state.snapshot?.called, called.total > 0 {
+                            CalledBars(called: called, note: "How the offense has really called it so far: a hint for your next pick.")
+                                .card()
+                        }
                         Button {
                             state.showPractice = true
                         } label: {

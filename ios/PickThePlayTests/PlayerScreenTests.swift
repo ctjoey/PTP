@@ -24,6 +24,25 @@ final class PlayerScreenTests: XCTestCase {
         }
     }
 
+    func testTheTeamWithTheBallIsReadAndOddValuesAreIgnored() throws {
+        XCTAssertNil(try game().possession, "a server from before possession")
+        XCTAssertNil(try game(#", "possession": null"#).possession)
+        XCTAssertEqual(try game(#", "possession": "home""#).possession, "home")
+        XCTAssertEqual(try game(#", "possession": "away""#).possession, "away")
+        XCTAssertNil(try game(#", "possession": "CHI""#).possession)
+        XCTAssertNil(try game(#", "possession": 3"#).possession)
+    }
+
+    func testCalledThisGameIsLenient() throws {
+        let c = try JSON.decoder.decode(Called.self, from: Data(#"{"total": 4, "RUN": 1, "PASS": 3, "LEFT": "2", "LOSS": -1}"#.utf8))
+        XCTAssertEqual(c.total, 4)
+        XCTAssertEqual(c.run, 1)
+        XCTAssertEqual(c.pass, 3)
+        XCTAssertEqual(c.left, 0, "an odd count reads as 0")
+        XCTAssertEqual(c.loss, 0)
+        XCTAssertEqual(c.medium, 0, "a missing count reads as 0")
+    }
+
     func testTheScoreIsReadAsSent() throws {
         let g = try game(#", "home_score": 24, "away_score": 17, "score_at": 1791476820.5"#)
         XCTAssertEqual(g.homeScore, 24)

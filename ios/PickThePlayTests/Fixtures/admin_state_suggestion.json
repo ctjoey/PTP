@@ -1,12 +1,31 @@
 {
   "admins_online": 1,
   "announcement": null,
+  "called": {
+    "LEFT": 0,
+    "LONG": 0,
+    "LOSS": 0,
+    "MEDIUM": 0,
+    "MIDDLE": 0,
+    "PASS": 0,
+    "RIGHT": 0,
+    "RUN": 0,
+    "SHORT": 0,
+    "total": 0
+  },
   "event": "feed",
   "feed": {
     "auto_open": false,
     "auto_open_at": null,
     "auto_score": true,
     "available": false,
+    "clock": {
+      "app": "Q1 14:55",
+      "behind": 0,
+      "feed": "Q1 14:55",
+      "feed_at": 1792346480.903702,
+      "live": null
+    },
     "disagreement": null,
     "game_id": "demo",
     "lag": {
@@ -30,7 +49,7 @@
     "source": "demo",
     "state": "idle",
     "suggestion": {
-      "auto_at": 1791478422.048028,
+      "auto_at": 1792346510.9076724,
       "clock": "Q1 14:55",
       "direction": "RIGHT",
       "down_and_distance": "1st & 10 at CAR 14",
@@ -44,13 +63,15 @@
       "yardage": "MEDIUM",
       "yards": 7
     },
+    "timing": null,
     "waiting": null
   },
   "game": {
     "away_name": "Carolina",
     "away_primary": "#0085CA",
+    "away_score": null,
     "away_secondary": "#101820",
-    "created_at": 1791478390.5143154,
+    "created_at": 1792346479.382565,
     "feed_auto_open": 0,
     "feed_auto_score": 1,
     "feed_cap_extra": 0,
@@ -60,8 +81,11 @@
     "feed_requests": 1,
     "home_name": "Washington",
     "home_primary": "#5A1414",
+    "home_score": null,
     "home_secondary": "#FFB612",
     "id": 1,
+    "possession": null,
+    "score_at": null,
     "status": "LIVE"
   },
   "history": [
@@ -121,8 +145,8 @@
     "down": 1,
     "game_id": 1,
     "id": 1,
-    "locks_at": 1791478405.5242796,
-    "opened_at": 1791478390.5242796,
+    "locks_at": 1792346494.3915734,
+    "opened_at": 1792346479.3915734,
     "play_number": 1,
     "state": "LOCKED",
     "voided": false,
@@ -131,7 +155,7 @@
   "players_online": 1,
   "ranked_players": 2,
   "registered_players": 2,
-  "server_time": 1791478392.049002,
+  "server_time": 1792346480.908392,
   "spectators_online": 0,
   "type": "admin_state",
   "window_seconds": 15.0

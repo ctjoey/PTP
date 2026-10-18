@@ -617,6 +617,7 @@ struct AdminState: Equatable {
     var feed: FeedState?
     var announcement: HostBanner?
     var registeredPlayers: Int?
+    var called: Called? = nil
 
     /// A play is open or locked (waiting for a result).
     var hasActivePlay: Bool { play.map { $0.state != .resolved } ?? false }
@@ -625,7 +626,7 @@ struct AdminState: Equatable {
 extension AdminState: Decodable {
     private enum CodingKeys: String, CodingKey {
         case event, serverTime, game, play, pickStats, playersOnline, spectatorsOnline, adminsOnline, leaderboard
-        case rankedPlayers, history, windowSeconds, feed, announcement, registeredPlayers
+        case rankedPlayers, history, windowSeconds, feed, announcement, registeredPlayers, called
     }
 
     init(from decoder: Decoder) throws {
@@ -647,6 +648,7 @@ extension AdminState: Decodable {
         feed = try? c.decodeIfPresent(FeedState.self, forKey: .feed)
         announcement = try? c.decodeIfPresent(HostBanner.self, forKey: .announcement)
         registeredPlayers = c.lenientInt(.registeredPlayers)
+        called = try? c.decodeIfPresent(Called.self, forKey: .called)
     }
 }
 

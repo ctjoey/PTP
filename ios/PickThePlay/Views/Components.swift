@@ -11,7 +11,7 @@ struct ScorebugView: View {
         let score = game.liveScore
         HStack(spacing: 0) {
             team(name: game.awayName, primary: game.awayPrimary, secondary: game.awaySecondary, tag: "AWAY", leading: true,
-                 score: score?.away)
+                 score: score?.away, ball: game.possession == "away")
             VStack(spacing: 6) {
                 StatusPill(status: game.status)
                 Text("@").font(.system(size: 13, weight: .black)).foregroundStyle(Theme.dim)
@@ -22,7 +22,7 @@ struct ScorebugView: View {
             .padding(.horizontal, 8)
             .frame(width: 104)
             team(name: game.homeName, primary: game.homePrimary, secondary: game.homeSecondary, tag: "HOME", leading: false,
-                 score: score?.home)
+                 score: score?.home, ball: game.possession == "home")
         }
         .frame(height: 96)
         .background(Theme.surface)
@@ -39,7 +39,8 @@ struct ScorebugView: View {
         return "\(game.awayName) \(score.away), \(game.homeName) \(score.home), \(status)"
     }
 
-    private func team(name: String, primary: String, secondary: String, tag: String, leading: Bool, score: Int?) -> some View {
+    private func team(name: String, primary: String, secondary: String, tag: String, leading: Bool, score: Int?,
+                      ball: Bool) -> some View {
         let ink = Theme.ink(on: primary)
         return VStack(alignment: leading ? .leading : .trailing, spacing: 3) {
             // The score sits between the abbreviation and the "@": CHI 17 @ 24 DET.
@@ -61,6 +62,9 @@ struct ScorebugView: View {
                 .background(Color.black)
         )
         .overlay(alignment: .bottom) { Rectangle().fill(Color(hex: secondary)).frame(height: 4) }
+        // The team with the ball (live data only): a green box, as on the website.
+        .overlay { if ball { Rectangle().strokeBorder(Color(hex: "#2FD98B"), lineWidth: 4) } }
+        .accessibilityValue(ball ? "Has the ball" : "")
     }
 
     /// Quiet: just the number, no spinner or label; it changes in place when the next check brings a new one.
@@ -330,6 +334,48 @@ struct PickChips: View {
 struct CrowdBars: View {
     var crowd: Crowd
 
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("How \(crowd.total) \(crowd.total == 1 ? "player" : "players") called it").kicker()
+            SplitBar(total: crowd.total, counts: PlayType.allCases.map { ($0.rawValue, crowd.count($0)) })
+            SplitBar(total: crowd.total, counts: Direction.allCases.map { ($0.rawValue, crowd.count($0)) })
+            if crowd.hasYardage {
+                SplitBar(total: crowd.total, counts: Yardage.allCases.map { ($0.rawValue, crowd.count($0) ?? 0) })
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// "Called this game": how the real offense called the game's scored plays so far, as on the website.
+struct CalledBars: View {
+    var called: Called
+    var note: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Called this game · \(called.total) \(called.total == 1 ? "play" : "plays")").kicker()
+            Text(note).font(.system(size: 12)).foregroundStyle(Theme.muted)
+            SplitBar(total: called.total, counts: [("RUN", called.run), ("PASS", called.pass)])
+            SplitBar(total: called.total, counts: [("LEFT", called.left), ("MIDDLE", called.middle), ("RIGHT", called.right)])
+            SplitBar(total: called.total, counts: distances)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// Losses get their own share only when there were any.
+    private var distances: [(String, Int)] {
+        var counts: [(String, Int)] = [("SHORT", called.short), ("MEDIUM", called.medium), ("LONG", called.long)]
+        if called.loss > 0 { counts.append(("LOSS", called.loss)) }
+        return counts
+    }
+}
+
+/// One stacked bar with a legend: each part's share of ``total``.
+struct SplitBar: View {
+    var total: Int
+    var counts: [(String, Int)]
+
     private struct Share: Identifiable {
         var id: String
         var count: Int
@@ -337,19 +383,7 @@ struct CrowdBars: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("How \(crowd.total) \(crowd.total == 1 ? "player" : "players") called it").kicker()
-            split(PlayType.allCases.map { ($0.rawValue, crowd.count($0)) })
-            split(Direction.allCases.map { ($0.rawValue, crowd.count($0)) })
-            if crowd.hasYardage {
-                split(Yardage.allCases.map { ($0.rawValue, crowd.count($0) ?? 0) })
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func split(_ counts: [(String, Int)]) -> some View {
-        let shades: [Double] = [1, 0.6, 0.32]
+        let shades: [Double] = [1, 0.6, 0.32, 0.16]
         let shares = counts.enumerated().map { index, entry in
             Share(id: entry.0, count: entry.1, shade: shades[min(index, shades.count - 1)])
         }
@@ -373,6 +407,7 @@ struct CrowdBars: View {
                             .font(.system(size: 12, weight: .bold).monospacedDigit())
                             .foregroundStyle(Theme.text)
                             .lineLimit(1)
+                            .minimumScaleFactor(0.75)
                     }
                 }
             }
@@ -382,7 +417,7 @@ struct CrowdBars: View {
     }
 
     private func fraction(_ count: Int) -> Double {
-        crowd.total > 0 ? min(1, Double(count) / Double(crowd.total)) : 0
+        total > 0 ? min(1, Double(count) / Double(total)) : 0
     }
 
     private func percent(_ count: Int) -> Int { Int((fraction(count) * 100).rounded()) }
