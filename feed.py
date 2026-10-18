@@ -1090,6 +1090,8 @@ class LiveFeed:
                 self.cursor += 1
                 continue
             newest = self._newest_play_index(idx + 1) if catch_up else None
+            if not p.resolved and newest is not None:
+                newest = self._catch_up_target(p, idx, newest)
             if p.resolved:
                 if newest is not None:   # the feed is further on than this play: nothing left to compare it with
                     self._log("verify_dropped", {"reason": "caught up", "play": p.play_id}, play_id=p.play_id)
@@ -1116,6 +1118,16 @@ class LiveFeed:
             if nd and (latest is None or latest["state"] == PlayState.RESOLVED):
                 self.next_down = nd   # the situation the feed ended on: the form follows the game after a catch-up
         self._persist_cursor()
+
+    def _catch_up_target(self, p: Pending, idx: int, newest: int) -> int | None:
+        """Check now jumps to the newest play, unless the waiting play's own down and distance is among the entries
+        not read yet: then that entry is the play (the newest one that fits), and None when it is the very next one
+        (nothing to jump over). In a hurry-up drive the feed can show two plays at once; the newest is the wrong one."""
+        fits = [i for i in range(idx, newest + 1)
+                if classify(self.entries[i]).kind != "skip" and self._dd_known_and_equal(p, self.entries[i])]
+        if not fits:
+            return newest
+        return None if fits[-1] == idx else fits[-1]
 
     def _kick_for_waiting_play(self, entry: dict[str, Any], parsed: Parsed, idx: int, catch_up: bool) -> bool:
         """A punt or field goal try snapped on 4th down while the host's 4th-down play waits for its result: that is
@@ -1442,6 +1454,10 @@ class LiveFeed:
                     self._demo.on_play_cancelled()
         self.next_down = self._next_down_after_void(sug) if had_entry and sug else None
         scored = bool(had_entry and sug and sug.parsed.touchdown)
+        if not had_entry and p and p.down == 4 and not p.resolved:
+            # A 4th down voided by hand is almost always a punt or a field goal: the form says 1st & 10, and the host
+            # opens it (the kick may be followed by a kickoff, so it is never opened by itself).
+            self.next_down, scored = dict(AFTER_A_SCORE), True
         if scored:
             self.next_down = dict(AFTER_A_SCORE)
         if had_entry and (kick := self._after_kick(sug)):

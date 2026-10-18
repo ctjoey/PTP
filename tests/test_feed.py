@@ -538,3 +538,28 @@ def test_the_game_says_who_has_the_ball(tmp_path):
         assert rig.ctrl._with_score(rig.game)["possession"] == "away"
 
     run_rig(tmp_path, scenario)
+
+
+def test_a_fourth_down_voided_by_hand_before_the_feed_shows_it_fills_1st_and_10(tmp_path):
+    async def scenario(rig: Rig):
+        await new_game_midway(rig, PUNT)
+        rig.ctrl.feed.set_options(auto_open=True)
+        await lock_entry(rig, PUNT)
+        await rig.ctrl.void_play()                      # the host saw the punt on TV
+        assert rig.state()["next_down"] == {"down": 1, "distance": "10"}
+        assert rig.state()["auto_open_at"] is None      # a kickoff may come first: the host opens it
+
+    run_rig(tmp_path, scenario)
+
+
+def test_check_now_in_a_hurry_up_takes_the_waiting_play_not_the_newest(tmp_path):
+    async def scenario(rig: Rig):
+        await new_game_midway(rig, FIRST_PASS)
+        await lock_entry(rig, FIRST_PASS)               # 1st & 10
+        rig.server.reveal(upto=RUN_LEFT_END)            # the feed shows this play and the next one at once
+        await rig.ctrl.feed.check_now()
+        sug = rig.state()["suggestion"]
+        assert sug["text"].startswith("A.Dalton pass short right") and sug["status"] == "ready" and not sug["warning"]
+        assert not any(r["kind"] == "caught_up" for r in rig.store.feed_log(rig.game["id"]))
+
+    run_rig(tmp_path, scenario)
