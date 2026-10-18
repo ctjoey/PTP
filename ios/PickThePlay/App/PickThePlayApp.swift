@@ -129,14 +129,17 @@ struct AnnouncementBanner: View {
                 Button {
                     withAnimation { state.dismissAnnouncement() }
                 } label: {
+                    // The whole 44-point square takes the tap, not just the small glyph (which was hard to hit).
                     Image(systemName: "xmark")
-                        .font(.system(size: 13, weight: .bold))
+                        .font(.system(size: 15, weight: .bold))
                         .foregroundStyle(Theme.muted)
-                        .frame(width: 34, height: 34)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
                 .accessibilityLabel("Dismiss message")
             }
-            .padding(.leading, 14).padding(.trailing, 4).padding(.vertical, 8)
+            .padding(.leading, 14).padding(.trailing, 0).padding(.vertical, 4)
             .background(Theme.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Theme.warn.opacity(0.18)))
             .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Theme.warn.opacity(0.6), lineWidth: 1))
