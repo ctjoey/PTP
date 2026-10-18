@@ -239,6 +239,10 @@ const PTP = (() => {
       const want = show ? text : "";
       if (node.textContent !== want) node.textContent = want;
     }
+    for (const side of ["away", "home"]) {   // a green box around the team with the ball (live data only)
+      const team = $(`.team.${side}`, root);
+      if (team) team.classList.toggle("has-ball", game.possession === side);
+    }
     root.dataset.scoreAt = show && typeof game.score_at === "number" && Number.isFinite(game.score_at) ? String(game.score_at) : "";
     paintScoreAge(root);
   }

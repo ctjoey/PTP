@@ -260,6 +260,8 @@ a { color: var(--blue); }
   border-bottom: 4px solid var(--home-2);
   text-align: right;
 }
+/* The team with the ball (as the live feed last saw it): a green box, inset so the rounded scorebug never clips it. */
+.team.has-ball { box-shadow: inset 0 0 0 4px #2fd98b; }
 .team-top { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
 .team.home .team-top { justify-content: flex-end; }
 .team.home .team-score { order: -1; }   /* CAR 14 @ 7 WSH: each score sits next to its own team */

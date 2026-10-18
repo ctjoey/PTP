@@ -658,12 +658,13 @@ class GameController:
     # -- snapshots -------------------------------------------------------- #
 
     def _with_score(self, game: dict[str, Any] | None) -> dict[str, Any] | None:
-        """The game plus the live score the feed last read (``None`` values when there is none)."""
+        """The game plus the live score and the team with the ball, as the feed last read them (``None`` when unknown)."""
         if not game:
             return game
         score = self.feed.score if self.feed.linked else None
         return {**game, "home_score": score["home"] if score else None, "away_score": score["away"] if score else None,
-                "score_at": score["at"] if score else None}
+                "score_at": score["at"] if score else None,
+                "possession": self.feed.possession if self.feed.linked else None}
 
     def _snapshot(self, user_ids: list[int]) -> _Snapshot:
         game = self.store.current_game()

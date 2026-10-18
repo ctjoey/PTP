@@ -499,3 +499,42 @@ def test_a_kick_the_host_never_opened_is_still_skipped(tmp_path):
         assert any(r["kind"] == "skip" and r["data"]["reason"] == "punt" for r in rig.store.feed_log(rig.game["id"]))
 
     run_rig(tmp_path, scenario)
+
+
+# --------------------------------------------------------------------------- #
+# Who has the ball
+# --------------------------------------------------------------------------- #
+
+@pytest.mark.parametrize("upto, ball", [
+    (1, "away"),        # CAR (away) passing
+    (13, "away"),       # 3rd down incomplete: still CAR
+    (14, "home"),       # CAR punts: WSH gets it next
+    (15, "home"),       # a timeout (the punting team's) changes nothing
+    (16, "home"),       # WSH running
+    (27, "away"),       # WSH field goal: CAR gets the kickoff
+    (29, "away"),       # the kickoff: CAR receives
+    (8, "away"),        # CAR intercepted and returned for a touchdown: WSH kicks off, CAR has it again
+])
+def test_possession_follows_the_feed(upto, ball):
+    from feed import possession
+
+    assert possession(ENTRIES[: upto + 1], "32", "5") == ball
+
+
+def test_possession_is_unknown_without_teams():
+    from feed import possession
+
+    assert possession([], "32", "5") is None
+    assert possession(ENTRIES[:2], "99", "98") is None
+    assert possession([{"play": "Timeout at 09:38.", "teamID": "5"}], "32", "5") is None
+
+
+def test_the_game_says_who_has_the_ball(tmp_path):
+    async def scenario(rig: Rig):
+        await new_game_midway(rig, FIRST_PASS)
+        assert rig.ctrl._with_score(rig.game)["possession"] is None
+        await lock_entry(rig, FIRST_PASS)
+        await show_and_wait(rig, FIRST_PASS)
+        assert rig.ctrl._with_score(rig.game)["possession"] == "away"
+
+    run_rig(tmp_path, scenario)

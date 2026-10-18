@@ -69,6 +69,31 @@ AFTER_A_SCORE = {"down": 1, "distance": "10"}   # the next snap after a touchdow
 KICKS = {"punt": "Punt: no play", "field_goal": "Field goal try: no play"}
 _KICK_THEN_KICKOFF = re.compile(r"field goal is good|\btouchdown\b", re.IGNORECASE)
 _NO_PLAY_TEXT = re.compile(r"\bno play\b", re.IGNORECASE)
+# Entries whose team says nothing about who has the ball (a timeout is the calling team's, a try follows a score).
+_NOT_POSSESSION = {"", "empty", "timeout", "warning", "end_period", "coin_toss", "extra_point", "two_point"}
+
+
+def possession(entries: list[Any], home_id: Any, away_id: Any) -> str | None:
+    """Which team has the ball after the feed's newest entry: "home", "away" or None (not known).
+
+    Tank01 tags each entry with the team that had the ball when it started (the receiving team on a kickoff). After a
+    punt, a field goal try or a touchdown the other team gets it next (after a score, by the kickoff); an interception
+    turns it over too (a pick-six turns it over and back). Fumbles are not read: the next snap puts it right."""
+    home, away = str(home_id or "").strip(), str(away_id or "").strip()
+    for entry in reversed(entries):
+        if not isinstance(entry, dict):
+            continue
+        parsed = classify(entry)
+        team = str(entry.get("teamID") or "").strip()
+        if not team or parsed.reason in _NOT_POSSESSION:
+            continue
+        side = "home" if team == home else "away" if team == away else None
+        if side is None:
+            return None
+        kick = parsed.reason in KICKS and not _NO_PLAY_TEXT.search(parsed.text)
+        flip = (kick or parsed.touchdown) != (parsed.reason == "interception")
+        return ("away" if side == "home" else "home") if flip else side
+    return None
 LAG_SAMPLES = 5
 BASELINE_GAP = 2     # the feed this many plays ahead of the app game on first read means a late start
 DISTRUST_FEED_CHANGED = "The feed's list of plays changed earlier: check that this is the right play"
@@ -453,6 +478,7 @@ class LiveFeed:
         self.auto_open_at: float | None = None
         self.last_scored: dict[str, Any] | None = None
         self._score: dict[str, Any] | None = None           # {"home": 21, "away": 17, "at": when the feed said so}
+        self._possession: str | None = None                 # "home" or "away": who has the ball, as of the feed
         self._score_changed = False
         self._feed_clock: tuple[str, str, float] | None = None   # newest play's clock, live clock, and when it was read
         self._app_clock: str | None = None                  # the clock of the play the app is matched to
@@ -994,6 +1020,14 @@ class LiveFeed:
                 if not self._score or (self._score["home"], self._score["away"]) != (score["home"], score["away"]):
                     self._score_changed = True   # players are told when it moves (see _poll), not on every check
                 self._score = score
+            ball = possession(self.entries, body.get("teamIDHome"), body.get("teamIDAway"))
+            if ball != self._possession:
+                self._possession, self._score_changed = ball, True
+
+    @property
+    def possession(self) -> str | None:
+        """"home" or "away": the team with the ball as of the feed's last check (None when not known)."""
+        return self._possession
 
     @property
     def score(self) -> dict[str, Any] | None:
