@@ -439,3 +439,63 @@ def test_first_check_delay_is_clamped_between_3_and_45_seconds(tmp_path):
         assert rig.state()["waiting"]["next_check_at"] - rig.state()["waiting"]["since"] == pytest.approx(0.8 * 50.0)
 
     run_rig(tmp_path, scenario)
+
+
+# --------------------------------------------------------------------------- #
+# A punt or field goal on 4th down
+# --------------------------------------------------------------------------- #
+
+PUNT = 14   # "4th & 4 at CAR 41 J.Hekker punts 49 yards to WAS 10 ... fair catch"
+
+
+@pytest.mark.parametrize("entry, flag, opens", [
+    (PUNT, "Punt: no play", True),
+    (FG, "Field goal try: no play", False),        # a made field goal: the kickoff comes first
+])
+def test_a_fourth_down_kick_is_no_play_and_the_next_play_is_1st_and_10(tmp_path, entry, flag, opens):
+    async def scenario(rig: Rig):
+        await new_game_midway(rig, entry)
+        rig.ctrl.feed.set_options(auto_open=True)
+        await lock_entry(rig, entry)
+        await show_and_wait(rig, entry)
+        sug = rig.state()["suggestion"]
+        assert sug["status"] == "void" and sug["auto_at"] and sug["flags"] == [flag]
+        await rig.step(5)
+        play = rig.play(1)
+        assert play["state"] == "RESOLVED" and play["voided"] == 1 and play["resolved_by"] == "void"
+        if opens:   # auto-open (on here) opens the other team's 1st & 10 at once
+            nxt = rig.play()
+            assert nxt["play_number"] == 2 and nxt["state"] == "OPEN" and (nxt["down"], nxt["distance"]) == (1, "10")
+        else:
+            assert rig.state()["next_down"] == {"down": 1, "distance": "10"} and rig.state()["auto_open_at"] is None
+            await rig.step(60)
+            assert rig.play()["play_number"] == 1
+
+    run_rig(tmp_path, scenario)
+
+
+def test_a_kick_whose_down_does_not_match_waits_for_the_host_and_their_void_still_gives_1st_and_10(tmp_path):
+    async def scenario(rig: Rig):
+        await new_game_midway(rig, PUNT)
+        await rig.open_lock(4, "5")                     # the host typed 4th & 5: the feed says 4th & 4
+        await show_and_wait(rig, PUNT)
+        sug = rig.state()["suggestion"]
+        assert sug["status"] == "review" and sug["auto_at"] is None and sug["warning"]
+        await rig.step(30)
+        assert rig.play()["state"] == "LOCKED"           # never voided by itself
+        await rig.ctrl.void_play()
+        assert rig.state()["next_down"] == {"down": 1, "distance": "10"}
+
+    run_rig(tmp_path, scenario)
+
+
+def test_a_kick_the_host_never_opened_is_still_skipped(tmp_path):
+    async def scenario(rig: Rig):
+        await new_game_midway(rig, PUNT)
+        await lock_entry(rig, PUNT + 2)                  # the host skipped the punt (and a timeout): the next snap
+        await show_and_wait(rig, PUNT + 2)
+        sug = rig.state()["suggestion"]
+        assert sug["status"] == "ready" and "punts" not in sug.get("text", "")
+        assert any(r["kind"] == "skip" and r["data"]["reason"] == "punt" for r in rig.store.feed_log(rig.game["id"]))
+
+    run_rig(tmp_path, scenario)

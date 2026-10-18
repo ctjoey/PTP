@@ -30,7 +30,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import zlib
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Protocol
@@ -64,6 +64,11 @@ TWIN_TTL = 150.0
 SCHEDULE_CACHE_TTL = 300.0
 MAX_AUTO_OPEN_DOWN = 3
 AFTER_A_SCORE = {"down": 1, "distance": "10"}   # the next snap after a touchdown (extra point, kickoff)
+# A punt or field goal on 4th down is no play for the locked play, and the next snap is 1st & 10 (the other team's,
+# or after the kickoff that follows a made field goal or a return touchdown).
+KICKS = {"punt": "Punt: no play", "field_goal": "Field goal try: no play"}
+_KICK_THEN_KICKOFF = re.compile(r"field goal is good|\btouchdown\b", re.IGNORECASE)
+_NO_PLAY_TEXT = re.compile(r"\bno play\b", re.IGNORECASE)
 LAG_SAMPLES = 5
 BASELINE_GAP = 2     # the feed this many plays ahead of the app game on first read means a late start
 DISTRUST_FEED_CHANGED = "The feed's list of plays changed earlier: check that this is the right play"
@@ -1029,6 +1034,8 @@ class LiveFeed:
             idx = self.cursor
             entry = self.entries[idx]
             parsed = classify(entry)
+            if parsed.kind == "skip" and self._kick_for_waiting_play(entry, parsed, idx, catch_up):
+                parsed = self._kick_as_no_play(parsed)
             if parsed.kind == "skip":
                 self._log("skip", {"reason": parsed.reason, "text": parsed.text[:200]}, feed_index=idx)
                 self.cursor += 1
@@ -1075,6 +1082,28 @@ class LiveFeed:
             if nd and (latest is None or latest["state"] == PlayState.RESOLVED):
                 self.next_down = nd   # the situation the feed ended on: the form follows the game after a catch-up
         self._persist_cursor()
+
+    def _kick_for_waiting_play(self, entry: dict[str, Any], parsed: Parsed, idx: int, catch_up: bool) -> bool:
+        """A punt or field goal try snapped on 4th down while the host's 4th-down play waits for its result: that is
+        the waiting play, so it is no play rather than an entry to step over. Not a kick with a "No Play" penalty (the
+        down is replayed), nor during a catch-up past it."""
+        if parsed.reason not in KICKS or _NO_PLAY_TEXT.search(parsed.text):
+            return False
+        dd = parse_down_and_distance(entry.get("downAndDistance"))
+        if not dd or dd["down"] != 4 or not self.pending or self.pending[0].resolved or self.pending[0].down != 4:
+            return False   # the host opened something else: a kick they never opened is stepped over, as always
+        return not (catch_up and self._newest_play_index(idx + 1) is not None)
+
+    @staticmethod
+    def _kick_as_no_play(parsed: Parsed) -> Parsed:
+        return replace(parsed, kind="void", flags=[KICKS[parsed.reason]], touchdown=False)
+
+    @staticmethod
+    def _after_kick(sug: Suggestion | None) -> tuple[dict[str, Any], bool] | None:
+        """``(next down, may open by itself)`` after a 4th-down kick: always 1st & 10; never opened into a kickoff."""
+        if sug is None or sug.parsed.reason not in KICKS or sug.parsed.kind != "void":
+            return None
+        return dict(AFTER_A_SCORE), not _KICK_THEN_KICKOFF.search(sug.parsed.text)
 
     def _belongs_to_open_play(self, idx: int) -> bool:
         """With nothing locked, the newest scrimmage entry may be the result of the play the host has open but has not
@@ -1245,6 +1274,9 @@ class LiveFeed:
         scored = sug.parsed.touchdown   # after a score comes the extra point and a kickoff: the next snap is 1st & 10
         if scored:
             self.next_down, after_void = dict(AFTER_A_SCORE), None
+        if void and (kick := self._after_kick(sug)):
+            self.next_down, scored = kick[0], not kick[1]
+            after_void = self.next_down
         if void:
             summary = "No play (voided)"
         else:
@@ -1378,6 +1410,8 @@ class LiveFeed:
         scored = bool(had_entry and sug and sug.parsed.touchdown)
         if scored:
             self.next_down = dict(AFTER_A_SCORE)
+        if had_entry and (kick := self._after_kick(sug)):
+            self.next_down, scored = kick[0], not kick[1]
         # The host's Void moves the game on too, when the feed knew the play (never into a kickoff).
         self._schedule_open(self.next_down is not None and not scored)
         self._log("host_void", {"had_entry": had_entry}, play_id=play["id"])
