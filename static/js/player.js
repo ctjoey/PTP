@@ -217,6 +217,7 @@
     renderLoungeStrip(st.lounge);
     renderStage(st);
     renderMe(st, prev);
+    PTP.renderCalled($("#called-card"), $("#called"), $("#called-title"), st.called);
     renderBoard();
   }
 

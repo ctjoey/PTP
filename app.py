@@ -331,6 +331,7 @@ class _Snapshot:
     by_user: dict[int, dict[str, Any]]
     predictions: dict[int, dict[str, Any]]
     crowd: dict[str, int] | None
+    called: dict[str, int] | None
     totals: dict[int, int]
     lounges: dict[str, dict[str, Any] | None] = field(default_factory=dict)
 
@@ -680,6 +681,7 @@ class GameController:
             by_user={r["user_id"]: r for r in leaderboard},
             predictions=self.store.predictions_for_play(play["id"]) if play else {},
             crowd=crowd,
+            called=self.store.call_stats(game["id"]) if game else None,
             totals=self.store.total_scores(user_ids),
         )
 
@@ -730,6 +732,7 @@ class GameController:
             "leaderboard": snap.leaderboard[:LEADERBOARD_SIZE],
             "ranked_players": len(snap.leaderboard),
             "crowd": snap.crowd,
+            "called": snap.called,
             "lounge": self._lounge_view(snap, lounge_id) if lounge_id else None,
             "scoring": SCORING,
         }
@@ -746,6 +749,7 @@ class GameController:
             "game": self._with_score(game),
             "play": public_play(play),
             "pick_stats": self.store.pick_stats(play["id"]) if play else None,
+            "called": self.store.call_stats(game["id"]) if game else None,
             "players_online": signed_in,
             "spectators_online": len(self.hub.players) - signed_in,
             "admins_online": len(self.hub.admins),

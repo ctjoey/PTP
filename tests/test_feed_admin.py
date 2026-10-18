@@ -296,7 +296,7 @@ PLAYER_GAME_KEYS = {"id", "home_name", "home_primary", "home_secondary", "away_n
 PLAYER_PLAY_KEYS = {"id", "game_id", "play_number", "down", "distance", "state", "voided", "opened_at", "locks_at",
                     "correct_play_type", "correct_direction", "correct_yardage", "yards_gained"}
 PLAYER_MESSAGE_KEYS = {"type", "event", "server_time", "game", "play", "my_prediction", "me", "leaderboard",
-                       "ranked_players", "crowd", "lounge", "scoring"}
+                       "ranked_players", "crowd", "called", "lounge", "scoring"}
 
 
 def test_players_never_see_live_data_fields(tmp_path):
@@ -519,3 +519,27 @@ def test_settings_read_the_environment_with_safe_fallbacks(monkeypatch):
     assert d.tank01_allow_overage is False and (d.tank01_first_delay, d.tank01_fast_interval) == (5.0, 2.5)
     assert (d.tank01_auto_score_grace, d.tank01_open_delay, d.tank01_timeout) == (4.0, 0.0, 15.0)
     assert d.tank01_base_url == "https://tank01-nfl-live-in-game-real-time-statistics-nfl.p.rapidapi.com"
+
+
+def test_everyone_sees_how_the_game_was_really_called(tmp_path):
+    from app import ResolveIn
+    from tests.fakefeed import Rig, run_rig
+
+    async def scenario(rig: Rig):
+        await rig.new_game(None)
+        assert rig.ctrl.admin_message("sync")["called"]["total"] == 0
+        for t, d, yds in [("RUN", "LEFT", 3), ("PASS", "RIGHT", 22), ("RUN", "MIDDLE", -2)]:
+            await rig.open_lock()
+            await rig.ctrl.resolve_play(ResolveIn(play_type=t, direction=d, yards=yds))
+        await rig.open_lock()
+        await rig.ctrl.void_play()                 # a no-play does not count
+        await rig.open_lock()                       # nor a play still waiting for its result
+        called = rig.ctrl.admin_message("sync")["called"]
+        assert {k: called[k] for k in ("total", "RUN", "PASS", "LEFT", "MIDDLE", "RIGHT", "SHORT", "MEDIUM", "LONG",
+                                       "LOSS")} == {
+            "total": 3, "RUN": 2, "PASS": 1, "LEFT": 1, "MIDDLE": 1, "RIGHT": 1, "SHORT": 1, "MEDIUM": 0, "LONG": 1,
+            "LOSS": 1}
+        snap = rig.ctrl._snapshot([])
+        assert rig.ctrl.player_message(snap, None, None, "sync")["called"] == called   # players see the same
+
+    run_rig(tmp_path, scenario)

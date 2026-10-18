@@ -1169,6 +1169,26 @@ class Store:
         )
         return row or {}
 
+    def call_stats(self, game_id: int) -> dict[str, int]:
+        """How the real offense called this game so far: every scored play that was not voided, by type, direction and
+        distance (``LOSS``: lost yards). Shown to everyone beside the live picks."""
+        row = self._one(
+            """SELECT COUNT(id) AS total,
+                      COALESCE(SUM(correct_play_type = 'RUN'), 0)    AS "RUN",
+                      COALESCE(SUM(correct_play_type = 'PASS'), 0)   AS "PASS",
+                      COALESCE(SUM(correct_direction = 'LEFT'), 0)   AS "LEFT",
+                      COALESCE(SUM(correct_direction = 'MIDDLE'), 0) AS "MIDDLE",
+                      COALESCE(SUM(correct_direction = 'RIGHT'), 0)  AS "RIGHT",
+                      COALESCE(SUM(correct_yardage = 'SHORT'), 0)    AS "SHORT",
+                      COALESCE(SUM(correct_yardage = 'MEDIUM'), 0)   AS "MEDIUM",
+                      COALESCE(SUM(correct_yardage = 'LONG'), 0)     AS "LONG",
+                      COALESCE(SUM(correct_yardage = 'LOSS'), 0)     AS "LOSS"
+               FROM plays
+               WHERE game_id = ? AND state = 'RESOLVED' AND NOT voided AND correct_play_type IS NOT NULL""",
+            (game_id,),
+        )
+        return row or {}
+
     # -- leaderboards ----------------------------------------------------- #
 
     def game_leaderboard(self, game_id: int) -> list[dict[str, Any]]:

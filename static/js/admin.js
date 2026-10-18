@@ -198,6 +198,7 @@
     $("#kpi-online").textContent = String(st.players_online);
     $("#kpi-ranked").textContent = String(st.ranked_players);
     PTP.crowdBars($("#admin-crowd"), stats, ["RUN", "PASS", "LEFT", "MIDDLE", "RIGHT", "SHORT", "MEDIUM", "LONG"]);
+    PTP.renderCalled($("#admin-called-card"), $("#admin-called"), $("#admin-called-title"), st.called);
 
     renderBoard(st.leaderboard);
     renderHistory(st.history);

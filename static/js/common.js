@@ -302,6 +302,23 @@ const PTP = (() => {
     });
   }
 
+  /** "Called this game": how the real offense called its scored plays so far (not the players' picks).
+   *  Fills ``container`` with three groups of bars; hides ``box`` until a play has been scored. */
+  function renderCalled(box, container, title, called) {
+    if (!box) return;
+    const total = (called && called.total) || 0;
+    box.hidden = !total;
+    if (!total) return;
+    if (title) title.textContent = `Called this game · ${total} ${total === 1 ? "play" : "plays"}`;
+    if (!container.children.length) {
+      container.append(el("div", { class: "crowd" }), el("div", { class: "crowd" }), el("div", { class: "crowd" }));
+    }
+    const [types, dirs, yards] = container.children;
+    crowdBars(types, called, ["RUN", "PASS"]);
+    crowdBars(dirs, called, ["LEFT", "MIDDLE", "RIGHT"]);
+    crowdBars(yards, called, called.LOSS ? ["SHORT", "MEDIUM", "LONG", "LOSS"] : ["SHORT", "MEDIUM", "LONG"]);
+  }
+
   // ------------------------------------------------------------ light / dark theme
   // base.html applies the saved choice before first paint; this wires the toggle buttons
   // (every page header has one), saves the choice and keeps the browser chrome color in step.
@@ -345,7 +362,7 @@ const PTP = (() => {
 
   return {
     $, $$, el, toast, api, LiveSocket, now, syncClock, theme,
-    ordinal, downDistance, teamAbbr, inkFor, applyTeamColors, renderScorebug, paintScoreAge, pct, crowdBars,
+    ordinal, downDistance, teamAbbr, inkFor, applyTeamColors, renderScorebug, paintScoreAge, pct, crowdBars, renderCalled,
     YARDAGE_RANGE, bucketForYards, yardsText, titleCase, describeResult,
   };
 })();
